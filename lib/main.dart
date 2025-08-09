@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rider_delivery/SplashScreens/SplashScreen.dart';
 import 'package:rider_delivery/pages/Chat.dart';
+import 'package:rider_delivery/pages/GoCustomer.dart';
 import 'package:rider_delivery/pages/GoRestaurant.dart';
 import 'package:rider_delivery/pages/Home.dart';
 import 'package:rider_delivery/pages/JobStart.dart';
@@ -25,6 +26,7 @@ class MyApp extends StatelessWidget {
         '/jobStart': (_) => const JobStartPage(),
         '/GoRestaurant': (_) => GoRestaurant(), // Adjust this route as needed
         '/chat': (_) => const Chat(),
+        '/goCustomer': (_) => const GoCustomer(),
       },
       debugShowCheckedModeBanner: false,
     );

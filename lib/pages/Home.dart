@@ -52,11 +52,27 @@ class HomePage extends StatelessWidget {
             // Earnings Card
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Card(
-                shape: RoundedRectangleBorder(
+              // child: Card(
+              //   shadowColor: Colors.grey.withOpacity(0.9),
+              //   elevation: 5, // เพิ่มความสูงของเงา
+              //   surfaceTintColor: Colors.transparent, // ป้องกันสี overlay
+              //   color: Colors.white,
+              //   shape: RoundedRectangleBorder(
+              //     borderRadius: BorderRadius.circular(16),
+              //   ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.3), // สีเงา
+                      blurRadius: 12, // ความฟุ้งของเงา
+                      spreadRadius: 4, // การกระจายของเงา
+                      offset: Offset(0, 4), // ย้ายเงา (0,0) = รอบด้าน
+                    ),
+                  ],
                 ),
-                elevation: 0.5,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     vertical: 20,
