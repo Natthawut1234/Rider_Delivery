@@ -4,7 +4,10 @@ import 'package:rider_delivery/pages/Chat.dart';
 import 'package:rider_delivery/pages/GoCustomer.dart';
 import 'package:rider_delivery/pages/GoRestaurant.dart';
 import 'package:rider_delivery/pages/Home.dart';
+import 'package:rider_delivery/pages/Income.dart';
 import 'package:rider_delivery/pages/JobStart.dart';
+import 'package:rider_delivery/pages/Jobs.dart';
+import 'package:rider_delivery/pages/Trip.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +30,9 @@ class MyApp extends StatelessWidget {
         '/GoRestaurant': (_) => GoRestaurant(), // Adjust this route as needed
         '/chat': (_) => const Chat(),
         '/goCustomer': (_) => const GoCustomer(),
+        '/income': (_) => IncomePage(),
+        '/trip': (_) => const TripPage(),
+        '/jobs': (_) => const JobsPage(),
       },
       debugShowCheckedModeBanner: false,
     );

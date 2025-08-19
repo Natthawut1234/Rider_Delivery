@@ -138,6 +138,20 @@ class _ChatState extends State<Chat> {
       appBar: AppBar(
         title: const Text('แชทกับลูกค้า'),
         backgroundColor: Colors.green,
+
+        // ปุ่มโทรศัพท์
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            child: IconButton(
+              icon: const Icon(Icons.phone),
+              onPressed: () {
+                // เพิ่มฟังก์ชันโทรศัพท์ที่นี่
+                // เช่น: launch('tel:0123456789');
+              },
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
