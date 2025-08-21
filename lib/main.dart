@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:rider_delivery/SplashScreens/SplashScreen.dart';
 import 'package:rider_delivery/pages/Chat.dart';
 import 'package:rider_delivery/pages/GoCustomer.dart';
+import 'package:rider_delivery/pages/DeliveryConfirm.dart';
 import 'package:rider_delivery/pages/GoRestaurant.dart';
 import 'package:rider_delivery/pages/Home/Home.dart';
 import 'package:rider_delivery/pages/Home/Income.dart';
@@ -32,6 +33,7 @@ class MyApp extends StatelessWidget {
         '/GoRestaurant': (_) => GoRestaurant(), // Adjust this route as needed
         '/chat': (_) => const Chat(),
         '/goCustomer': (_) => const GoCustomer(),
+        '/deliveryConfirm': (_) => const DeliveryConfirmPage(),
         '/income': (_) => IncomePage(),
         '/trip': (_) => const TripPage(),
         '/jobs': (_) => const JobsPage(),

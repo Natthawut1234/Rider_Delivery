@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 
-class GoCustomer extends StatelessWidget {
+class GoCustomer extends StatefulWidget {
   const GoCustomer({super.key});
+
+  @override
+  State<GoCustomer> createState() => _GoCustomerState();
+}
+
+class _GoCustomerState extends State<GoCustomer> {
+  bool _photoConfirmed =
+      false; // becomes true after DeliveryConfirm returns true
 
   void _showOrderDetailsDialog(
     BuildContext context,
@@ -183,6 +191,87 @@ class GoCustomer extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _openDeliveryConfirm() async {
+    // ให้ผู้ขับกดยืนยันว่ามาถึงที่หมายก่อนจะไปหน้าถ่ายรูปยืนยันการส่ง
+    final arrived = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('ยืนยันการถึงจุดจัดส่ง'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Text(
+            'คุณต้องการเดินทางไปยังร้านอาหารใช่หรือไม่?',
+            style: TextStyle(fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(false),
+            isDefaultAction: false,
+            child: const Text('ยกเลิก'),
+            textStyle: TextStyle(color: Colors.black),
+          ),
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(true),
+            isDefaultAction: true,
+            child: const Text('ยืนยัน'),
+            textStyle: TextStyle(color: Colors.black),
+          ),
+        ],
+      ),
+    );
+
+    // หากกดยืนยัน ให้ไปหน้าถ่ายรูปยืนยันการส่ง และอัปเดตสถานะเมื่อได้ผลลัพธ์เป็น true
+    if (arrived == true) {
+      final result = await Navigator.pushNamed(context, '/deliveryConfirm');
+      if (result == true) {
+        setState(() => _photoConfirmed = true);
+      }
+    }
+  }
+
+  void _confirmDeliveryFinal() {
+    showDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('ยืนยันการส่ง'),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8.0),
+          child: Text('คุณต้องการยืนยันการส่งให้ลูกค้าหรือไม่?'),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            isDefaultAction: false,
+            child: const Text('ยกเลิก'),
+            textStyle: TextStyle(color: Colors.black),
+          ),
+          CupertinoDialogAction(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('ยืนยันการส่งเรียบร้อย รอก่อนนะยังทำไม่แล้ว'),
+                ),
+              );
+              // Navigator.pop(context); // close dialog
+              // ScaffoldMessenger.of(context).showSnackBar(
+              //   const SnackBar(content: Text('ยืนยันการส่งเรียบร้อย')),
+              // );
+              Navigator.pop(
+                context,
+              ); // go back to previous screen (e.g., job list)
+            },
+            isDefaultAction: true,
+            child: const Text('ยืนยัน'),
+            textStyle: TextStyle(color: Colors.black),
+          ),
+        ],
       ),
     );
   }
@@ -549,50 +638,56 @@ class GoCustomer extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Container(
-                    height: 160,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
+                  // Map is only shown before the delivery photo is confirmed
+                  if (!_photoConfirmed)
+                    Container(
+                      height: 160,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Center(child: Text('Map Placeholder')),
                     ),
-                    child: const Center(child: Text('Map Placeholder')),
-                  ),
                 ],
               ),
             ),
 
             const SizedBox(height: 16),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+            if (!_photoConfirmed)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      spreadRadius: 1,
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'คำแนะนำ',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'คุณจะไปถึงลูกค้าประมาณ 5 นาที',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'คำแนะนำ',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'คุณจะไปถึงลูกค้าประมาณ 5 นาที',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
             const SizedBox(height: 90), // space for bottom button
           ],
         ),
@@ -610,61 +705,60 @@ class GoCustomer extends StatelessWidget {
               ),
             ],
           ),
-          child: SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => CupertinoAlertDialog(
-                    title: const Text('ยืนยันถึงจุดจัดส่ง'),
-                    content: Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: const Text(
-                        'คุณถึงจุดจัดส่งแล้วใช่หรือไม่?',
-                        style: TextStyle(fontSize: 14),
-                        textAlign: TextAlign.center,
-                      ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'รับเงินจากลูกค้า',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
                     ),
-                    actions: [
-                      CupertinoDialogAction(
-                        onPressed: () => Navigator.pop(context),
-                        isDefaultAction: false,
-                        child: const Text('ยกเลิก'),
-                        textStyle: TextStyle(color: Colors.black),
-                      ),
-                      CupertinoDialogAction(
-                        onPressed: () {
-                          // Navigator.pop(context);
-                          Navigator.pop(
-                            context,
-                          ); // กลับหน้าก่อนหน้า หรือไปหน้าถัดไปที่คุณต้องการ
-                        },
-                        isDefaultAction: true,
-                        child: const Text('ยืนยัน'),
-                        textStyle: TextStyle(color: Colors.black),
-                      ),
-                    ],
                   ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                elevation: 2,
+                  const Text(
+                    '\$75',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
               ),
-              child: const Text(
-                'ยืนยันถึงจุดจัดส่ง',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (!_photoConfirmed) {
+                      await _openDeliveryConfirm();
+                    } else {
+                      _confirmDeliveryFinal();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    elevation: 2,
+                  ),
+                  child: Text(
+                    !_photoConfirmed ? 'ยืนยันถึงจุดจัดส่ง' : 'ยืนยันการส่ง',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),
