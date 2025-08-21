@@ -27,7 +27,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('โปรไฟล์ ไรเดอร์'),
-        backgroundColor: Colors.blueGrey[900], // เปลี่ยนสี AppBar
+        backgroundColor: Colors.green[600], // เปลี่ยนสี AppBar
         elevation: 0,
         actions: [
           IconButton(
