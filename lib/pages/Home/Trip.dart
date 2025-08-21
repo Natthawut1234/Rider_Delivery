@@ -340,7 +340,7 @@ class _TripPageState extends State<TripPage> {
                             const Duration(days: 365 * 2),
                           ),
                         );
-                        if (picked != null)
+                        if (picked != null) {
                           setState(
                             () => selectedDate = DateTime(
                               picked.year,
@@ -348,6 +348,7 @@ class _TripPageState extends State<TripPage> {
                               1,
                             ),
                           );
+                        }
                       } else {
                         await _pickDate();
                       }

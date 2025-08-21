@@ -188,7 +188,7 @@ class _IncomePageState extends State<IncomePage> {
                             const Duration(days: 365 * 2),
                           ),
                         );
-                        if (picked != null)
+                        if (picked != null) {
                           setState(
                             () => selectedDate = DateTime(
                               picked.year,
@@ -196,6 +196,7 @@ class _IncomePageState extends State<IncomePage> {
                               1,
                             ),
                           );
+                        }
                       } else {
                         await _pickDate();
                       }

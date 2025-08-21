@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'JobStart.dart';
+import '../JobStart.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -14,39 +14,45 @@ class HomePage extends StatelessWidget {
             // Profile & Greeting
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                children: [
-                  // Profile picture
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundImage: AssetImage(
-                      'assets/avatars/avatar-4.png',
-                    ), // Replace with your asset
-                  ),
-                  const SizedBox(width: 16),
-                  // Greeting and name
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'สวัสดี',
-                          style: TextStyle(fontSize: 16, color: Colors.grey),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'จอห์น วิค',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  Navigator.pushNamed(context, '/profile');
+                },
+                child: Row(
+                  children: [
+                    // Profile picture
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundImage: AssetImage(
+                        'assets/avatars/avatar-4.png',
+                      ), // Replace with your asset
                     ),
-                  ),
-                  // Arrow icon
-                  Icon(Icons.chevron_right, color: Colors.grey, size: 28),
-                ],
+                    const SizedBox(width: 16),
+                    // Greeting and name
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'สวัสดี',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'จอห์น วิค',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Arrow icon
+                    Icon(Icons.chevron_right, color: Colors.grey, size: 28),
+                  ],
+                ),
               ),
             ),
             // Earnings Card
@@ -312,20 +318,37 @@ class HomePage extends StatelessWidget {
                               ),
                             ],
                           ),
+
                           // Rating
                           Column(
                             children: [
-                              Icon(Icons.star, color: Colors.orange, size: 24),
-                              const SizedBox(height: 4),
-                              Text(
-                                '4.5',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                'ดูรีวิวทั้งหมด',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
+                              InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () {
+                                  Navigator.pushNamed(context, '/riderReview');
+                                },
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.star,
+                                      color: Colors.orange,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '4.5',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      'ดูรีวิวทั้งหมด',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
