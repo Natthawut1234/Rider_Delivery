@@ -14,7 +14,7 @@ class JobStartPage extends StatelessWidget {
         'shopPayColor': Colors.blue,
         'shopPayAmount': '\$50',
         'earn': '\$22',
-        'bonus': '\$5',
+        'bonus': '\$0',
         'pickupTitle': 'ไปร้าน 0.25 กม.',
         'pickupDetail':
             'ร้าน ผญ.โซ้\n9/99 ซอยอาชัย ถนนแดง เชียงเครือ เมืองสกลนคร สกลนคร',
@@ -317,7 +317,7 @@ class JobStartPage extends StatelessWidget {
                                 ),
                               ),
                               onPressed: () {
-                                Navigator.pushNamed(context, '/GoRestaurant',);
+                                Navigator.pushNamed(context, '/GoRestaurant');
                               },
                               child: const Text(
                                 'รับงานนี้',

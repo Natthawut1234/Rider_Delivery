@@ -13,12 +13,14 @@ class _GoRestaurantState extends State<GoRestaurant> {
   // ตัวอย่างรายการอาหาร
   final List<Map<String, dynamic>> orderItems = [
     {
+      'orderNumber': '000001', // หมายเลขออเดอร์
       'name': 'ข้าวผัดกระเพราไก่',
       'option': 'พิเศษ, ไข่ดาว, ไม่ใส่พริก',
       'description': 'ขอน้ำปลาพริกแยก',
       'quantity': 'x2',
     },
     {
+      'orderNumber': '000002', // หมายเลขออเดอร์
       'name': 'ส้มตำไทย',
       'option': 'ไม่ใส่ถั่ว, เผ็ดน้อย',
       'description': '',
@@ -92,16 +94,30 @@ class _GoRestaurantState extends State<GoRestaurant> {
                     bottom: BorderSide(color: Colors.grey.shade200),
                   ),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.restaurant, color: Colors.grey[700], size: 24),
-                    const SizedBox(width: 12),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.restaurant,
+                          color: Colors.grey[700],
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'ร้าน ผญ.โซ้',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
                     Text(
-                      'ร้าน ผญ.โซ้',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      'หมายเลขออเดอร์: ${orderItems.isNotEmpty ? orderItems.first['orderNumber'] : ''}',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     ),
                   ],
                 ),
@@ -337,6 +353,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
                   'note1': 'แขวน/วางไว้จุดที่ระบุ',
                   'note2': 'เพิ่มเติม: วางไว้บนหลังตาหลอเลยครับ',
                   'orderItems': orderItems,
+                  'orderNumber': orderItems.isNotEmpty
+                      ? orderItems.first['orderNumber']
+                      : null,
                 },
               );
             },
@@ -645,6 +664,12 @@ class _GoRestaurantState extends State<GoRestaurant> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // หมายเลขออเดอร์
+                    Text(
+                      'หมายเลขออเดอร์: ${orderItems.isNotEmpty ? orderItems.first['orderNumber'] : ''}',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                    ),
+                    SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [

@@ -19,6 +19,11 @@ class _GoCustomerState extends State<GoCustomer> {
     final List<Map<String, dynamic>> items = List<Map<String, dynamic>>.from(
       data['orderItems'] ?? [],
     );
+    final orderNumber =
+        data['orderNumber'] ??
+        ((data['orderItems'] is List && (data['orderItems'] as List).isNotEmpty)
+            ? (data['orderItems'][0]['orderNumber'] ?? '-')
+            : '-');
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -78,16 +83,30 @@ class _GoCustomerState extends State<GoCustomer> {
                     bottom: BorderSide(color: Colors.grey.shade200),
                   ),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.restaurant, color: Colors.grey[700], size: 24),
-                    const SizedBox(width: 12),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.restaurant,
+                          color: Colors.grey[700],
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          data['restaurantName'] ?? '-',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
                     Text(
-                      data['restaurantName'] ?? '-',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      'หมายเลขออเดอร์: $orderNumber',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     ),
                   ],
                 ),
@@ -201,7 +220,14 @@ class _GoCustomerState extends State<GoCustomer> {
       context: context,
       barrierDismissible: true,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('ยืนยันการถึงจุดจัดส่ง'),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.location_on, color: Colors.green, size: 28),
+            const SizedBox(height: 8),
+            const Text('ยืนยันการถึงจุดจัดส่ง'),
+          ],
+        ),
         content: Padding(
           padding: const EdgeInsets.only(top: 8.0),
           child: Text(
@@ -236,14 +262,29 @@ class _GoCustomerState extends State<GoCustomer> {
     }
   }
 
-  void _confirmDeliveryFinal() {
+  void _confirmDeliveryFinal(Map<String, dynamic> data) {
     showDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('ยืนยันการส่ง'),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.check_circle_outline,
+              color: Colors.green,
+              size: 28,
+            ),
+            const SizedBox(height: 8),
+            const Text('ยืนยันการจัดส่งและรับเงิน'),
+          ],
+        ),
         content: const Padding(
           padding: EdgeInsets.only(top: 8.0),
-          child: Text('คุณต้องการยืนยันการส่งให้ลูกค้าหรือไม่?'),
+          child: Text(
+            'คุณต้องการยืนยันการจัดส่งและรับเงินจากลูกค้าหรือไม่?',
+            style: TextStyle(fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
         ),
         actions: [
           CupertinoDialogAction(
@@ -254,18 +295,13 @@ class _GoCustomerState extends State<GoCustomer> {
           ),
           CupertinoDialogAction(
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('ยืนยันการส่งเรียบร้อย รอก่อนนะยังทำไม่แล้ว'),
-                ),
-              );
-              // Navigator.pop(context); // close dialog
-              // ScaffoldMessenger.of(context).showSnackBar(
-              //   const SnackBar(content: Text('ยืนยันการส่งเรียบร้อย')),
-              // );
-              Navigator.pop(
+              Navigator.pop(context); // close dialog
+              // Navigate to completion screen with order data
+              Navigator.pushReplacementNamed(
                 context,
-              ); // go back to previous screen (e.g., job list)
+                '/deliveryCompleted',
+                arguments: data,
+              );
             },
             isDefaultAction: true,
             child: const Text('ยืนยัน'),
@@ -738,7 +774,7 @@ class _GoCustomerState extends State<GoCustomer> {
                     if (!_photoConfirmed) {
                       await _openDeliveryConfirm();
                     } else {
-                      _confirmDeliveryFinal();
+                      _confirmDeliveryFinal(data);
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -749,7 +785,9 @@ class _GoCustomerState extends State<GoCustomer> {
                     elevation: 2,
                   ),
                   child: Text(
-                    !_photoConfirmed ? 'ยืนยันถึงจุดจัดส่ง' : 'ยืนยันการส่ง',
+                    !_photoConfirmed
+                        ? 'ยืนยันถึงจุดจัดส่ง'
+                        : 'ยืนยันการจัดส่งและรับเงิน',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rider_delivery/SplashScreens/SplashScreen.dart';
 import 'package:rider_delivery/pages/Chat.dart';
+import 'package:rider_delivery/pages/DeliveryCompleted.dart';
 import 'package:rider_delivery/pages/GoCustomer.dart';
 import 'package:rider_delivery/pages/DeliveryConfirm.dart';
 import 'package:rider_delivery/pages/GoRestaurant.dart';
@@ -39,6 +40,7 @@ class MyApp extends StatelessWidget {
         '/jobs': (_) => const JobsPage(),
         '/riderReview': (_) => RiderReviewPage(),
         '/profile': (_) => ProfilePage(),
+        '/deliveryCompleted': (_) => const DeliveryCompletedPage(),
       },
       debugShowCheckedModeBanner: false,
     );

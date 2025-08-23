@@ -34,16 +34,51 @@ class _DeliveryConfirmPageState extends State<DeliveryConfirmPage> {
 
   void _submit() {
     if (_pickedImage == null) {
+      // action close
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.camera_alt, color: Colors.white),
-              SizedBox(width: 8),
-              Text('กรุณาถ่ายรูปก่อนส่งยืนยัน'),
-            ],
+        SnackBar(
+          // ทำให้ SnackBar ลอยขึ้นมาจากการ์ดด้านล่าง
+          behavior: SnackBarBehavior.floating,
+          // กำหนดระยะห่างจากขอบจอ
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          // ทำให้ขอบมน
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-          backgroundColor: Colors.redAccent,
+          // สีพื้นหลังที่สื่อถึงการแจ้งเตือน (Error)
+          backgroundColor: Colors.red.shade700,
+          // กำหนดระยะเวลาที่แสดง
+          duration: const Duration(seconds: 3),
+
+          content: GestureDetector(
+            behavior: HitTestBehavior
+                .opaque, // ให้ GestureDetector จับการสัมผัสได้ทั่วทั้ง SnackBar
+            onTap: () {
+              // ปิด SnackBar เมื่อถูกแตะ
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+            child: Row(
+              children: const [
+                Icon(
+                  Icons.error_outline,
+                  color: Colors.white,
+                  size: 28,
+                ), // เปลี่ยนไอคอนให้สื่อถึง Error
+                SizedBox(width: 12),
+                Expanded(
+                  // ใช้ Expanded เพื่อให้ Text ตัดคำได้สวยงามถ้าขนาดยาวเกิน
+                  child: Text(
+                    'กรุณาถ่ายรูปก่อน',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
       return;
@@ -53,6 +88,55 @@ class _DeliveryConfirmPageState extends State<DeliveryConfirmPage> {
     Future.delayed(const Duration(seconds: 1), () {
       Navigator.pop(context, true);
     });
+  }
+
+  // confirm delivery
+  void _confirmDelivery() {
+    showDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.check_circle_outline,
+              color: Colors.green,
+              size: 28,
+            ),
+            const Text('ยืนยันการจัดส่ง'),
+          ],
+        ),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Text(
+            'คุณต้องการยืนยันการจัดส่งใช่หรือไม่?',
+            style: TextStyle(fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        actions: [
+          // Cancel button keep left
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            isDefaultAction: false,
+            child: const Text('ยกเลิก'),
+            textStyle: TextStyle(color: Colors.black),
+          ),
+          CupertinoDialogAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _submit();
+            },
+            isDestructiveAction: true,
+            child: const Text('ยืนยัน'),
+            textStyle: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -286,7 +370,7 @@ class _DeliveryConfirmPageState extends State<DeliveryConfirmPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _submit,
+                onPressed: _confirmDelivery,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green.shade800,
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -304,6 +388,7 @@ class _DeliveryConfirmPageState extends State<DeliveryConfirmPage> {
                 ),
               ),
             ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
