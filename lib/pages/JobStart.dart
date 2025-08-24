@@ -12,40 +12,43 @@ class JobStartPage extends StatelessWidget {
         'payTypeColor': Colors.green,
         'shopPay': 'จ่ายให้ร้าน',
         'shopPayColor': Colors.blue,
-        'shopPayAmount': '\$50',
-        'earn': '\$22',
-        'bonus': '\$0',
+        'shopPayAmount': 50,
+        'earn': 22,
+        'bonus': 0,
         'pickupTitle': 'ไปร้าน 0.25 กม.',
-        'pickupDetail':
-            'ร้าน ผญ.โซ้\n9/99 ซอยอาชัย ถนนแดง เชียงเครือ เมืองสกลนคร สกลนคร',
-        'dropoffTitle': 'หอ',
-        'dropoffDetail': '2/22 ซอยอาชัย ถนนแดง เชียงเครือ เมืองสกลนคร สกลนคร',
+        'restaurantName': 'ร้าน ผญ.โซ้',
+        'restaurantAddress':
+            '9/99 ซอยอาชัย ถนนแดง เชียงเครือ เมืองสกลนคร สกลนคร',
+        'titleCustomerAddress': 'หอ',
+        'customerAddress': '2/22 ซอยอาชัย ถนนแดง เชียงเครือ เมืองสกลนคร สกลนคร',
       },
       {
-        'payType': 'เงินสด',
+        'payType': 'เงินโอน',
         'payTypeColor': Colors.green,
         'shopPay': 'จ่ายให้ร้าน',
         'shopPayColor': Colors.blue,
-        'shopPayAmount': '\$40',
-        'earn': '\$18',
-        'bonus': '\$3',
+        'shopPayAmount': 40,
+        'earn': 18,
+        'bonus': 3,
         'pickupTitle': 'ไปคาเฟ่ 0.5 กม.',
-        'pickupDetail': 'คาเฟ่บ้านสวน\n123/1 ถนนสุขใจ เมืองสกลนคร สกลนคร',
-        'dropoffTitle': 'บ้านลูกค้า',
-        'dropoffDetail': '88/8 ถนนสุขใจ เมืองสกลนคร สกลนคร',
+        'restaurantName': 'คาเฟ่บ้านสวน',
+        'restaurantAddress': '123/1 ถนนสุขใจ เมืองสกลนคร สกลนคร',
+        'titleCustomerAddress': 'บ้านลูกค้า',
+        'customerAddress': '88/8 ถนนสุขใจ เมืองสกลนคร สกลนคร',
       },
       {
         'payType': 'เงินสด',
         'payTypeColor': Colors.green,
         'shopPay': 'จ่ายให้ร้าน',
         'shopPayColor': Colors.blue,
-        'shopPayAmount': '\$60',
-        'earn': '\$25',
-        'bonus': '\$7',
+        'shopPayAmount': 60,
+        'earn': 25,
+        'bonus': 7,
         'pickupTitle': 'ไปตลาด 1.2 กม.',
-        'pickupDetail': 'ตลาดสดเทศบาล\n456/7 ถนนตลาด เมืองสกลนคร สกลนคร',
-        'dropoffTitle': 'อพาร์ทเมนท์',
-        'dropoffDetail': '12/34 ถนนตลาด เมืองสกลนคร สกลนคร',
+        'restaurantName': 'ตลาดสดเทศบาล',
+        'restaurantAddress': '456/7 ถนนตลาด เมืองสกลนคร สกลนคร',
+        'titleCustomerAddress': 'อพาร์ทเมนท์',
+        'customerAddress': '12/34 ถนนตลาด เมืองสกลนคร สกลนคร',
       },
     ];
 
@@ -177,7 +180,8 @@ class JobStartPage extends StatelessWidget {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                job['shopPayAmount']! as String,
+                                // job['shopPayAmount']! as String,
+                                '฿${job['shopPayAmount']}',
                                 style: TextStyle(
                                   color: job['shopPayColor'] as Color,
                                   fontWeight: FontWeight.bold,
@@ -198,7 +202,8 @@ class JobStartPage extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                job['earn']! as String,
+                                // job['earn']! as String,
+                                '฿${job['earn']}',
                                 style: const TextStyle(
                                   color: Colors.green,
                                   fontWeight: FontWeight.bold,
@@ -222,7 +227,8 @@ class JobStartPage extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                job['bonus']! as String,
+                                // job['bonus']! as String,
+                                '฿${job['bonus']}',
                                 style: const TextStyle(
                                   color: Colors.red,
                                   fontWeight: FontWeight.bold,
@@ -263,7 +269,11 @@ class JobStartPage extends StatelessWidget {
                                       ),
                                     ),
                                     Text(
-                                      job['pickupDetail']! as String,
+                                      job['restaurantName']! as String,
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                    Text(
+                                      job['restaurantAddress']! as String,
                                       style: const TextStyle(fontSize: 14),
                                     ),
                                   ],
@@ -296,7 +306,7 @@ class JobStartPage extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '${job['dropoffTitle']}\n${job['dropoffDetail']}',
+                                      '${job['titleCustomerAddress']}\n${job['customerAddress']}',
                                       style: const TextStyle(fontSize: 14),
                                     ),
                                   ],
@@ -317,7 +327,16 @@ class JobStartPage extends StatelessWidget {
                                 ),
                               ),
                               onPressed: () {
-                                Navigator.pushNamed(context, '/GoRestaurant');
+                                // ส่งข้อมูลงานที่เลือกไปยังหน้า GoRestaurant
+                                Navigator.pushNamed(
+                                  context,
+                                  '/GoRestaurant',
+                                  arguments: {
+                                    'job': job, // job เดียวที่ผู้ใช้กดรับ
+                                    'jobs': jobs, // (ถ้าต้องการทั้งรายการ)
+                                    'index': jobs.indexOf(job),
+                                  },
+                                );
                               },
                               child: const Text(
                                 'รับงานนี้',

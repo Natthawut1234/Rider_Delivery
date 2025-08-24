@@ -318,11 +318,27 @@ class _GoCustomerState extends State<GoCustomer> {
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final data = args ?? {};
 
-    final restaurantName = data['restaurantName'] ?? 'ร้านอาหาร';
-    final customerName = data['customerName'] ?? 'ลูกค้า';
+    // final payType = data['payType'] ?? '-';
+    final restaurantName = data['restaurantName'] ?? '-';
+    // final restaurantAddress = data['restaurantAddress'] ?? '-';
+    final customerName = data['customerName'] ?? '-';
+    final titleCustomerAddress = data['titleCustomerAddress'] ?? '-';
     final customerAddress = data['customerAddress'] ?? '-';
-    final note1 = data['note1'] ?? 'แขวน/วางไว้จุดที่ระบุ';
+    final note1 = data['note1'] ?? 'แขวน/วางไว้จุดที่ระบุ: -';
     final note2 = data['note2'] ?? 'เพิ่มเติม: -';
+
+    // เพิ่มการคำนวณยอดที่รับจากลูกค้า: รายรับ (earn) + จ่ายให้ร้าน (payAtShop) + โบนัส (bonus)
+    final double earn = (data['earn'] is num)
+        ? (data['earn'] as num).toDouble()
+        : double.tryParse('${data['earn']}') ?? 0.0;
+    final double payAtShopAmount = (data['payAtShop'] is num)
+        ? (data['payAtShop'] as num).toDouble()
+        : double.tryParse('${data['payAtShop']}') ?? 0.0;
+    final double bonus = (data['bonus'] is num)
+        ? (data['bonus'] as num).toDouble()
+        : double.tryParse('${data['bonus']}') ?? 0.0;
+
+    final double totalReceived = earn + payAtShopAmount + bonus;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -370,7 +386,7 @@ class _GoCustomerState extends State<GoCustomer> {
                 children: [
                   Expanded(
                     child: Column(
-                      children: const [
+                      children: [
                         Text(
                           '1. ไปร้าน',
                           style: TextStyle(
@@ -381,7 +397,7 @@ class _GoCustomerState extends State<GoCustomer> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'ครัวตามใจ',
+                          restaurantName,
                           style: TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],
@@ -607,20 +623,34 @@ class _GoCustomerState extends State<GoCustomer> {
                   ),
                   const SizedBox(height: 4),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Icon(
                         Icons.location_on,
                         size: 16,
-                        color: Colors.grey,
+                        color: Colors.green,
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          customerAddress,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[700],
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              titleCustomerAddress,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              customerAddress,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -755,8 +785,9 @@ class _GoCustomerState extends State<GoCustomer> {
                       color: Colors.blue,
                     ),
                   ),
-                  const Text(
-                    '\$75',
+                  // แสดงยอดรวมที่คำนวณจากข้อมูลที่ส่งมา
+                  Text(
+                    '\$${totalReceived.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,

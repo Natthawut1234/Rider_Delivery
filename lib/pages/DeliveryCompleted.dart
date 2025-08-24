@@ -9,21 +9,36 @@ class DeliveryCompletedPage extends StatelessWidget {
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final data = args ?? {};
 
+    final payType = data['payType'] ?? '-';
     final orderNumber =
         data['orderNumber'] ??
         (data['orderItems'] is List && (data['orderItems'] as List).isNotEmpty
             ? data['orderItems'][0]['orderNumber'] ?? '9999999-9999'
-            : '9999999-9999');
-    final restaurantName = data['restaurantName'] ?? 'ร้าน หม.โอ๋';
-    final customerName = data['customerName'] ?? 'หอ นามสมบัติ';
-    final customerAddress =
-        data['customerAddress'] ??
-        '2/22 ซอยอรุณ ถนนเทพ เขียงกรีรี เมืองสมุทร สาขานร';
-    final payAtShop = data['payAtShop'] ?? 10.00;
+            : '-');
+    final restaurantName = data['restaurantName'] ?? '-';
+    final customerName = data['customerName'] ?? '-';
+    final customerAddress = data['customerAddress'] ?? '-';
+    final double payAtShop =
+        double.tryParse((data['payAtShop'] ?? '0').toString()) ?? 0.0;
+    final double earn =
+        double.tryParse((data['earn'] ?? '0').toString()) ?? 0.0;
+    final double bonus =
+        double.tryParse((data['bonus'] ?? '0').toString()) ?? 0.0;
+
+    double totalReceived =
+        double.tryParse((data['totalReceived'] ?? '').toString()) ?? -1;
+    if (totalReceived < 0) {
+      totalReceived = payAtShop + earn + bonus;
+    }
+
+    final double netIncome = totalReceived - payAtShop;
     final distance = data['distance'] ?? '1.5 km';
-    final restaurantAddress =
-        data['restaurantAddress'] ??
-        '9/99 ซอยอรุณ ถนนเทพ เขียงกรีรี เมืองสมุทร สาขานร';
+    final restaurantAddress = data['restaurantAddress'] ?? '-';
+
+    double credit = 100; //ตัวอย่างเครดิต
+    // คิดเปอร์เซ็นต์เครดิต 20% ของรายได้สุทธ์(netIncome)
+    double creditPercent = netIncome * (20 / 100);
+    double creditRemaining = credit - creditPercent;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -223,11 +238,32 @@ class DeliveryCompletedPage extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text(
-                                'ค่าจัดส่ง (เงินสด)',
-                                style: TextStyle(fontSize: 14),
+                                'จ่ายให้ร้าน',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.red,
+                                ),
                               ),
                               Text(
                                 '\$${payAtShop.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'ค่าจัดส่ง',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              Text(
+                                '\$${earn.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -238,14 +274,14 @@ class DeliveryCompletedPage extends StatelessWidget {
                           const SizedBox(height: 12),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
-                              Text(
-                                'เงินโบนัสพิเศษ (เครดิต)',
+                            children: [
+                              const Text(
+                                'เงินโบนัสพิเศษ',
                                 style: TextStyle(fontSize: 14),
                               ),
                               Text(
-                                '\$0.00',
-                                style: TextStyle(
+                                '\$${bonus.toStringAsFixed(2)}',
+                                style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -255,7 +291,26 @@ class DeliveryCompletedPage extends StatelessWidget {
                           const SizedBox(height: 12),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
+                            children: [
+                              Text(
+                                'รับเงินจากลูกค้า' + ' ($payType)',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              Text(
+                                '\$${totalReceived.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(height: 1, color: Colors.grey),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
                               Text(
                                 'หักภาษี 20% (เครดิตรับงาน)',
                                 style: TextStyle(
@@ -264,7 +319,7 @@ class DeliveryCompletedPage extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '\$2.00',
+                                '\$${creditPercent.toStringAsFixed(2)}',
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -276,7 +331,7 @@ class DeliveryCompletedPage extends StatelessWidget {
                           const SizedBox(height: 12),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
+                            children: [
                               Text(
                                 'เครดิตรับงานคงเหลือ',
                                 style: TextStyle(
@@ -285,7 +340,7 @@ class DeliveryCompletedPage extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '\$98.00',
+                                '\$${creditRemaining.toStringAsFixed(2)}',
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -301,14 +356,14 @@ class DeliveryCompletedPage extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text(
-                                'รายรับ',
+                                'รายได้สุทธิ',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               Text(
-                                '\$${payAtShop.toStringAsFixed(2)}',
+                                '\$${netIncome.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -442,6 +497,7 @@ class DeliveryCompletedPage extends StatelessWidget {
               ],
             ),
           ),
+          SizedBox(height: 4),
         ],
       ),
     );

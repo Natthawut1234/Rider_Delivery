@@ -7,11 +7,35 @@ class GoRestaurant extends StatefulWidget {
 }
 
 class _GoRestaurantState extends State<GoRestaurant> {
-  bool arrivedAtRestaurant = false; // กำลังไปร้าน
-  bool confirmedArrival = false; // ถึงร้านแล้ว รอยืนยันรับอาหาร
+  bool arrivedAtRestaurant = false;
+  bool confirmedArrival = false;
 
-  // ตัวอย่างรายการอาหาร
-  final List<Map<String, dynamic>> orderItems = [
+  Map<String, dynamic>? _selectedJob;
+  List<dynamic>? _jobsList;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null && _selectedJob == null) {
+      _selectedJob = args['job'] as Map<String, dynamic>?;
+      _jobsList = args['jobs'] as List<dynamic>?;
+      // ถ้าต้องการ เตรียม orderItems จาก _selectedJob ที่ส่งมา
+      if (_selectedJob != null && _selectedJob!['orderItems'] is List) {
+        final items = _selectedJob!['orderItems'] as List;
+        // แปลงเป็น List<Map<String, dynamic>>
+        orderItems = items.map((e) {
+          if (e is Map<String, dynamic>) return e;
+          return Map<String, dynamic>.from(e as Map);
+        }).toList();
+      }
+      setState(() {});
+    }
+  }
+
+  // ตัวอย่างรายการอาหาร (ค่าเริ่มต้น ถ้าไม่ได้ส่งมาจากหน้าเรียก)
+  List<Map<String, dynamic>> orderItems = [
     {
       'orderNumber': '000001', // หมายเลขออเดอร์
       'name': 'ข้าวผัดกระเพราไก่',
@@ -28,6 +52,61 @@ class _GoRestaurantState extends State<GoRestaurant> {
     },
     {'name': 'น้ำเปล่า', 'option': 'เย็น', 'description': '', 'quantity': 'x3'},
   ];
+
+  // ช่วยอ่านค่าแบบปลอดภัยจาก _selectedJob
+  // ชื่อร้าน
+  String get payType => _selectedJob?['payType'] as String? ?? '-';
+  String get restaurantName =>
+      _selectedJob?['restaurantName'] as String? ?? '-';
+  // ที่อยู่ร้าน
+  String get restaurantAddress =>
+      _selectedJob?['restaurantAddress'] as String? ??
+      '999 ซอยอาชัย ถนนแดง เชียงเครือ เมืองสกลนคร สกลนคร';
+  // ชื่อผู้รับ
+  String get customerName => _selectedJob?['customerName'] as String? ?? 'สมุย';
+  // ชื่อที่อยู่ผู้รับ
+  String get titleCustomerAddress =>
+      _selectedJob?['titleCustomerAddress'] as String? ?? '-';
+  // ที่อยู่ผู้รับ
+  String get customerAddress =>
+      _selectedJob?['customerAddress'] as String? ??
+      '999 ซอยอาชัย ถนนแดง เชียงเครือ เมืองสกลนคร สกลนคร';
+  // จำนวนเงินที่ต้องจ่าย
+  int get shopPayAmount => _selectedJob?['shopPayAmount'] is int
+      ? _selectedJob!['shopPayAmount'] as int
+      : (_selectedJob?['shopPayAmount'] is String
+            ? int.tryParse(_selectedJob!['shopPayAmount'].toString()) ?? 0
+            : 0);
+  // หมายเหตุ
+  String get note1 =>
+      _selectedJob?['note1'] as String? ?? 'แขวน/วางไว้จุดที่ระบุ';
+  // หมายเหตุเพิ่มเติม
+  String get note2 =>
+      _selectedJob?['note2'] as String? ?? 'เพิ่มเติม: วางบนหลังคา';
+  // หมายเลขออเดอร์
+  String get orderNumberDisplay {
+    if (_selectedJob != null && _selectedJob!['orderNumber'] != null)
+      return _selectedJob!['orderNumber'].toString();
+    if (orderItems.isNotEmpty && orderItems.first.containsKey('orderNumber'))
+      return orderItems.first['orderNumber'].toString();
+    return '';
+  }
+
+  // รายรับ
+  int get earn {
+    if (_selectedJob != null && _selectedJob!['earn'] is int) {
+      return _selectedJob!['earn'] as int;
+    }
+    return 0;
+  }
+
+  // โบนัส
+  int get bonus {
+    if (_selectedJob != null && _selectedJob!['bonus'] is int) {
+      return _selectedJob!['bonus'] as int;
+    }
+    return 0;
+  }
 
   void _showOrderDetailsDialog(BuildContext context) {
     showDialog(
@@ -106,7 +185,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          'ร้าน ผญ.โซ้',
+                          restaurantName,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -116,7 +195,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'หมายเลขออเดอร์: ${orderItems.isNotEmpty ? orderItems.first['orderNumber'] : ''}',
+                      'หมายเลขออเดอร์: $orderNumberDisplay',
                       style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     ),
                   ],
@@ -157,7 +236,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                                   ),
                                 ),
                                 Text(
-                                  item['option'],
+                                  item['option'] ?? '',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.grey[600],
@@ -167,7 +246,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                             ),
                           ),
                           Text(
-                            item['quantity'],
+                            item['quantity'] ?? '',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -197,7 +276,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
+                  children: [
                     Text(
                       'จ่ายให้ร้าน',
                       style: TextStyle(
@@ -207,7 +286,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                       ),
                     ),
                     Text(
-                      '\$50',
+                      '\$${shopPayAmount.toString()}',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -340,23 +419,41 @@ class _GoRestaurantState extends State<GoRestaurant> {
           CupertinoDialogAction(
             onPressed: () {
               Navigator.pop(context);
-              // ส่งข้อมูลทั้งหมดไปหน้าถัดไป (ส่งให้ลูกค้า)
+              // ส่งข้อมูลทั้งหมดที่หน้า GoRestaurant รับมา ไปยัง GoCustomer
+              final Map<String, dynamic> argsToCustomer = {
+                // ถ้ามี _selectedJob ให้ใช้ค่านั้นเป็นแหล่งข้อมูลหลัก
+                'payType': _selectedJob?['payType'] ?? '-',
+                'restaurantName':
+                    _selectedJob?['restaurantName'] ?? 'ร้าน ผญ.โซ้',
+                'restaurantAddress': _selectedJob?['restaurantAddress'] ?? '-',
+                'customerName': _selectedJob?['customerName'] ?? 'สมุย',
+                'titleCustomerAddress':
+                    _selectedJob?['titleCustomerAddress'] ?? 'หอ',
+                'customerAddress':
+                    _selectedJob?['customerAddress'] ??
+                    '999 ซอยอาชัย ถนนแดง เชียงเครือ เมืองสกลนคร สกลนคร',
+                'payAtShop':
+                    _selectedJob?['shopPayAmount'] ??
+                    _selectedJob?['payAtShop'] ??
+                    0,
+                'note1': _selectedJob?['note1'] ?? note1,
+                'note2': _selectedJob?['note2'] ?? note2,
+                'orderItems': orderItems,
+                'orderNumber':
+                    _selectedJob?['orderNumber'] ??
+                    (orderItems.isNotEmpty
+                        ? orderItems.first['orderNumber']
+                        : null),
+                // ถ้าต้องการส่งข้อมูลเพิ่มเติม เช่น earn/bonus/jobsList/index
+                'earn': _selectedJob?['earn'] ?? 0,
+                'bonus': _selectedJob?['bonus'] ?? 0,
+                'jobsList': _jobsList,
+              };
+
               Navigator.pushNamed(
                 context,
                 '/goCustomer',
-                arguments: {
-                  'restaurantName': 'ร้าน ผญ.โซ้',
-                  'customerName': 'สมุย',
-                  'customerAddress':
-                      '999 ซอยอาชัย ถนนแดง เชียงเครือ เมืองสกลนคร สกลนคร',
-                  'payAtShop': 50,
-                  'note1': 'แขวน/วางไว้จุดที่ระบุ',
-                  'note2': 'เพิ่มเติม: วางไว้บนหลังตาหลอเลยครับ',
-                  'orderItems': orderItems,
-                  'orderNumber': orderItems.isNotEmpty
-                      ? orderItems.first['orderNumber']
-                      : null,
-                },
+                arguments: argsToCustomer,
               );
             },
             isDefaultAction: true,
@@ -456,7 +553,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'ครัวตามใจ',
+                          restaurantName,
                           style: TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],
@@ -520,7 +617,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                             ),
                           ),
                           Text(
-                            'ร้าน ผญ.โซ้',
+                            restaurantName, // ใช้จาก argument
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -568,7 +665,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                             ),
                           ),
                           Text(
-                            'สมุย',
+                            customerName, // ใช้จาก argument
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -742,7 +839,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'ร้าน ผญ.โซ้',
+                          restaurantName,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -750,9 +847,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          '999 ซอยอาชัย ถนนแดง เชียงเครือ เมืองสกลนคร สกลนคร',
+                          restaurantAddress,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 14,
                             color: Colors.grey[600],
                           ),
                         ),
@@ -974,8 +1071,8 @@ class _GoRestaurantState extends State<GoRestaurant> {
               // if (arrivedAtRestaurant) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text(
+                children: [
+                  const Text(
                     'จ่ายให้ร้าน',
                     style: TextStyle(
                       fontSize: 20,
@@ -984,8 +1081,8 @@ class _GoRestaurantState extends State<GoRestaurant> {
                     ),
                   ),
                   Text(
-                    '\$50',
-                    style: TextStyle(
+                    '\$${shopPayAmount.toString()}', // แสดงยอดจ่ายจริงจาก argument
+                    style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: Colors.blue,
