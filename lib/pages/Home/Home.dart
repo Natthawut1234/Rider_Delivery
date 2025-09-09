@@ -1,8 +1,187 @@
 import 'package:flutter/material.dart';
+import 'package:rider_delivery/services/RiderStatusService.dart';
 import '../JobStart.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  RiderStatus _riderStatus = RiderStatus.incomplete;
+  String _statusMessage = '';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkRiderStatus();
+  }
+
+  Future<void> _checkRiderStatus() async {
+    setState(() => _isLoading = true);
+
+    // ตรวจสอบสถานะจากเซิร์ฟเวอร์
+    await RiderStatusService.checkStatusFromServer();
+
+    // ดึงสถานะปัจจุบัน
+    final status = await RiderStatusService.getCurrentStatus();
+    final message = await RiderStatusService.getStatusMessage();
+
+    setState(() {
+      _riderStatus = status;
+      _statusMessage = message;
+      _isLoading = false;
+    });
+  }
+
+  Widget _buildStatusCard() {
+    Color cardColor;
+    Color textColor;
+    IconData icon;
+    String title;
+
+    switch (_riderStatus) {
+      case RiderStatus.pending:
+        cardColor = Colors.orange[50]!;
+        textColor = Colors.orange[700]!;
+        icon = Icons.hourglass_empty;
+        title = 'รอการอนุมัติ';
+        break;
+      case RiderStatus.approved:
+        cardColor = Colors.green[50]!;
+        textColor = Colors.green[700]!;
+        icon = Icons.check_circle;
+        title = 'ได้รับการอนุมัติ';
+        break;
+      case RiderStatus.rejected:
+        cardColor = Colors.red[50]!;
+        textColor = Colors.red[700]!;
+        icon = Icons.cancel;
+        title = 'ถูกปฏิเสธ';
+        break;
+      default:
+        cardColor = Colors.blue[50]!;
+        textColor = Colors.blue[700]!;
+        icon = Icons.info;
+        title = 'ยังไม่ยืนยันตัวตน';
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: textColor.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: textColor.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: textColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: textColor, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _statusMessage,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: textColor.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_riderStatus == RiderStatus.pending)
+            GestureDetector(
+              onTap: _checkRiderStatus,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: textColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.refresh, color: textColor, size: 20),
+              ),
+            ),
+          if (_riderStatus == RiderStatus.incomplete)
+            GestureDetector(
+              onTap: () {
+                Navigator.pushNamed(context, '/riderIdentity');
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: textColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'ยืนยันตัวตน',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _getButtonText() {
+    switch (_riderStatus) {
+      case RiderStatus.approved:
+        return 'เริ่มรับงาน';
+      case RiderStatus.pending:
+        return 'รอการอนุมัติ';
+      case RiderStatus.rejected:
+        return 'ถูกปฏิเสธ';
+      default:
+        return 'ยืนยันตัวตนก่อน';
+    }
+  }
+
+  String _getDisabledMessage() {
+    switch (_riderStatus) {
+      case RiderStatus.pending:
+        return 'กรุณารอการอนุมัติจากทีมงาน เราจะแจ้งให้ทราบเร็วๆ นี้';
+      case RiderStatus.rejected:
+        return 'เอกสารของคุณถูกปฏิเสธ กรุณาติดต่อทีมงานเพื่อแก้ไข';
+      default:
+        return 'กรุณายืนยันตัวตนก่อนเริ่มรับงาน';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +234,10 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ),
+
+            // Rider Status Card
+            _buildStatusCard(),
+
             // Earnings Card
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -173,6 +356,7 @@ class HomePage extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                           onTap: () {
                             // เพิ่มการทำงานเมื่อกดถ้าต้องการ
+                            Navigator.pushNamed(context, '/myCredit');
                           },
                           child: Container(
                             padding: const EdgeInsets.all(12),
@@ -360,6 +544,101 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ),
+
+            // Debug Panel (แสดงเฉพาะในโหมดพัฒนา)
+            if (_riderStatus != RiderStatus.incomplete) ...[
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Debug Panel (สำหรับทดสอบ)',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green[600],
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            onPressed: () async {
+                              await RiderStatusService.setApproved(
+                                '🎉 ยินดีด้วย! เอกสารของคุณได้รับการอนุมัติแล้ว\nคุณสามารถเริ่มรับงานได้แล้ว',
+                              );
+                              _checkRiderStatus();
+                            },
+                            child: const Text(
+                              'อนุมัติ',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red[600],
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            onPressed: () async {
+                              await RiderStatusService.setRejected(
+                                '❌ เอกสารของคุณไม่ผ่านการตรวจสอบ\nกรุณาติดต่อทีมงานเพื่อแก้ไข',
+                              );
+                              _checkRiderStatus();
+                            },
+                            child: const Text(
+                              'ปฏิเสธ',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[600],
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            onPressed: () async {
+                              await RiderStatusService.resetStatus();
+                              _checkRiderStatus();
+                            },
+                            child: const Text(
+                              'รีเซ็ต',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const Spacer(),
             // Start Work Button
             Padding(
@@ -369,27 +648,56 @@ class HomePage extends StatelessWidget {
                 height: 48,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: _riderStatus == RiderStatus.approved
+                        ? Colors.green
+                        : _riderStatus == RiderStatus.incomplete
+                        ? Colors.blue
+                        : Colors.grey,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const JobStartPage(),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'เริ่มรับงาน',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  onPressed: _riderStatus == RiderStatus.approved
+                      ? () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const JobStartPage(),
+                            ),
+                          );
+                        }
+                      : _riderStatus == RiderStatus.incomplete
+                      ? () {
+                          // ไปหน้ายืนยันตัวตน
+                          Navigator.pushNamed(context, '/riderIdentity');
+                        }
+                      : () {
+                          // แสดงข้อความเมื่อยังไม่ได้รับอนุมัติ
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(_getDisabledMessage()),
+                              backgroundColor: Colors.orange,
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                        },
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          _getButtonText(),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
             ),
