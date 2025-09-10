@@ -7,7 +7,7 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[100], // เปลี่ยนเป็นสีพื้นอ่อน
       body: SafeArea(
         child: Column(
           children: [
@@ -15,363 +15,180 @@ class HomePage extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: InkWell(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 onTap: () {
                   Navigator.pushNamed(context, '/profile');
                 },
                 child: Row(
                   children: [
-                    // Profile picture
                     CircleAvatar(
-                      radius: 28,
-                      backgroundImage: AssetImage(
-                        'assets/avatars/avatar-4.png',
-                      ), // Replace with your asset
+                      radius: 30,
+                      backgroundImage: AssetImage('assets/avatars/avatar-4.png'),
                     ),
                     const SizedBox(width: 16),
-                    // Greeting and name
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                        children: const [
                           Text(
                             'สวัสดี',
                             style: TextStyle(fontSize: 16, color: Colors.grey),
                           ),
-                          const SizedBox(height: 2),
+                          SizedBox(height: 2),
                           Text(
                             'จอห์น วิค',
                             style: TextStyle(
-                              fontSize: 20,
+                              fontSize: 22,
                               fontWeight: FontWeight.bold,
+                              color: Colors.black87,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    // Arrow icon
                     Icon(Icons.chevron_right, color: Colors.grey, size: 28),
                   ],
                 ),
               ),
             ),
+
             // Earnings Card
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              // child: Card(
-              //   shadowColor: Colors.grey.withOpacity(0.9),
-              //   elevation: 5, // เพิ่มความสูงของเงา
-              //   surfaceTintColor: Colors.transparent, // ป้องกันสี overlay
-              //   color: Colors.white,
-              //   shape: RoundedRectangleBorder(
-              //     borderRadius: BorderRadius.circular(16),
-              //   ),
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.3), // สีเงา
-                      blurRadius: 12, // ความฟุ้งของเงา
-                      spreadRadius: 4, // การกระจายของเงา
-                      offset: Offset(0, 4), // ย้ายเงา (0,0) = รอบด้าน
+                      color: Colors.black12,
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
                     ),
                   ],
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 20,
-                    horizontal: 16,
-                  ),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      // สรุปรายได้แบบการ์ดย่อ
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            Navigator.pushNamed(context, '/income');
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.03),
-                              borderRadius: BorderRadius.circular(12),
+                      // รายได้วันนี้
+                      InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          Navigator.pushNamed(context, '/income');
+                        },
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundColor: Colors.green[100],
+                              child: Icon(Icons.attach_money,
+                                  color: Colors.green[700], size: 28),
                             ),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 26,
-                                  backgroundColor: Colors.green[100],
-                                  child: Icon(
-                                    Icons.attach_money,
-                                    color: Colors.green[700],
-                                    size: 26,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  Text(
+                                    '฿852',
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '\$852',
-                                        style: TextStyle(
-                                          color: Colors.green[800],
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'รายได้วันนี้',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[700],
-                                        ),
-                                      ),
-                                    ],
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'รายได้วันนี้',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black54,
+                                    ),
                                   ),
-                                ),
-                                // Column(
-                                //   crossAxisAlignment: CrossAxisAlignment.end,
-                                //   children: [
-                                //     Text(
-                                //       '+12%',
-                                //       style: TextStyle(
-                                //         color: Colors.green[600],
-                                //         fontWeight: FontWeight.w600,
-                                //       ),
-                                //     ),
-                                //     const SizedBox(height: 4),
-                                //     Text(
-                                //       'เมื่อวาน',
-                                //       style: TextStyle(
-                                //         fontSize: 12,
-                                //         color: Colors.grey[500],
-                                //       ),
-                                //     ),
-                                //   ],
-                                // ),
-                                const SizedBox(width: 8),
-                                Icon(Icons.chevron_right, color: Colors.grey),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
+                            Icon(Icons.chevron_right, color: Colors.grey),
+                          ],
                         ),
                       ),
-
-                      Divider(),
+                      Divider(height: 32),
 
                       // เครดิตรับงาน
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            // เพิ่มการทำงานเมื่อกดถ้าต้องการ
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.03),
-                              borderRadius: BorderRadius.circular(12),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {},
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundColor: Colors.blue[100],
+                              child: Icon(Icons.account_balance_wallet_outlined,
+                                  color: Colors.blue[700], size: 28),
                             ),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 26,
-                                  backgroundColor: Colors.blue[100],
-                                  child: Icon(
-                                    Icons.account_balance_wallet_outlined,
-                                    color: Colors.blue[700],
-                                    size: 26,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  Text(
+                                    '฿420',
+                                    style: TextStyle(
+                                      color: Colors.blue,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '\$420',
-                                        style: TextStyle(
-                                          color: Colors.blue[800],
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'เครดิตรับงาน',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[700],
-                                        ),
-                                      ),
-                                    ],
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'เครดิตรับงาน',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black54,
+                                    ),
                                   ),
-                                ),
-                                // Column(
-                                //   crossAxisAlignment: CrossAxisAlignment.end,
-                                //   children: [
-                                //     Text(
-                                //       'คงเหลือ',
-                                //       style: TextStyle(
-                                //         fontSize: 12,
-                                //         color: Colors.grey[500],
-                                //       ),
-                                //     ),
-                                //     const SizedBox(height: 4),
-                                //     Text(
-                                //       '\$420',
-                                //       style: TextStyle(
-                                //         fontSize: 14,
-                                //         color: Colors.blue[700],
-                                //         fontWeight: FontWeight.w600,
-                                //       ),
-                                //     ),
-                                //   ],
-                                // ),
-                                const SizedBox(width: 8),
-                                Icon(Icons.chevron_right, color: Colors.grey),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
+                            Icon(Icons.chevron_right, color: Colors.grey),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       Divider(),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          // Today's tips
-                          Column(
-                            children: [
-                              InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                onTap: () {
-                                  Navigator.pushNamed(context, '/trip');
-                                },
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.monetization_on,
-                                      color: Colors.amber,
-                                      size: 24,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '\$50',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      'ทิปวันนี้',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          // Today's jobs
-                          Column(
-                            children: [
-                              InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                onTap: () {
-                                  Navigator.pushNamed(context, '/jobs');
-                                },
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.pedal_bike,
-                                      color: Colors.red,
-                                      size: 24,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '25 งาน',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      'งานวันนี้',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
 
-                          // Rating
-                          Column(
-                            children: [
-                              InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                onTap: () {
-                                  Navigator.pushNamed(context, '/riderReview');
-                                },
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.star,
-                                      color: Colors.orange,
-                                      size: 24,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '4.5',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      'ดูรีวิวทั้งหมด',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                      // สรุปสั้นๆ
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _summaryItem(Icons.monetization_on, '฿50', 'ทิปวันนี้', Colors.amber, '/trip', context),
+                            _summaryItem(Icons.pedal_bike, '25 งาน', 'งานวันนี้', Colors.red, '/jobs', context),
+                            _summaryItem(Icons.star, '4.5', 'ดูรีวิว', Colors.orange, '/riderReview', context),
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
             ),
+
             const Spacer(),
+
             // Start Work Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               child: SizedBox(
                 width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
+                height: 56,
+                child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   onPressed: () {
@@ -382,10 +199,11 @@ class HomePage extends StatelessWidget {
                       ),
                     );
                   },
-                  child: const Text(
+                  icon: const Icon(Icons.pedal_bike, color: Colors.white, size: 24),
+                  label: const Text(
                     'เริ่มรับงาน',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 20,
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
@@ -395,6 +213,21 @@ class HomePage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _summaryItem(IconData icon, String value, String label, Color color, String route, BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => Navigator.pushNamed(context, route),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 6),
+          Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(label, style: TextStyle(fontSize: 13, color: Colors.grey)),
+        ],
       ),
     );
   }

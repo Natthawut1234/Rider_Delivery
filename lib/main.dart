@@ -11,7 +11,7 @@ import 'package:rider_delivery/pages/Home/RiderReview.dart';
 import 'package:rider_delivery/pages/JobStart.dart';
 import 'package:rider_delivery/pages/Home/Jobs.dart';
 import 'package:rider_delivery/pages/Home/Trip.dart';
-import 'package:rider_delivery/pages/Profile.dart';
+import 'package:rider_delivery/pages/ProfilePage/Profile.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +41,8 @@ class MyApp extends StatelessWidget {
         '/riderReview': (_) => RiderReviewPage(),
         '/profile': (_) => ProfilePage(),
         '/deliveryCompleted': (_) => const DeliveryCompletedPage(),
+        
+        
       },
       debugShowCheckedModeBanner: false,
     );
