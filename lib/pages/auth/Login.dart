@@ -1,8 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:rider_delivery/services/RiderStatusService.dart';
+import 'package:rider_delivery/APIs/middleware/authService.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,7 +14,6 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _remember = true;
 
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
@@ -36,36 +34,28 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // TODO: เรียก API จริงแทน simulation ด้านล่าง
-      await Future.delayed(const Duration(seconds: 1));
+      // เรียก API จริง
+      final result = await AuthService().loginRider(email, password);
 
-      // จำลองผลลัพธ์จากเซิร์ฟเวอร์
-      final success = email == 'rider@example.com' && password == 'password123';
-      if (!success) {
+      if (!result['success']) {
         AwesomeDialog(
           context: context,
           dialogType: DialogType.error,
           animType: AnimType.rightSlide,
           title: 'เข้าสู่ระบบไม่สำเร็จ',
-          desc: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+          desc: result['message'] ?? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
           btnOkOnPress: () {},
         ).show();
         return;
       }
 
-      // ตัวอย่างข้อมูลผู้ใช้/โทเคน ที่ควรได้จาก API
-      final user = {
-        'id': 123,
-        'display_name': 'ไรเดอร์ ทดสอบ',
-        'phone': '0812345678',
-        'role': 'rider',
-      };
-      final token = 'mocked_jwt_token';
+      // ดึงข้อมูลจาก API response
+      final userData = result['user'];
+      final riderStatusData = result['rider_status'];
 
-      if (_remember) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('token', token);
-        await prefs.setString('user', jsonEncode(user));
+      // บันทึกสถานะไรเดอร์จาก API
+      if (riderStatusData != null) {
+        await RiderStatusService.setStatusFromAPI(riderStatusData);
       }
 
       // ตรวจสอบสถานะเอกสารหลัง login สำเร็จ
@@ -76,7 +66,7 @@ class _LoginPageState extends State<LoginPage> {
         dialogType: DialogType.success,
         animType: AnimType.scale,
         title: 'เข้าสู่ระบบสำเร็จ',
-        desc: 'ยินดีต้อนรับ ${user['display_name']}',
+        desc: 'ยินดีต้อนรับ ${userData['display_name'] ?? 'ไรเดอร์'}',
         btnOkOnPress: () {
           // กรณีที่ 1: ส่งเอกสารแล้ว -> ไปหน้า Home
           if (riderStatus == RiderStatus.pending ||

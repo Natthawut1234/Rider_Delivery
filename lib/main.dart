@@ -17,6 +17,7 @@ import 'package:rider_delivery/pages/auth/Login.dart';
 import 'package:rider_delivery/pages/auth/Register.dart';
 import 'package:rider_delivery/pages/auth/Rider_identity.dart';
 import 'package:rider_delivery/pages/auth/Wellcome.dart';
+import 'package:rider_delivery/APIs/middleware/AuthGuard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,22 +36,24 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (_) => const SplashScreen(),
         '/wellcome': (_) => wellcomePage(),
-        '/home': (_) => const HomePage(),
-        '/jobStart': (_) => const JobStartPage(),
-        '/GoRestaurant': (_) => GoRestaurant(), // Adjust this route as needed
-        '/chat': (_) => const Chat(),
-        '/goCustomer': (_) => const GoCustomer(),
-        '/deliveryConfirm': (_) => const DeliveryConfirmPage(),
-        '/income': (_) => IncomePage(),
-        '/trip': (_) => const TripPage(),
-        '/jobs': (_) => const JobsPage(),
-        '/riderReview': (_) => RiderReviewPage(),
-        '/profile': (_) => ProfilePage(),
-        '/deliveryCompleted': (_) => const DeliveryCompletedPage(),
-        '/myCredit': (_) => const MyCreditPage(),
+        '/home': (_) => AuthGuard(child: const HomePage()),
+        '/jobStart': (_) => AuthGuard(child: const JobStartPage()),
+        '/GoRestaurant': (_) => AuthGuard(child: GoRestaurant()),
+        '/chat': (_) => AuthGuard(child: const Chat()),
+        '/goCustomer': (_) => AuthGuard(child: const GoCustomer()),
+        '/deliveryConfirm': (_) =>
+            AuthGuard(child: const DeliveryConfirmPage()),
+        '/income': (_) => AuthGuard(child: IncomePage()),
+        '/trip': (_) => AuthGuard(child: const TripPage()),
+        '/jobs': (_) => AuthGuard(child: const JobsPage()),
+        '/riderReview': (_) => AuthGuard(child: RiderReviewPage()),
+        '/profile': (_) => AuthGuard(child: ProfilePage()),
+        '/deliveryCompleted': (_) =>
+            AuthGuard(child: const DeliveryCompletedPage()),
+        '/myCredit': (_) => AuthGuard(child: const MyCreditPage()),
         '/login': (_) => const LoginPage(),
         '/register': (_) => const Register(),
-        '/riderIdentity': (_) => const RiderIdentityPage(),
+        '/riderIdentity': (_) => AuthGuard(child: const RiderIdentityPage()),
       },
       debugShowCheckedModeBanner: false,
     );

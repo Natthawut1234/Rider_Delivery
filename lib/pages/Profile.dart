@@ -1,5 +1,7 @@
 // File: lib/pages/Profile.dart
 import 'package:flutter/material.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:rider_delivery/APIs/middleware/AuthGuard.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -293,8 +295,31 @@ class _ProfilePageState extends State<ProfilePage> {
                 borderRadius: BorderRadius.circular(30),
               ),
             ),
-            onPressed: () {
+            onPressed: () async {
               // ออกจากระบบ
+              AwesomeDialog(
+                context: context,
+                dialogType: DialogType.question,
+                animType: AnimType.scale,
+                title: 'ออกจากระบบ',
+                desc: 'คุณต้องการออกจากระบบใช่หรือไม่?',
+                btnOkOnPress: () async {
+                  // เรียก logout function
+                  await AuthGuard.logout();
+
+                  // นำทางไปหน้า welcome และล้าง navigation stack ทั้งหมด
+                  if (mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/wellcome',
+                      (route) => false, // ลบ navigation stack ทั้งหมด
+                    );
+                  }
+                },
+                btnCancelOnPress: () {},
+                btnOkText: 'ออกจากระบบ',
+                btnCancelText: 'ยกเลิก',
+                btnOkColor: Colors.red[600],
+              ).show();
             },
             icon: const Icon(Icons.logout, color: Colors.white),
             label: const Text(

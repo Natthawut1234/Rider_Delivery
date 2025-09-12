@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:rider_delivery/APIs/middleware/AuthGuard.dart';
+import 'package:rider_delivery/services/RiderStatusService.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -19,13 +20,24 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> checkLoginStatus() async {
-    await Future.delayed(Duration(seconds: 1)); // splash time
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    await Future.delayed(Duration(seconds: 2)); // splash time
 
-    if (token != null) {
-      Navigator.pushReplacementNamed(context, '/wellcome');
+    // ตรวจสอบ authentication ด้วย AuthGuard
+    final isLoggedIn = await AuthGuard.isUserLoggedIn();
+
+    if (isLoggedIn) {
+      // ถ้า login แล้วให้ตรวจสอบสถานะไรเดอร์
+      final riderStatus = await RiderStatusService.getCurrentStatus();
+
+      if (riderStatus == RiderStatus.incomplete) {
+        // ยังไม่ยืนยันตัวตน -> ไปหน้ายืนยันตัวตน
+        Navigator.pushReplacementNamed(context, '/riderIdentity');
+      } else {
+        // ยืนยันตัวตนแล้ว -> ไปหน้า Home
+        Navigator.pushReplacementNamed(context, '/home');
+      }
     } else {
+      // ไม่ได้ login หรือ token หมดอายุ -> ไปหน้า welcome
       Navigator.pushReplacementNamed(context, '/wellcome');
     }
   }

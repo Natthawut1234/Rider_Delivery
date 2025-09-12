@@ -1,0 +1,28 @@
+import 'dart:io';
+
+// API baseURL สำหรับแต่ละแพลตฟอร์ม
+class BaseAPI_URL {
+  static String get baseURL {
+    // 🔧 สำหรับการ debug - เปลี่ยนได้ตามต้องการ
+    // return androidEmulatorURL;  // สำหรับ Android Emulator
+    // return localhostURL;        // สำหรับ iOS Simulator
+    // return localNetworkURL;     // สำหรับเครื่องจริง
+
+    if (Platform.isAndroid) {
+      // Android Emulator ใช้ 10.0.2.2 แทน localhost
+      return androidEmulatorURL;
+    } else if (Platform.isIOS) {
+      // iOS Simulator สามารถใช้ localhost ได้
+      return localhostURL;
+    } else {
+      // Web หรือ Desktop ใช้ localhost
+      return localhostURL;
+    }
+  }
+
+  // URL ตัวเลือกต่างๆ
+  static const String localhostURL = 'http://localhost:4000/rider';
+  static const String androidEmulatorURL = 'http://10.0.2.2:4000/rider';
+  static const String localNetworkURL =
+      'http://192.168.1.100:4000/rider'; // แทนที่ด้วย IP จริงของเครื่อง
+}
