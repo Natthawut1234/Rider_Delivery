@@ -26,18 +26,43 @@ class _SplashScreenState extends State<SplashScreen> {
     final isLoggedIn = await AuthGuard.isUserLoggedIn();
 
     if (isLoggedIn) {
-      // ถ้า login แล้วให้ตรวจสอบสถานะไรเดอร์
-      final riderStatus = await RiderStatusService.getCurrentStatus();
+      print('✅ User is logged in, checking rider status...');
 
-      if (riderStatus == RiderStatus.incomplete) {
-        // ยังไม่ยืนยันตัวตน -> ไปหน้ายืนยันตัวตน
-        Navigator.pushReplacementNamed(context, '/riderIdentity');
-      } else {
-        // ยืนยันตัวตนแล้ว -> ไปหน้า Home
-        Navigator.pushReplacementNamed(context, '/home');
+      // แสดงข้อมูลก่อนตรวจสอบ
+      await RiderStatusService.debugPrintStoredData();
+
+      // ตรวจสอบสถานะจากเซิร์ฟเวอร์ก่อน
+      try {
+        await RiderStatusService.checkStatusFromServer();
+        print('✅ Status checked from server successfully');
+      } catch (e) {
+        print('❌ Error checking status from server: $e');
+      }
+
+      // แสดงข้อมูลหลังตรวจสอบจากเซิร์ฟเวอร์
+      await RiderStatusService.debugPrintStoredData();
+
+      // ดึงสถานะหลังจากตรวจสอบจากเซิร์ฟเวอร์แล้ว
+      final riderStatus = await RiderStatusService.getCurrentStatus();
+      print('📊 Final rider status: $riderStatus');
+
+      switch (riderStatus) {
+        case RiderStatus.incomplete:
+          // ยังไม่ยืนยันตัวตน -> ไปหน้ายืนยันตัวตน
+          print('🔄 Redirecting to identity verification...');
+          Navigator.pushReplacementNamed(context, '/riderIdentity');
+          break;
+        case RiderStatus.pending:
+        case RiderStatus.approved:
+        case RiderStatus.rejected:
+          // ส่งเอกสารแล้ว -> ไปหน้า Home (แสดงสถานะต่างๆ)
+          print('🏠 Redirecting to home...');
+          Navigator.pushReplacementNamed(context, '/home');
+          break;
       }
     } else {
       // ไม่ได้ login หรือ token หมดอายุ -> ไปหน้า welcome
+      print('❌ User not logged in, redirecting to welcome...');
       Navigator.pushReplacementNamed(context, '/wellcome');
     }
   }

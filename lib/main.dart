@@ -12,7 +12,9 @@ import 'package:rider_delivery/pages/Home/RiderReview.dart';
 import 'package:rider_delivery/pages/JobStart.dart';
 import 'package:rider_delivery/pages/Home/Jobs.dart';
 import 'package:rider_delivery/pages/Home/Trip.dart';
-import 'package:rider_delivery/pages/Profile.dart';
+// import 'package:rider_delivery/pages/Profile.dart';
+import 'package:rider_delivery/pages/ProfilePage/Profile.dart';
+
 import 'package:rider_delivery/pages/auth/Login.dart';
 import 'package:rider_delivery/pages/auth/Register.dart';
 import 'package:rider_delivery/pages/auth/Rider_identity.dart';

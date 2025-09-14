@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:rider_delivery/pages/LoadingOverlay/LoadingOverlay.dart';
+import 'package:rider_delivery/APIs/middleware/authService.dart';
+import 'package:path_provider/path_provider.dart';
 
 class Register extends StatefulWidget {
   const Register({super.key});
@@ -229,10 +232,11 @@ class _RegisterState extends State<Register> {
     if (_selectedImage == null && _image == null) {
       _showAwesomeDialog(
         'ข้อผิดพลาด',
-        'กรุณาเลือกรูปโปรไฟล์',
+        'กรุณาเลือกรูปโปรไฟล์ หรือใช้รูปที่มีอยู่',
         DialogType.warning,
       );
-      return;
+      // ไม่ return เพื่อให้สามารถดำเนินการต่อได้โดยไม่มีรูป
+      // return;
     }
     if (_selectedProvince == null ||
         _selectedAmphure == null ||
@@ -272,38 +276,84 @@ class _RegisterState extends State<Register> {
       return;
     }
 
-    // บันทึกข้อมูลผู้ใช้ไว้ (จำลอง - ในความเป็นจริงจะส่งไปยัง API)
-    final userData = {
-      'name': _nameController.text,
-      'email': _emailController.text,
-      'password': _passwordController.text,
-      'phone': _phoneController.text,
-      'gender': _gender,
-      'birthdate': _selectedDate,
-      'address': _addressController.text,
-      'province': _selectedProvince,
-      'amphure': _selectedAmphure,
-      'tambon': _selectedTambon,
-      'selectedImage': _selectedImage,
-      'uploadedImage': _image,
-    };
+    setState(() => _isLoading = true);
 
-    // TODO: ส่งข้อมูลไปยัง API เพื่อสร้างบัญชีผู้ใช้
-    print('User registration data: $userData');
+    try {
+      // เตรียมไฟล์รูปโปรไฟล์
+      File? profilePhotoFile;
+      if (_image != null) {
+        profilePhotoFile = _image;
+      } else if (_selectedImage != null) {
+        // แปลง asset เป็น File
+        profilePhotoFile = await _assetToFile(_selectedImage!);
+      }
 
-    // จำลองการสมัครสำเร็จ
-    AwesomeDialog(
-      context: context,
-      dialogType: DialogType.success,
-      animType: AnimType.scale,
-      title: 'สมัครสมาชิกสำเร็จ',
-      desc:
-          'บัญชีของคุณถูกสร้างเรียบร้อยแล้ว\nกรุณาเข้าสู่ระบบเพื่อยืนยันตัวตน',
-      btnOkOnPress: () {
-        Navigator.pushReplacementNamed(context, '/login');
-      },
-      btnOkColor: const Color(0xFF34C759),
-    ).show();
+      // เรียก API
+      final authService = AuthService();
+      final result = await authService.registerRiderAPI(
+        displayName: _nameController.text,
+        email: _emailController.text,
+        password: _passwordController.text,
+        phone: _phoneController.text,
+        birthdate: _selectedDate!.toIso8601String().split(
+          'T',
+        )[0], // yyyy-mm-dd format
+        gender: _gender == 0 ? 'male' : 'female', // 0=ชาย(male), 1=หญิง(female)
+        address: _addressController.text,
+        province: _selectedProvince!,
+        amphure: _selectedAmphure!,
+        tambon: _selectedTambon!,
+        profilePhoto: profilePhotoFile,
+      );
+
+      setState(() => _isLoading = false);
+
+      if (result['success']) {
+        // แสดงข้อความสำเร็จ
+        AwesomeDialog(
+          context: context,
+          dialogType: DialogType.success,
+          animType: AnimType.scale,
+          title: 'สมัครสมาชิกสำเร็จ',
+          desc:
+              result['message'] ??
+              'บัญชีของคุณถูกสร้างเรียบร้อยแล้ว\nกรุณาเข้าสู่ระบบเพื่อยืนยันตัวตน',
+          btnOkOnPress: () {
+            Navigator.pushReplacementNamed(context, '/login');
+          },
+          btnOkColor: const Color(0xFF34C759),
+        ).show();
+      } else {
+        // แสดงข้อความผิดพลาด
+        _showAwesomeDialog(
+          'ลงทะเบียนไม่สำเร็จ',
+          result['message'] ?? 'เกิดข้อผิดพลาดในการลงทะเบียน',
+          DialogType.error,
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showAwesomeDialog(
+        'เกิดข้อผิดพลาด',
+        'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้: $e',
+        DialogType.error,
+      );
+    }
+  }
+
+  // แปลง asset เป็น File
+  Future<File?> _assetToFile(String assetPath) async {
+    try {
+      final byteData = await rootBundle.load(assetPath);
+      final tempDir = await getTemporaryDirectory();
+      final fileName = assetPath.split('/').last;
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+      return file;
+    } catch (e) {
+      print('Error converting asset to file: $e');
+      return null;
+    }
   }
 
   @override
@@ -717,8 +767,6 @@ class _RegisterState extends State<Register> {
             _buildGenderOption(0, 'ชาย', Icons.male),
             const SizedBox(width: 16),
             _buildGenderOption(1, 'หญิง', Icons.female),
-            const SizedBox(width: 16),
-            _buildGenderOption(2, 'ไม่ระบุ', Icons.person),
           ],
         ),
       ],

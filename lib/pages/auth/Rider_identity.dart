@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:rider_delivery/services/RiderStatusService.dart';
+import 'package:rider_delivery/APIs/middleware/authService.dart';
 
 class RiderIdentityPage extends StatefulWidget {
   final Map<String, dynamic>? userData;
@@ -45,6 +46,22 @@ class _RiderIdentityPageState extends State<RiderIdentityPage>
     // 'จักรยาน',
     // 'รถกระบะ',
   ];
+
+  // แปลงประเภทยานพาหนะจากภาษาไทยเป็นภาษาอังกฤษสำหรับ API
+  String _getVehicleTypeForAPI(String thaiVehicleType) {
+    switch (thaiVehicleType) {
+      case 'มอเตอร์ไซค์':
+        return 'motorcycle';
+      case 'รถยนต์':
+        return 'car';
+      case 'จักรยาน':
+        return 'bicycle';
+      case 'รถกระบะ':
+        return 'pickup';
+      default:
+        return 'motorcycle'; // default fallback
+    }
+  }
 
   bool _isSubmitting = false;
 
@@ -949,7 +966,7 @@ class _RiderIdentityPageState extends State<RiderIdentityPage>
   }
 
   void _submit() async {
-    // ตรวจสอบเอกสาร
+    // ตรวจสอบเอกสารที่จำเป็น
     if (_selfieWithId == null ||
         _driverLicense == null ||
         _vehicleRegistration == null) {
@@ -1005,52 +1022,78 @@ class _RiderIdentityPageState extends State<RiderIdentityPage>
     setState(() => _isSubmitting = true);
 
     try {
-      // รวบรวมข้อมูลทั้งหมด
-      final completeData = {
-        // ข้อมูลจากหน้าสมัคร (ถ้ามี)
-        if (widget.userData != null) ...widget.userData!,
+      // เช็คสถานะปัจจุบัน ถ้าถูกปฏิเสธให้รีเซ็ตก่อนส่งใหม่
+      final currentStatus = await RiderStatusService.getCurrentStatus();
+      if (currentStatus == RiderStatus.rejected) {
+        await RiderStatusService.resetForResubmission();
+        print('🔄 Reset status for resubmission');
+      }
 
-        // ข้อมูลเอกสาร
-        'selfieWithId': _selfieWithId?.path,
-        'idCard': _idCard?.path,
-        'driverLicense': _driverLicense?.path,
-        'vehiclePhoto': _vehiclePhoto?.path,
-        'vehicleRegistration': _vehicleRegistration?.path,
+      // เตรียมไฟล์เอกสาร - รองรับไฟล์ที่อาจจะไม่มี
+      final documents = <String, File>{};
 
-        // ข้อมูลที่กรอกเพิ่ม
-        'idCardNumber': _idCardNumberController.text,
-        'driverLicenseNumber': _driverLicenseNumberController.text,
-        'vehicleType': _selectedVehicleType,
-        'vehicleBrand': _vehicleBrandController.text,
-        'vehicleColor': _vehicleColorController.text,
-        'vehiclePlate': _vehiclePlateController.text,
-        'vehicleProvince': _vehicleProvinceController.text,
+      // เอกสารที่จำเป็น
+      documents['id_card_selfie'] = _selfieWithId!;
+      documents['driving_license_photo'] = _driverLicense!;
+      documents['vehicle_registration_photo'] = _vehicleRegistration!;
 
-        'submittedAt': DateTime.now().toIso8601String(),
-      };
+      // เอกสารที่ไม่จำเป็น (ถ้ามี)
+      if (_idCard != null) {
+        documents['id_card_photo'] = _idCard!;
+      }
+      if (_vehiclePhoto != null) {
+        documents['vehicle_photo'] = _vehiclePhoto!;
+      }
 
-      // TODO: ส่งข้อมูลไปยัง API
-      print('Complete rider data: $completeData');
+      print('📋 Preparing to submit with ${documents.length} files');
 
-      await Future.delayed(const Duration(seconds: 3));
+      // เรียก API
+      final authService = AuthService();
+      final result = await authService.submitIdentityVerification(
+        idCardNumber: _idCardNumberController.text.trim(),
+        driverLicenseNumber: _driverLicenseNumberController.text.trim(),
+        vehicleType: _getVehicleTypeForAPI(_selectedVehicleType!),
+        vehicleBrandModel: _vehicleBrandController.text.trim(),
+        vehicleColor: _vehicleColorController.text.trim(),
+        vehicleRegistrationNumber: _vehiclePlateController.text.trim(),
+        vehicleRegistrationProvince: _vehicleProvinceController.text.trim(),
+        documents: documents,
+      );
 
-      // บันทึกสถานะว่าส่งเอกสารแล้ว
-      await RiderStatusService.setDocumentSubmitted();
+      if (result['success']) {
+        // อัพเดทสถานะในแอพ
+        await RiderStatusService.setPending(
+          'ส่งเอกสารยืนยันตัวตนเรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน',
+        );
 
-      AwesomeDialog(
-        context: context,
-        dialogType: DialogType.success,
-        animType: AnimType.scale,
-        title: '🎉 ส่งเอกสารสำเร็จ',
-        desc:
-            'ระบบได้รับเอกสารของคุณเรียบร้อยแล้ว\nทีมงานจะตรวจสอบและแจ้งผลภายใน 24 ชั่วโมง',
-        btnOkOnPress: () {
-          Navigator.pushReplacementNamed(context, '/home');
-        },
-        btnOkColor: Colors.green[600],
-        btnOkText: 'เรียบร้อย',
-      ).show();
+        AwesomeDialog(
+          context: context,
+          dialogType: DialogType.success,
+          animType: AnimType.scale,
+          title: '🎉 ส่งเอกสารสำเร็จ',
+          desc:
+              result['message'] ??
+              'ส่งเอกสารยืนยันตัวตนเรียบร้อยแล้ว\nทีมงานจะตรวจสอบและแจ้งผลภายใน 24 ชั่วโมง',
+          btnOkOnPress: () {
+            Navigator.pushReplacementNamed(context, '/home');
+          },
+          btnOkColor: Colors.green[600],
+          btnOkText: 'เรียบร้อย',
+        ).show();
+      } else {
+        AwesomeDialog(
+          context: context,
+          dialogType: DialogType.error,
+          animType: AnimType.rightSlide,
+          title: '❌ เกิดข้อผิดพลาด',
+          desc: result['message'] ?? 'ไม่สามารถส่งเอกสารได้',
+          btnOkOnPress: () {},
+          btnOkColor: Colors.red[600],
+          btnOkText: 'ลองใหม่',
+        ).show();
+      }
     } catch (e) {
+      print('❌ Submit error: $e');
       AwesomeDialog(
         context: context,
         dialogType: DialogType.error,

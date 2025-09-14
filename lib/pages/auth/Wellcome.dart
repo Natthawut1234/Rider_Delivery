@@ -1,7 +1,4 @@
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-// import 'package:delivery/APIs/middleware/authService.dart';
-// import 'package:delivery/pages/LoginPage.dart';
+import 'package:rider_delivery/APIs/middleware/authService.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -38,33 +35,47 @@ class wellcomePage extends StatelessWidget {
         return;
       }
 
-      // final success = await AuthService().loginWithGoogle(auth.idToken!);
-      final prefs = await SharedPreferences.getInstance();
-      final userStr = prefs.getString('user');
-      final user = jsonDecode(userStr!); // ✅ ปลอดภัยเพราะเราเก็บ json แล้ว
-      // print("loginWithGoogle result: $success");
+      // เรียก AuthService แทน
+      final authService = AuthService();
+      final result = await authService.loginWithGoogle(auth.idToken!);
+      print("Google login result: ${result['success']}");
 
-      // if (success) {
-      //   await AwesomeDialog(
-      //     context: context,
-      //     dialogType: DialogType.success,
-      //     animType: AnimType.scale,
-      //     title: 'เข้าสู่ระบบสำเร็จ',
-      //     desc: 'ยินดีต้อนรับ ${user['display_name']}',
-      //     btnOkOnPress: () {},
-      //     btnOkColor: Colors.green,
-      //   ).show();
-      //   Navigator.pushReplacementNamed(context, '/main');
-      // } else {
-      //   AwesomeDialog(
-      //     context: context,
-      //     dialogType: DialogType.error,
-      //     animType: AnimType.rightSlide,
-      //     title: 'เข้าสู่ระบบไม่สำเร็จ',
-      //     desc: 'กรุณาตรวจสอบอินเทอร์เน็ต หรือบัญชีผู้ใช้ของคุณ',
-      //     btnOkOnPress: () {},
-      //   ).show();
-      // }
+      if (result['success']) {
+        final user = result['user'];
+        final riderStatus = result['rider_status'];
+
+        await AwesomeDialog(
+          context: context,
+          dialogType: DialogType.success,
+          animType: AnimType.scale,
+          title: 'เข้าสู่ระบบสำเร็จ',
+          desc: 'ยินดีต้อนรับ ${user['display_name']}',
+          btnOkOnPress: () {},
+          btnOkColor: Colors.green,
+        ).show();
+
+        // ตรวจสอบสถานะการยืนยันตัวตนเหมือน login manual
+        if (context.mounted) {
+          if (riderStatus != null && riderStatus['has_submitted'] == true) {
+            // ถ้าส่งเอกสารแล้ว ไปหน้า Home
+            Navigator.pushReplacementNamed(context, '/home');
+          } else {
+            // ถ้ายังไม่ส่งเอกสาร ไปหน้ายืนยันตัวตน
+            Navigator.pushReplacementNamed(context, '/riderIdentity');
+          }
+        }
+      } else {
+        AwesomeDialog(
+          context: context,
+          dialogType: DialogType.error,
+          animType: AnimType.rightSlide,
+          title: 'เข้าสู่ระบบไม่สำเร็จ',
+          desc:
+              result['message'] ??
+              'กรุณาตรวจสอบอินเทอร์เน็ต หรือบัญชีผู้ใช้ของคุณ',
+          btnOkOnPress: () {},
+        ).show();
+      }
     } catch (e, st) {
       print("Login error: $e");
       print(st);
