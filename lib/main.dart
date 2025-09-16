@@ -7,7 +7,7 @@ import 'package:rider_delivery/pages/DeliveryConfirm.dart';
 import 'package:rider_delivery/pages/GoRestaurant.dart';
 import 'package:rider_delivery/pages/Home/Home.dart';
 import 'package:rider_delivery/pages/Home/Income.dart';
-import 'package:rider_delivery/pages/Home/MyCredit.dart';
+import 'package:rider_delivery/pages/Home/CreditGP/MyCredit.dart';
 import 'package:rider_delivery/pages/Home/RiderReview.dart';
 import 'package:rider_delivery/pages/JobStart.dart';
 import 'package:rider_delivery/pages/Home/Jobs.dart';
