@@ -669,669 +669,647 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     // เลื่อนลงเพื่อรีเฟรชข้อมูล
-    return Expanded(
-      child: RefreshIndicator(
-        onRefresh: _refreshUserData,
-        child: WillPopScope(
-          onWillPop: () async {
-            final shouldExit = await showDialog<bool>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('ออกจากแอพ'),
-                content: const Text('คุณต้องการออกจากแอพใช่หรือไม่?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('ยกเลิก'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: const Text('ออก'),
-                  ),
-                ],
-              ),
-            );
+    return RefreshIndicator(
+      onRefresh: _refreshUserData,
+      child: WillPopScope(
+        onWillPop: () async {
+          final shouldExit = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('ออกจากแอพ'),
+              content: const Text('คุณต้องการออกจากแอพใช่หรือไม่?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('ยกเลิก'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('ออก'),
+                ),
+              ],
+            ),
+          );
 
-            if (shouldExit == true) {
-              SystemNavigator.pop();
-            }
+          if (shouldExit == true) {
+            SystemNavigator.pop();
+          }
 
-            return false;
-          },
-          child: Scaffold(
-            backgroundColor: Colors.white,
-            body: SafeArea(
-              child: Column(
-                children: [
-                  // Make main content scrollable to avoid bottom overflow
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Column(
-                        children: [
-                          // Profile & Greeting
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 16,
-                            ),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(12),
-                              onTap: () async {
-                                // Refresh ข้อมูล user ก่อนไปหน้า profile
+          return false;
+        },
+        child: Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Make main content scrollable to avoid bottom overflow
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      children: [
+                        // Profile & Greeting
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 16,
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () async {
+                              // Refresh ข้อมูล user ก่อนไปหน้า profile
+                              await _refreshUserData();
+
+                              // Navigate และรอผลลัพธ์
+                              final shouldRefresh = await Navigator.pushNamed(
+                                context,
+                                '/profile',
+                              );
+
+                              // หากกลับมาพร้อมสัญญาณให้รีเฟรช
+                              if (shouldRefresh == true) {
                                 await _refreshUserData();
-
-                                // Navigate และรอผลลัพธ์
-                                final shouldRefresh = await Navigator.pushNamed(
-                                  context,
-                                  '/profile',
-                                );
-
-                                // หากกลับมาพร้อมสัญญาณให้รีเฟรช
-                                if (shouldRefresh == true) {
-                                  await _refreshUserData();
-                                }
-                              },
-                              onLongPress: () {
-                                // Long press เพื่อ refresh ข้อมูลโดยไม่ไปหน้า profile
-                                _refreshUserData();
-                              },
-                              child: Row(
-                                children: [
-                                  _isUserDataLoading
-                                      ? Container(
-                                          width: 56,
-                                          height: 56,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: Colors.grey[300],
-                                          ),
-                                          child: CircularProgressIndicator(
-                                            color: Colors.grey[400],
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : CircleAvatar(
-                                          radius: 28,
-                                          backgroundColor: Colors.grey[300],
-                                          child: ClipOval(
-                                            child:
-                                                _userProfileImage.startsWith(
-                                                  'http',
-                                                )
-                                                ? Image.network(
-                                                    _userProfileImage,
-                                                    width: 56,
-                                                    height: 56,
-                                                    fit: BoxFit.cover,
-                                                    loadingBuilder:
-                                                        (
-                                                          context,
-                                                          child,
-                                                          loadingProgress,
-                                                        ) {
-                                                          if (loadingProgress ==
-                                                              null)
-                                                            return child;
-                                                          return Container(
-                                                            width: 56,
-                                                            height: 56,
-                                                            decoration:
-                                                                BoxDecoration(
-                                                                  shape: BoxShape
-                                                                      .circle,
-                                                                  color: Colors
-                                                                      .grey[300],
-                                                                ),
-                                                            child:
-                                                                const CircularProgressIndicator(
-                                                                  strokeWidth:
-                                                                      2,
-                                                                ),
-                                                          );
-                                                        },
-                                                    errorBuilder: (context, error, stackTrace) {
-                                                      print(
-                                                        '❌ Error loading profile image: $error',
-                                                      );
-                                                      // อัปเดตให้ใช้รูป default
-                                                      Future.microtask(() {
-                                                        if (mounted) {
-                                                          setState(() {
-                                                            _userProfileImage =
-                                                                'assets/avatars/avatar-4.png';
-                                                          });
-                                                        }
-                                                      });
-                                                      return Image.asset(
-                                                        'assets/avatars/avatar-4.png',
-                                                        width: 56,
-                                                        height: 56,
-                                                        fit: BoxFit.cover,
-                                                      );
-                                                    },
-                                                  )
-                                                : Image.asset(
-                                                    _userProfileImage,
-                                                    width: 56,
-                                                    height: 56,
-                                                    fit: BoxFit.cover,
-                                                  ),
-                                          ),
-                                        ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'สวัสดี',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        _isUserDataLoading
-                                            ? Container(
-                                                height: 20,
-                                                width: 100,
-                                                decoration: BoxDecoration(
-                                                  color: Colors.grey[300],
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                              )
-                                            : Text(
-                                                _userName,
-                                                style: TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                      ],
-                                    ),
-                                  ),
-                                  Icon(
-                                    Icons.chevron_right,
-                                    color: Colors.grey,
-                                    size: 28,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          // Rider Status Card
-                          _buildStatusCard(),
-
-                          // Earnings Card
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 8,
-                            ),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(
-                                      0.3,
-                                    ), // สีเงา
-                                    blurRadius: 12, // ความฟุ้งของเงา
-                                    spreadRadius: 4, // การกระจายของเงา
-                                    offset: Offset(
-                                      0,
-                                      4,
-                                    ), // ย้ายเงา (0,0) = รอบด้าน
-                                  ),
-                                ],
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 20,
-                                  horizontal: 16,
-                                ),
-                                child: Column(
-                                  children: [
-                                    // สรุปรายได้แบบการ์ดย่อ
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 8.0,
-                                      ),
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(12),
-                                        onTap: () {
-                                          Navigator.pushNamed(
-                                            context,
-                                            '/income',
-                                          );
-                                        },
-                                        child: Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.withOpacity(
-                                              0.03,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 26,
-                                                backgroundColor:
-                                                    Colors.green[100],
-                                                child: Icon(
-                                                  Icons.attach_money,
-                                                  color: Colors.green[700],
-                                                  size: 26,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      '\$852',
-                                                      style: TextStyle(
-                                                        color:
-                                                            Colors.green[800],
-                                                        fontSize: 20,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      'รายได้วันนี้',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        color: Colors.grey[700],
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Icon(
-                                                Icons.chevron_right,
-                                                color: Colors.grey,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    Divider(),
-
-                                    // เครดิตรับงาน
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 8.0,
-                                      ),
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(12),
-                                        onTap: () async {
-                                          // ไปหน้าเครดิตและรีเฟรชเมื่อกลับมา
-                                          await Navigator.pushNamed(
-                                            context,
-                                            '/myCredit',
-                                          );
-                                          // รีเฟรชยอดเครดิตเมื่อกลับมา
-                                          _loadGPBalance();
-                                        },
-                                        child: Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.withOpacity(
-                                              0.03,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 26,
-                                                backgroundColor:
-                                                    Colors.blue[100],
-                                                child: Icon(
-                                                  Icons
-                                                      .account_balance_wallet_outlined,
-                                                  color: Colors.blue[700],
-                                                  size: 26,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    _isCreditLoading
-                                                        ? SizedBox(
-                                                            width: 20,
-                                                            height: 20,
-                                                            child: CircularProgressIndicator(
-                                                              strokeWidth: 2,
-                                                              valueColor:
-                                                                  AlwaysStoppedAnimation<
-                                                                    Color
-                                                                  >(
-                                                                    Colors
-                                                                        .blue[700]!,
-                                                                  ),
-                                                            ),
-                                                          )
-                                                        : Row(
-                                                            children: [
-                                                              Text(
-                                                                _currentCredit >
-                                                                        0
-                                                                    ? '฿${_currentCredit.toStringAsFixed(2)}'
-                                                                    : 'ไม่สามารถโหลดได้',
-                                                                style: TextStyle(
-                                                                  color:
-                                                                      _currentCredit >
-                                                                          0
-                                                                      ? Colors
-                                                                            .blue[800]
-                                                                      : Colors
-                                                                            .red[600],
-                                                                  fontSize: 20,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
-                                                                ),
-                                                              ),
-                                                              if (_currentCredit ==
-                                                                  0)
-                                                                const SizedBox(
-                                                                  width: 8,
-                                                                ),
-                                                              if (_currentCredit ==
-                                                                  0)
-                                                                GestureDetector(
-                                                                  onTap:
-                                                                      _loadGPBalance,
-                                                                  child: Icon(
-                                                                    Icons
-                                                                        .refresh,
-                                                                    color: Colors
-                                                                        .blue[600],
-                                                                    size: 18,
-                                                                  ),
-                                                                ),
-                                                            ],
-                                                          ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      'เครดิตรับงาน',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        color: Colors.grey[700],
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Icon(
-                                                Icons.chevron_right,
-                                                color: Colors.grey,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Divider(),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceAround,
-                                      children: [
-                                        // Today's tips
-                                        Column(
-                                          children: [
-                                            InkWell(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              onTap: () {
-                                                Navigator.pushNamed(
-                                                  context,
-                                                  '/trip',
-                                                );
-                                              },
-                                              child: Column(
-                                                children: [
-                                                  Icon(
-                                                    Icons.monetization_on,
-                                                    color: Colors.amber,
-                                                    size: 24,
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    '\$50',
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    'ทิปวันนี้',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.grey,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        // Today's jobs
-                                        Column(
-                                          children: [
-                                            InkWell(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              onTap: () {
-                                                Navigator.pushNamed(
-                                                  context,
-                                                  '/jobs',
-                                                );
-                                              },
-                                              child: Column(
-                                                children: [
-                                                  Icon(
-                                                    Icons.pedal_bike,
-                                                    color: Colors.red,
-                                                    size: 24,
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    '25 งาน',
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    'งานวันนี้',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.grey,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-
-                                        // Rating
-                                        Column(
-                                          children: [
-                                            InkWell(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              onTap: () {
-                                                Navigator.pushNamed(
-                                                  context,
-                                                  '/riderReview',
-                                                );
-                                              },
-                                              child: Column(
-                                                children: [
-                                                  Icon(
-                                                    Icons.star,
-                                                    color: Colors.orange,
-                                                    size: 24,
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    '4.5',
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    'ดูรีวิวทั้งหมด',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.grey,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          // ข้อมูลสถานะระบบ (แทนที่ Debug Panel)
-                          Container(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 8,
-                            ),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey[200]!),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              }
+                            },
+                            onLongPress: () {
+                              // Long press เพื่อ refresh ข้อมูลโดยไม่ไปหน้า profile
+                              _refreshUserData();
+                            },
+                            child: Row(
                               children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.info_outline,
-                                      color: Colors.blue[600],
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'ข้อมูลสถานะ',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.grey[800],
+                                _isUserDataLoading
+                                    ? Container(
+                                        width: 56,
+                                        height: 56,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.grey[300],
+                                        ),
+                                        child: CircularProgressIndicator(
+                                          color: Colors.grey[400],
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : CircleAvatar(
+                                        radius: 28,
+                                        backgroundColor: Colors.grey[300],
+                                        child: ClipOval(
+                                          child:
+                                              _userProfileImage.startsWith(
+                                                'http',
+                                              )
+                                              ? Image.network(
+                                                  _userProfileImage,
+                                                  width: 56,
+                                                  height: 56,
+                                                  fit: BoxFit.cover,
+                                                  loadingBuilder:
+                                                      (
+                                                        context,
+                                                        child,
+                                                        loadingProgress,
+                                                      ) {
+                                                        if (loadingProgress ==
+                                                            null)
+                                                          return child;
+                                                        return Container(
+                                                          width: 56,
+                                                          height: 56,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                                shape: BoxShape
+                                                                    .circle,
+                                                                color: Colors
+                                                                    .grey[300],
+                                                              ),
+                                                          child:
+                                                              const CircularProgressIndicator(
+                                                                strokeWidth: 2,
+                                                              ),
+                                                        );
+                                                      },
+                                                  errorBuilder:
+                                                      (
+                                                        context,
+                                                        error,
+                                                        stackTrace,
+                                                      ) {
+                                                        print(
+                                                          '❌ Error loading profile image: $error',
+                                                        );
+                                                        return Image.asset(
+                                                          'assets/avatars/avatar-4.png',
+                                                          width: 56,
+                                                          height: 56,
+                                                          fit: BoxFit.cover,
+                                                        );
+                                                      },
+                                                )
+                                              : Image.asset(
+                                                  _userProfileImage,
+                                                  width: 56,
+                                                  height: 56,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                _buildStatusInfoRow(
-                                  'สถานะปัจจุบัน',
-                                  _riderStatus.toString().split('.').last,
-                                ),
-                                const SizedBox(height: 8),
-                                _buildStatusInfoRow('ข้อความ', _statusMessage),
-                                if (_userName != 'ผู้ใช้')
-                                  Column(
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      const SizedBox(height: 8),
-                                      _buildStatusInfoRow(
-                                        'ชื่อผู้ใช้',
-                                        _userName,
+                                      Text(
+                                        'สวัสดี',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey,
+                                        ),
                                       ),
+                                      const SizedBox(height: 2),
+                                      _isUserDataLoading
+                                          ? Container(
+                                              height: 20,
+                                              width: 100,
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey[300],
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                            )
+                                          : Text(
+                                              _userName,
+                                              style: TextStyle(
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                     ],
                                   ),
-                                // แสดงวันที่ส่งเอกสาร (ถ้ามี)
-                                FutureBuilder<String?>(
-                                  future:
-                                      RiderStatusService.getSubmissionDate(),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.hasData &&
-                                        snapshot.data != null) {
-                                      final date = DateTime.parse(
-                                        snapshot.data!,
-                                      );
-                                      final formattedDate =
-                                          '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-                                      return Column(
-                                        children: [
-                                          const SizedBox(height: 8),
-                                          _buildStatusInfoRow(
-                                            'วันที่ส่งเอกสาร',
-                                            formattedDate,
-                                          ),
-                                        ],
-                                      );
-                                    }
-                                    return SizedBox.shrink();
-                                  },
                                 ),
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue[600],
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 12,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    icon: Icon(Icons.refresh, size: 18),
-                                    label: Text('รีเฟรชสถานะ'),
-                                    onPressed: _isLoading
-                                        ? null
-                                        : () async {
-                                            await _checkRiderStatus();
-                                            await _refreshUserData();
-                                          },
-                                  ),
+                                Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.grey,
+                                  size: 28,
                                 ),
                               ],
                             ),
                           ),
+                        ),
 
-                          // Debug Panel (คอมเม้นท์ออกแล้ว - ใช้เมื่อต้องการทดสอบเท่านั้น)
-                          /*
+                        // Rider Status Card
+                        _buildStatusCard(),
+
+                        // Earnings Card
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 8,
+                          ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.3), // สีเงา
+                                  blurRadius: 12, // ความฟุ้งของเงา
+                                  spreadRadius: 4, // การกระจายของเงา
+                                  offset: Offset(
+                                    0,
+                                    4,
+                                  ), // ย้ายเงา (0,0) = รอบด้าน
+                                ),
+                              ],
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 20,
+                                horizontal: 16,
+                              ),
+                              child: Column(
+                                children: [
+                                  // สรุปรายได้แบบการ์ดย่อ
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8.0,
+                                    ),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(12),
+                                      onTap: () {
+                                        Navigator.pushNamed(context, '/income');
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.withOpacity(0.03),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 26,
+                                              backgroundColor:
+                                                  Colors.green[100],
+                                              child: Icon(
+                                                Icons.attach_money,
+                                                color: Colors.green[700],
+                                                size: 26,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    '\$852',
+                                                    style: TextStyle(
+                                                      color: Colors.green[800],
+                                                      fontSize: 20,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    'รายได้วันนี้',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.grey[700],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Icon(
+                                              Icons.chevron_right,
+                                              color: Colors.grey,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  Divider(),
+
+                                  // เครดิตรับงาน
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8.0,
+                                    ),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(12),
+                                      onTap: () async {
+                                        // ไปหน้าเครดิตและรีเฟรชเมื่อกลับมา
+                                        await Navigator.pushNamed(
+                                          context,
+                                          '/myCredit',
+                                        );
+                                        // รีเฟรชยอดเครดิตเมื่อกลับมา
+                                        _loadGPBalance();
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.withOpacity(0.03),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 26,
+                                              backgroundColor: Colors.blue[100],
+                                              child: Icon(
+                                                Icons
+                                                    .account_balance_wallet_outlined,
+                                                color: Colors.blue[700],
+                                                size: 26,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  _isCreditLoading
+                                                      ? SizedBox(
+                                                          width: 20,
+                                                          height: 20,
+                                                          child: CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            valueColor:
+                                                                AlwaysStoppedAnimation<
+                                                                  Color
+                                                                >(
+                                                                  Colors
+                                                                      .blue[700]!,
+                                                                ),
+                                                          ),
+                                                        )
+                                                      : Row(
+                                                          children: [
+                                                            Text(
+                                                              _currentCredit > 0
+                                                                  ? '฿${_currentCredit.toStringAsFixed(2)}'
+                                                                  : 'ไม่สามารถโหลดได้',
+                                                              style: TextStyle(
+                                                                color:
+                                                                    _currentCredit >
+                                                                        0
+                                                                    ? Colors
+                                                                          .blue[800]
+                                                                    : Colors
+                                                                          .red[600],
+                                                                fontSize: 20,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                            if (_currentCredit ==
+                                                                0)
+                                                              const SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                            if (_currentCredit ==
+                                                                0)
+                                                              GestureDetector(
+                                                                onTap:
+                                                                    _loadGPBalance,
+                                                                child: Icon(
+                                                                  Icons.refresh,
+                                                                  color: Colors
+                                                                      .blue[600],
+                                                                  size: 18,
+                                                                ),
+                                                              ),
+                                                          ],
+                                                        ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    'เครดิตรับงาน',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.grey[700],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Icon(
+                                              Icons.chevron_right,
+                                              color: Colors.grey,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Divider(),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceAround,
+                                    children: [
+                                      // Today's tips
+                                      Column(
+                                        children: [
+                                          InkWell(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            onTap: () {
+                                              Navigator.pushNamed(
+                                                context,
+                                                '/trip',
+                                              );
+                                            },
+                                            child: Column(
+                                              children: [
+                                                Icon(
+                                                  Icons.monetization_on,
+                                                  color: Colors.amber,
+                                                  size: 24,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '\$50',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'ทิปวันนี้',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      // Today's jobs
+                                      Column(
+                                        children: [
+                                          InkWell(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            onTap: () {
+                                              Navigator.pushNamed(
+                                                context,
+                                                '/jobs',
+                                              );
+                                            },
+                                            child: Column(
+                                              children: [
+                                                Icon(
+                                                  Icons.pedal_bike,
+                                                  color: Colors.red,
+                                                  size: 24,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '25 งาน',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'งานวันนี้',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+
+                                      // Rating
+                                      Column(
+                                        children: [
+                                          InkWell(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            onTap: () {
+                                              Navigator.pushNamed(
+                                                context,
+                                                '/riderReview',
+                                              );
+                                            },
+                                            child: Column(
+                                              children: [
+                                                Icon(
+                                                  Icons.star,
+                                                  color: Colors.orange,
+                                                  size: 24,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '4.5',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'ดูรีวิวทั้งหมด',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // ข้อมูลสถานะระบบ (แทนที่ Debug Panel)
+                        Container(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 8,
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[200]!),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.info_outline,
+                                    color: Colors.blue[600],
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'ข้อมูลสถานะ',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey[800],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              _buildStatusInfoRow(
+                                'สถานะปัจจุบัน',
+                                _riderStatus.toString().split('.').last,
+                              ),
+                              const SizedBox(height: 8),
+                              _buildStatusInfoRow('ข้อความ', _statusMessage),
+                              if (_userName != 'ผู้ใช้')
+                                Column(
+                                  children: [
+                                    const SizedBox(height: 8),
+                                    _buildStatusInfoRow(
+                                      'ชื่อผู้ใช้',
+                                      _userName,
+                                    ),
+                                  ],
+                                ),
+                              // แสดงวันที่ส่งเอกสาร (ถ้ามี)
+                              FutureBuilder<String?>(
+                                future: RiderStatusService.getSubmissionDate(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasData &&
+                                      snapshot.data != null) {
+                                    final date = DateTime.parse(snapshot.data!);
+                                    final formattedDate =
+                                        '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+                                    return Column(
+                                      children: [
+                                        const SizedBox(height: 8),
+                                        _buildStatusInfoRow(
+                                          'วันที่ส่งเอกสาร',
+                                          formattedDate,
+                                        ),
+                                      ],
+                                    );
+                                  }
+                                  return SizedBox.shrink();
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue[600],
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  icon: Icon(Icons.refresh, size: 18),
+                                  label: Text('รีเฟรชสถานะ'),
+                                  onPressed: _isLoading
+                                      ? null
+                                      : () async {
+                                          await _checkRiderStatus();
+                                          await _refreshUserData();
+                                        },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Debug Panel (คอมเม้นท์ออกแล้ว - ใช้เมื่อต้องการทดสอบเท่านั้น)
+                        /*
                           Container(
                             margin: const EdgeInsets.symmetric(
                               horizontal: 20,
@@ -1460,102 +1438,94 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           */
-                          const SizedBox(height: 8),
-                        ],
-                      ),
+                        const SizedBox(height: 8),
+                      ],
                     ),
                   ),
+                ),
 
-                  // Bottom button area pinned and safe (prevents overflow)
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                _riderStatus == RiderStatus.approved
-                                ? Colors.green
-                                : _riderStatus == RiderStatus.incomplete
-                                ? Colors.blue
-                                : _riderStatus == RiderStatus.rejected
-                                ? Colors.red
-                                : Colors.grey,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          onPressed: _riderStatus == RiderStatus.approved
-                              ? () {
-                                  // ตรวจสอบข้อมูลโปรไฟล์ก่อนเริ่มงาน
-                                  if (_isProfileInfoMissing()) {
-                                    _showIncompleteProfileDialog();
-                                  } else {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const JobStartPage(),
-                                      ),
-                                    );
-                                  }
-                                }
+                // Bottom button area pinned and safe (prevents overflow)
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _riderStatus == RiderStatus.approved
+                              ? Colors.green
                               : _riderStatus == RiderStatus.incomplete
-                              ? () {
-                                  Navigator.pushNamed(
-                                    context,
-                                    '/riderIdentity',
-                                  );
-                                }
+                              ? Colors.blue
                               : _riderStatus == RiderStatus.rejected
-                              ? () {
-                                  Navigator.pushNamed(
+                              ? Colors.red
+                              : Colors.grey,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: _riderStatus == RiderStatus.approved
+                            ? () {
+                                // ตรวจสอบข้อมูลโปรไฟล์ก่อนเริ่มงาน
+                                if (_isProfileInfoMissing()) {
+                                  _showIncompleteProfileDialog();
+                                } else {
+                                  Navigator.push(
                                     context,
-                                    '/riderIdentity',
-                                  );
-                                }
-                              : () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(_getDisabledMessage()),
-                                      backgroundColor: Colors.orange,
-                                      duration: const Duration(seconds: 3),
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const JobStartPage(),
                                     ),
                                   );
-                                },
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
+                                }
+                              }
+                            : _riderStatus == RiderStatus.incomplete
+                            ? () {
+                                Navigator.pushNamed(context, '/riderIdentity');
+                              }
+                            : _riderStatus == RiderStatus.rejected
+                            ? () {
+                                Navigator.pushNamed(context, '/riderIdentity');
+                              }
+                            : () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(_getDisabledMessage()),
+                                    backgroundColor: Colors.orange,
+                                    duration: const Duration(seconds: 3),
                                   ),
-                                )
-                              : Text(
-                                  _getButtonText(),
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                );
+                              },
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
                                 ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ), // Column
-            ), // SafeArea
-          ), // Scaffold
-        ),
-      ),
-    ); // WillPopScope
+                              )
+                            : Text(
+                                _getButtonText(),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ), // ElevatedButton
+                    ), // SizedBox
+                  ), // SafeArea
+                ), // Padding
+              ], // children
+            ), // Column
+          ), // SafeArea
+        ), // Scaffold
+      ), // WillPopScope
+    );
   }
 }

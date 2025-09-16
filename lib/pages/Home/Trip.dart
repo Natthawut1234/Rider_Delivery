@@ -190,7 +190,6 @@ class _TripPageState extends State<TripPage> {
   }
 
   Widget _buildSummaryCard() {
-    final avg = tripCount == 0 ? 0 : (totalEarn / tripCount);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       padding: const EdgeInsets.all(16),

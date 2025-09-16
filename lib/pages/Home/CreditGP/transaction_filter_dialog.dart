@@ -62,13 +62,13 @@ class TransactionFilterDialog {
 
                     _buildFilterOption(
                       context: context,
-                      title: 'ค่าขนส่ง',
-                      subtitle: 'รายการหักเครดิตสำหรับออเดอร์',
-                      icon: Icons.delivery_dining,
-                      isSelected: tempSelectedFilter == 'ค่าขนส่ง',
+                      title: 'หักค่ารับงาน',
+                      subtitle: 'รายการหักค่าบริการรับงาน',
+                      icon: Icons.remove_circle,
+                      isSelected: tempSelectedFilter == 'หักค่ารับงาน',
                       onTap: () {
                         setState(() {
-                          tempSelectedFilter = 'ค่าขนส่ง';
+                          tempSelectedFilter = 'หักค่ารับงาน';
                           tempSelectedTopupSubFilter = '';
                         });
                       },

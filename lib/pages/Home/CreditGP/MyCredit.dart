@@ -18,10 +18,15 @@ class _MyCreditPageState extends State<MyCreditPage> {
   String errorMessage = '';
   String lastUpdateTime = ''; // เวลาอัพเดทล่าสุด
 
+  // เพิ่มตัวแปรสำหรับประวัติล่าสุด
+  List<Map<String, dynamic>> recentTransactions = [];
+  bool isLoadingTransactions = false;
+
   @override
   void initState() {
     super.initState();
     _loadGPBalance(); // โหลดยอดเครดิตเมื่อเปิดหน้า
+    _loadRecentTransactions(); // โหลดประวัติล่าสุด
   }
 
   // ฟังก์ชันดึงยอดเครดิต GP จาก API
@@ -60,6 +65,63 @@ class _MyCreditPageState extends State<MyCreditPage> {
         errorMessage = 'เกิดข้อผิดพลาด: ${e.toString()}';
         isLoading = false;
       });
+    }
+  }
+
+  // ฟังก์ชันดึงประวัติการเติมเงินล่าสุด (5 รายการ)
+  Future<void> _loadRecentTransactions() async {
+    setState(() {
+      isLoadingTransactions = true;
+    });
+
+    try {
+      final topupAPI = TopupGP();
+      final result = await topupAPI.getTopupHistory();
+
+      if (result['success']) {
+        final topupHistory = result['data']['topup_history'] as List<dynamic>;
+
+        setState(() {
+          // เอาแค่ 5 รายการล่าสุด
+          recentTransactions = topupHistory.take(5).map((item) {
+            return {
+              'icon': Icons.add_circle,
+              'title': 'เติมเครดิต PromptPay',
+              'amount':
+                  '+ ฿ ${double.parse(item['amount'].toString()).toStringAsFixed(2)}',
+              'date': _formatDate(item['created_at']),
+              'isDebit': false,
+              'status': item['status'],
+            };
+          }).toList();
+          isLoadingTransactions = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        isLoadingTransactions = false;
+      });
+    }
+  }
+
+  // ฟังก์ชันแปลงวันที่
+  String _formatDate(String dateString) {
+    try {
+      final dateTime = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final difference = now.difference(dateTime);
+
+      if (difference.inDays == 0) {
+        return 'วันนี้ ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      } else if (difference.inDays == 1) {
+        return 'เมื่อวาน ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} วันที่แล้ว';
+      } else {
+        return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+      }
+    } catch (e) {
+      return dateString;
     }
   }
 
@@ -307,15 +369,15 @@ class _MyCreditPageState extends State<MyCreditPage> {
                           onTap: () => _showTopUpDialog(),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildQuickActionCard(
-                          icon: Icons.remove_circle_outline,
-                          title: 'ถอนเครดิต',
-                          color: Colors.orange,
-                          onTap: () => _showWithdrawDialog(),
-                        ),
-                      ),
+                      // const SizedBox(width: 8),
+                      // Expanded(
+                      //   child: _buildQuickActionCard(
+                      //     icon: Icons.remove_circle_outline,
+                      //     title: 'ถอนเครดิต',
+                      //     color: Colors.orange,
+                      //     onTap: () => _showWithdrawDialog(),
+                      //   ),
+                      // ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildQuickActionCard(
@@ -355,44 +417,46 @@ class _MyCreditPageState extends State<MyCreditPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
                 children: [
-                  _buildTransactionItem(
-                    icon: Icons.delivery_dining,
-                    title: 'ค่าขนส่ง - ออเดอร์ #12345',
-                    amount: '- ฿ 85.00',
-                    date: 'วันนี้ 12:30',
-                    isDebit: true,
-                  ),
-                  _buildTransactionItem(
-                    icon: Icons.add_circle,
-                    title: 'เติมเครดิตจากบัตรเครดิต',
-                    amount: '+ ฿ 500.00',
-                    date: 'เมื่อวาน 16:45',
-                    isDebit: false,
-                    status: 'approved',
-                  ),
-                  _buildTransactionItem(
-                    icon: Icons.add_circle,
-                    title: 'เติมเครดิต PromptPay',
-                    amount: '+ ฿ 200.00',
-                    date: 'เมื่อวาน 14:15',
-                    isDebit: false,
-                    status: 'pending',
-                  ),
-                  _buildTransactionItem(
-                    icon: Icons.account_balance_wallet,
-                    title: 'ถอนเครดิตไปยังบัญชีธนาคาร',
-                    amount: '- ฿ 200.00',
-                    date: 'เมื่อวาน 15:20',
-                    isDebit: true,
-                    isWithdraw: true,
-                  ),
-                  _buildTransactionItem(
-                    icon: Icons.delivery_dining,
-                    title: 'ค่าขนส่ง - ออเดอร์ #12344',
-                    amount: '- ฿ 125.50',
-                    date: 'เมื่อวาน 14:20',
-                    isDebit: true,
-                  ),
+                  // แสดงประวัติล่าสุดจาก API
+                  if (isLoadingTransactions)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (recentTransactions.isNotEmpty)
+                    ...recentTransactions.map(
+                      (transaction) => _buildTransactionItem(
+                        icon: transaction['icon'],
+                        title: transaction['title'],
+                        amount: transaction['amount'],
+                        date: transaction['date'],
+                        isDebit: transaction['isDebit'],
+                        status: transaction['status'],
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.receipt_long_outlined,
+                            size: 48,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'ยังไม่มีประวัติการทำรายการ',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
                   const SizedBox(height: 16),
                   Container(
@@ -621,6 +685,7 @@ class _MyCreditPageState extends State<MyCreditPage> {
       // อัพเดทยอดเครดิต (รีเฟรชจาก API)
       Future.delayed(const Duration(seconds: 1), () {
         _loadGPBalance();
+        _loadRecentTransactions(); // เพิ่มการรีเฟรชประวัติล่าสุด
       });
     });
   }

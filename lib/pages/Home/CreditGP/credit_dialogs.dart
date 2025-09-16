@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
 import 'package:promptpay_qrcode_generate/promptpay_qrcode_generate.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
 import '../../../APIs/middleware/topupGP.dart';
+import 'image_saver.dart';
 
 class CreditDialogs {
   static void showTopUpDialog(
     BuildContext context,
     Function(double) onConfirm,
   ) {
+    final GlobalKey qrKey = GlobalKey();
     final TextEditingController amountController = TextEditingController();
     double selectedAmount = 0;
     bool showQR = false;
     bool hasUploadedSlip = false;
     bool isLoading = false;
+    bool isSavingQR = false;
     File? selectedImage;
 
     // ฟิกเบอร์ เพื่อให้QR Code ไม่ซ้ำกันและถูกเจนตามเบอร์โทรและจำนวนเงิน
@@ -230,14 +236,109 @@ class CreditDialogs {
                                           ),
                                         ),
                                         padding: const EdgeInsets.all(10),
-                                        child: QRCodeGenerate(
-                                          promptPayId: fixedPhoneNumber,
-                                          amount: selectedAmount,
-                                          width: 200,
-                                          height: 200,
+                                        child: GestureDetector(
+                                          onLongPress: () async {
+                                            setState(() {
+                                              isSavingQR = true;
+                                            });
+
+                                            try {
+                                              await _saveQrToGallery(qrKey);
+                                            } catch (e) {
+                                              // Error is handled in _saveQrToGallery
+                                            } finally {
+                                              setState(() {
+                                                isSavingQR = false;
+                                              });
+                                            }
+                                          },
+                                          child: Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              RepaintBoundary(
+                                                key: qrKey,
+                                                child: QRCodeGenerate(
+                                                  promptPayId: fixedPhoneNumber,
+                                                  amount: selectedAmount,
+                                                  width: 200,
+                                                  height: 200,
+                                                ),
+                                              ),
+                                              if (isSavingQR)
+                                                Container(
+                                                  width: 200,
+                                                  height: 200,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black
+                                                        .withOpacity(0.6),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                  ),
+                                                  child: const Column(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      CircularProgressIndicator(
+                                                        valueColor:
+                                                            AlwaysStoppedAnimation<
+                                                              Color
+                                                            >(Colors.white),
+                                                      ),
+                                                      SizedBox(height: 8),
+                                                      Text(
+                                                        'กำลังบันทึก...',
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(height: 12),
+
+                                    // Helper text for long press
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber[50],
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: Colors.amber[200]!,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.touch_app,
+                                            size: 16,
+                                            color: Colors.amber[700],
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'กดค้าง QR Code เพื่อบันทึกรูป',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.amber[700],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
                                     const SizedBox(height: 16),
                                     Container(
                                       padding: const EdgeInsets.all(12),
@@ -1079,33 +1180,96 @@ class CreditDialogs {
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('ยกเลิก'),
-                ),
-                ElevatedButton(
-                  onPressed: (canWithdraw && selectedPaymentMethod.isNotEmpty)
-                      ? () {
-                          Navigator.pop(context);
-                          onConfirm(totalDeduction);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'กำลังดำเนินการถอนเครดิต ฿ ${selectedAmount.toStringAsFixed(2)}',
-                              ),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                        }
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange[600],
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('ยืนยันการถอน'),
-                ),
-              ],
+              // actions: [
+              //   TextButton(
+              //     onPressed: () => Navigator.pop(context),
+              //     child: const Text('ยกเลิก'),
+              //   ),
+              //   ElevatedButton(
+              //     onPressed: (canWithdraw && selectedPaymentMethod.isNotEmpty)
+              //         ? () async {
+              //             Navigator.pop(context);
+
+              //             // แสดง loading
+              //             ScaffoldMessenger.of(context).showSnackBar(
+              //               const SnackBar(
+              //                 content: Row(
+              //                   children: [
+              //                     CircularProgressIndicator(
+              //                       valueColor: AlwaysStoppedAnimation<Color>(
+              //                         Colors.white,
+              //                       ),
+              //                     ),
+              //                     SizedBox(width: 16),
+              //                     Text('กำลังส่งคำขอถอนเงิน...'),
+              //                   ],
+              //                 ),
+              //                 backgroundColor: Colors.orange,
+              //                 duration: Duration(seconds: 10),
+              //               ),
+              //             );
+
+              // try {
+              //   // เรียก API ถอนเงิน
+              //   final result = await withdrawCredit(
+              //     amount: selectedAmount,
+              //     bankAccount: selectedPaymentMethod,
+              //     bankName: selectedPaymentMethod.contains('ธนาคาร')
+              //         ? selectedPaymentMethod
+              //         : 'ธนาคารที่เลือก',
+              //     note: 'ถอนเงินผ่านแอปพลิเคชัน',
+              //   );
+
+              //   // ซ่อน loading snackbar
+              //   ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+              //   if (result['success']) {
+              //     // แสดงผลสำเร็จ
+              //     ScaffoldMessenger.of(context).showSnackBar(
+              //       SnackBar(
+              //         content: Text(
+              //           result['message'] ?? 'ส่งคำขอถอนเงินสำเร็จ',
+              //         ),
+              //         backgroundColor: Colors.green,
+              //       ),
+              //     );
+
+              //     // เรียก callback เพื่ออัพเดท UI
+              //     onConfirm(totalDeduction);
+              //   } else {
+              //     // แสดง error
+              //     ScaffoldMessenger.of(context).showSnackBar(
+              //       SnackBar(
+              //         content: Text(
+              //           result['message'] ?? 'ไม่สามารถถอนเงินได้',
+              //         ),
+              //         backgroundColor: Colors.red,
+              //       ),
+              //     );
+              //   }
+              // } catch (e) {
+              //   // ซ่อน loading snackbar
+              //   ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+              //   // แสดง error
+              //   ScaffoldMessenger.of(context).showSnackBar(
+              //     SnackBar(
+              //       content: Text(
+              //         'เกิดข้อผิดพลาด: ${e.toString()}',
+              //       ),
+              //       backgroundColor: Colors.red,
+              //     ),
+              //   );
+              // }
+              //           }
+              //         : null,
+              //     style: ElevatedButton.styleFrom(
+              //       backgroundColor: Colors.orange[600],
+              //       foregroundColor: Colors.white,
+              //     ),
+              //     child: const Text('ยืนยันการถอน'),
+              //   ),
+              // ],
             );
           },
         );
@@ -1182,5 +1346,34 @@ class CreditDialogs {
         onTap: onTap,
       ),
     );
+  }
+
+  // Helper method to save QR code to gallery
+  static Future<void> _saveQrToGallery(GlobalKey key) async {
+    try {
+      if (key.currentContext == null) {
+        throw Exception('QR Code ไม่พบ');
+      }
+
+      RenderRepaintBoundary boundary =
+          key.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+
+      if (byteData != null) {
+        Uint8List pngBytes = byteData.buffer.asUint8List();
+        await ImageSaver.saveImage(
+          pngBytes,
+          name: "qr_promptpay_${DateTime.now().millisecondsSinceEpoch}",
+        );
+      } else {
+        throw Exception('ไม่สามารถแปลง QR Code เป็นรูปภาพได้');
+      }
+    } catch (e) {
+      // Error will be shown via ImageSaver's toast
+      rethrow;
+    }
   }
 }
