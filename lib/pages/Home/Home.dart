@@ -34,6 +34,20 @@ class _HomePageState extends State<HomePage> {
   String? _promptpay;
   DateTime? _birthdate; // เพิ่มฟิลด์ birthdate
 
+  // Helper: ตรวจสอบว่า response จาก API เป็น auth error (401/403 หรือข้อความ token ไม่ถูกต้อง)
+  bool _isAuthError(Map<String, dynamic>? result) {
+    if (result == null) return false;
+    final code = result['statusCode'];
+    final msg = (result['message'] ?? '').toString();
+    if (result['authError'] == true) return true;
+    if (code == 401 || code == 403) return true;
+    if (msg.contains('Token') ||
+        msg.contains('หมดอายุ') ||
+        msg.contains('ไม่ถูกต้อง'))
+      return true;
+    return false;
+  }
+
   // เพิ่ม query parameter เพื่อบังคับให้ Image.network โหลดไฟล์ใหม่
   String _appendCacheBuster(String url) {
     try {
@@ -174,15 +188,18 @@ class _HomePageState extends State<HomePage> {
           _isCreditLoading = false;
         });
         print('❌ Home: Failed to load credit: ${result['message']}');
-
-        // ถ้า token หมดอายุให้ logout อัตโนมัติ
-        if (result['message']?.contains('Token') == true ||
-            result['message']?.contains('หมดอายุ') == true ||
-            result['message']?.contains('ไม่ถูกต้อง') == true) {
-          print(
-            '🔒 Home: Token expired in credit loading, performing auto logout...',
-          );
+        if (_isAuthError(result)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
           await _performLogout();
+          return;
         }
       }
     } catch (e) {
@@ -212,7 +229,7 @@ class _HomePageState extends State<HomePage> {
 
       if (result['success'] && result['data'] != null) {
         final profileData = result['data'];
-        final ui = profileData['user_info'] ?? profileData;
+        final ui = profileData['user_info'] ?? profileData; // fallback
 
         print('🔍 Home: Raw user data received: $ui');
         print(
@@ -266,13 +283,17 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _isUserDataLoading = false;
         });
-
-        // ถ้า token หมดอายุหรือไม่ถูกต้อง ให้ logout อัตโนมัติ
-        if (result['message']?.contains('Token') == true ||
-            result['message']?.contains('หมดอายุ') == true ||
-            result['message']?.contains('ไม่ถูกต้อง') == true) {
-          print('🔒 Home: Token expired, performing auto logout...');
+        if (_isAuthError(result)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('เซสชันหมดอายุ (โปรไฟล์) กรุณาเข้าสู่ระบบใหม่'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
           await _performLogout();
+          return;
         }
       }
     } catch (e) {
@@ -455,13 +476,17 @@ class _HomePageState extends State<HomePage> {
         }
       } else {
         print('❌ API call failed: ${result['message']}');
-
-        // ถ้า token หมดอายุให้ logout อัตโนมัติ
-        if (result['message']?.contains('Token') == true ||
-            result['message']?.contains('หมดอายุ') == true ||
-            result['message']?.contains('ไม่ถูกต้อง') == true) {
-          print('🔒 _testAPICall: Token expired, performing auto logout...');
+        if (_isAuthError(result)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('เซสชันหมดอายุ (ตรวจสอบ) กรุณาเข้าสู่ระบบใหม่'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
           await _performLogout();
+          return;
         }
       }
     } catch (e) {
@@ -1018,40 +1043,29 @@ class _HomePageState extends State<HomePage> {
                                                       : Row(
                                                           children: [
                                                             Text(
-                                                              _currentCredit > 0
-                                                                  ? '฿${_currentCredit.toStringAsFixed(2)}'
-                                                                  : 'ไม่สามารถโหลดได้',
+                                                              '฿${_currentCredit.toStringAsFixed(2)}',
                                                               style: TextStyle(
-                                                                color:
-                                                                    _currentCredit >
-                                                                        0
-                                                                    ? Colors
-                                                                          .blue[800]
-                                                                    : Colors
-                                                                          .red[600],
+                                                                color: Colors
+                                                                    .blue[800],
                                                                 fontSize: 20,
                                                                 fontWeight:
                                                                     FontWeight
                                                                         .bold,
                                                               ),
                                                             ),
-                                                            if (_currentCredit ==
-                                                                0)
-                                                              const SizedBox(
-                                                                width: 8,
+                                                            const SizedBox(
+                                                              width: 8,
+                                                            ),
+                                                            GestureDetector(
+                                                              onTap:
+                                                                  _loadGPBalance,
+                                                              child: Icon(
+                                                                Icons.refresh,
+                                                                color: Colors
+                                                                    .blue[600],
+                                                                size: 18,
                                                               ),
-                                                            if (_currentCredit ==
-                                                                0)
-                                                              GestureDetector(
-                                                                onTap:
-                                                                    _loadGPBalance,
-                                                                child: Icon(
-                                                                  Icons.refresh,
-                                                                  color: Colors
-                                                                      .blue[600],
-                                                                  size: 18,
-                                                                ),
-                                                              ),
+                                                            ),
                                                           ],
                                                         ),
                                                   const SizedBox(height: 4),

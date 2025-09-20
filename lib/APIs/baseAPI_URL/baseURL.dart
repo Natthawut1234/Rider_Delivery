@@ -24,10 +24,11 @@ class BaseAPI_URL {
   }
 
   // URL ตัวเลือกต่างๆ
-  static const String localhostURL = 'http://192.168.1.119:4000/rider';
-  static const String androidEmulatorURL = 'http://192.168.1.119:4000/rider';
+  static const String localhostURL = 'http://192.168.1.128:4000/rider';
+  static const String androidEmulatorURL = 'http://192.168.1.128:4000/rider';
 
   static const String localNetworkURL =
-      'http://192.168.1.119:4000/rider'; // แทนที่ด้วย IP จริงของเครื่อง
+      'http://192.168.1.128:4000/rider'; // แทนที่ด้วย IP จริงของเครื่อง
+
 }
 // 'http://10.0.2.2:4000/rider';

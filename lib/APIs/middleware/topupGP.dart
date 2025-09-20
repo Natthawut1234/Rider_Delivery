@@ -112,11 +112,14 @@ class TopupGP {
         };
       } else {
         final jsonResponse = jsonDecode(response.body);
+        // เพิ่ม flag สำหรับ auth error
+        final status = response.statusCode;
         return {
           'success': false,
           'message': jsonResponse['error'] ?? 'ไม่สามารถดึงยอด GP ได้',
           'error': jsonResponse,
-          'statusCode': response.statusCode,
+          'statusCode': status,
+          'authError': status == 401 || status == 403,
         };
       }
     } catch (e) {
@@ -191,11 +194,13 @@ class TopupGP {
       } else {
         // Handle different error status codes
         final jsonResponse = jsonDecode(responseData.body);
+        final status = response.statusCode;
         return {
           'success': false,
           'message': jsonResponse['error'] ?? 'เติมเงินไม่สำเร็จ',
           'error': jsonResponse,
-          'statusCode': response.statusCode,
+          'statusCode': status,
+          'authError': status == 401 || status == 403,
         };
       }
     } catch (e) {
@@ -247,11 +252,13 @@ class TopupGP {
         };
       } else {
         final jsonResponse = jsonDecode(response.body);
+        final status = response.statusCode;
         return {
           'success': false,
           'message': jsonResponse['error'] ?? 'ไม่สามารถดึงประวัติได้',
           'error': jsonResponse,
-          'statusCode': response.statusCode,
+          'statusCode': status,
+          'authError': status == 401 || status == 403,
         };
       }
     } catch (e) {
@@ -303,11 +310,13 @@ Future<Map<String, dynamic>> getTopupStatus(String topupId) async {
       };
     } else {
       final jsonResponse = jsonDecode(response.body);
+      final status = response.statusCode;
       return {
         'success': false,
         'message': jsonResponse['error'] ?? 'ไม่สามารถดึงสถานะการเติมเงินได้',
         'error': jsonResponse,
-        'statusCode': response.statusCode,
+        'statusCode': status,
+        'authError': status == 401 || status == 403,
       };
     }
   } catch (e) {
