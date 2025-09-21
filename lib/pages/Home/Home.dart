@@ -18,7 +18,7 @@ class _HomePageState extends State<HomePage> {
   RiderStatus _riderStatus = RiderStatus.incomplete;
   String _statusMessage = '';
   bool _isLoading = true;
-
+  int? _riderId;
   // ข้อมูลผู้ใช้
   String _userName = 'ผู้ใช้';
   String _userProfileImage = 'assets/avatars/avatar-4.png';
@@ -75,24 +75,40 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadUserData() async {
     try {
+      print('🚀 _loadUserData() called');
+
       final prefs = await SharedPreferences.getInstance();
       final userRiderString = prefs.getString('user_rider');
+
+      // log raw string
+      print('📦 SharedPreferences[Rider] = $userRiderString');
 
       // โหลดข้อมูลจาก SharedPreferences ก่อน (เพื่อแสดง UI เร็วขึ้น)
       if (userRiderString != null) {
         final userData = jsonDecode(userRiderString);
+        print('✅ Decoded userData = $userData');
+
         setState(() {
           _userName = userData['display_name'] ?? userData['name'] ?? 'ผู้ใช้';
           _phone = userData['phone'];
           _gender = userData['gender'];
           _promptpay = userData['promptpay'];
+          // เก็บ rider_id
+          _riderId = userData['rider_id']  ?? 0;
+          print('🏍️ Rider ID loaded: $_riderId');
+
+          print(
+            '👤 User loaded: name=$_userName, phone=$_phone, gender=$_gender, promptpay=$_promptpay',
+          );
 
           // แก้ไขการแปลง birthdate
           if (userData['birthdate'] != null &&
               userData['birthdate'] is String) {
             _birthdate = DateTime.tryParse(userData['birthdate']);
+            print('📅 Birthdate (parsed from String): $_birthdate');
           } else if (userData['birthdate'] is DateTime) {
             _birthdate = userData['birthdate'];
+            print('📅 Birthdate (from DateTime object): $_birthdate');
           }
 
           // ถ้ามี photo_url ให้ใช้ ไม่งั้นใช้รูป default
@@ -100,68 +116,22 @@ class _HomePageState extends State<HomePage> {
               userData['photo_url'].toString().isNotEmpty &&
               userData['photo_url'] != 'null') {
             _userProfileImage = _appendCacheBuster(userData['photo_url']);
+            print('🖼️ Profile image set: $_userProfileImage');
+          } else {
+            print('⚠️ No profile image found, using default');
           }
+
           _isUserDataLoading = false;
         });
+      } else {
+        print('⚠️ No user_rider found in SharedPreferences');
       }
 
       // เรียก API เพื่อดึงข้อมูลล่าสุด (รวมถึงรูปโปรไฟล์) เสมอ
       print('🔄 Home: Refreshing profile data from API...');
-      final authService = AuthService();
-      final result = await authService.getRiderProfile();
-
-      if (result['success'] && result['data'] != null) {
-        final profileData = result['data'];
-
-        final ui = profileData['user_info'] ?? profileData; // fallback
-        setState(() {
-          _userName = ui['display_name'] ?? ui['name'] ?? 'ผู้ใช้';
-          _phone = ui['phone'];
-          _gender = ui['gender'];
-          _promptpay = ui['promptpay'];
-
-          // แก้ไขการแปลง birthdate
-          if (ui['birthdate'] != null && ui['birthdate'] is String) {
-            _birthdate = DateTime.tryParse(ui['birthdate']);
-          } else if (ui['birthdate'] is DateTime) {
-            _birthdate = ui['birthdate'];
-          }
-
-          String? photoUrl = ui['photo_url'];
-          print('📸 Home: Received photo URL from API: $photoUrl');
-          if (photoUrl != null &&
-              photoUrl.toString().isNotEmpty &&
-              photoUrl != 'null' &&
-              photoUrl.startsWith('http')) {
-            _userProfileImage = _appendCacheBuster(photoUrl);
-            print('✅ Home: Updated profile image to: $_userProfileImage');
-          } else {
-            _userProfileImage = 'assets/avatars/avatar-4.png';
-            print('⚠️ Home: Using default avatar image');
-          }
-          _isUserDataLoading = false;
-        });
-
-        // บันทึกข้อมูลที่ได้จาก API ลง SharedPreferences เพื่อใช้ครั้งต่อไป
-        if (profileData['user_info'] != null) {
-          await prefs.setString(
-            'user_rider',
-            jsonEncode(profileData['user_info']),
-          );
-          print('💾 Home: Updated SharedPreferences with latest data');
-        }
-      } else {
-        // ถ้าไม่สามารถดึงข้อมูลจาก API ได้ แต่ไม่ได้ logout ให้ใช้ข้อมูลเดิม
-        print('❌ Home: Failed to refresh profile data: ${result['message']}');
-        setState(() {
-          _isUserDataLoading = false;
-        });
-      }
-    } catch (e) {
-      print('❌ Error loading user data: $e');
-      setState(() {
-        _isUserDataLoading = false;
-      });
+    } catch (e, stack) {
+      print('❌ Error in _loadUserData: $e');
+      print(stack);
     }
   }
 
@@ -1492,7 +1462,7 @@ class _HomePageState extends State<HomePage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
-                                          const JobStartPage(),
+                                        JobStartPage(riderId: _riderId  ?? 0),
                                     ),
                                   );
                                 }

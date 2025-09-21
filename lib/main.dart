@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
+import 'package:rider_delivery/APIs/middleware/authService.dart';
 import 'package:rider_delivery/SplashScreens/SplashScreen.dart';
 import 'package:rider_delivery/pages/Chat.dart';
 import 'package:rider_delivery/pages/DeliveryCompleted.dart';
@@ -23,9 +26,17 @@ import 'package:rider_delivery/APIs/middleware/AuthGuard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // final auth = AuthService();
+  final auth = AuthService();
   // await auth.loadUser();
-  runApp(const MyApp());
+   runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => RiderControllerSocket()),
+        // ...provider อื่นๆ
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -39,7 +50,7 @@ class MyApp extends StatelessWidget {
         '/': (_) => const SplashScreen(),
         '/wellcome': (_) => wellcomePage(),
         '/home': (_) => AuthGuard(child: const HomePage()),
-        '/jobStart': (_) => AuthGuard(child: const JobStartPage()),
+        // '/jobStart': (_) => AuthGuard(child: const JobStartPage()),
         '/GoRestaurant': (_) => AuthGuard(child: GoRestaurant()),
         '/chat': (_) => AuthGuard(child: const Chat()),
         '/goCustomer': (_) => AuthGuard(child: const GoCustomer()),
