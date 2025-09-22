@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 
 class RiderJobsPage extends StatefulWidget {
   final int riderId;
-  
+
   const RiderJobsPage({Key? key, required this.riderId}) : super(key: key);
 
   @override
@@ -21,6 +21,12 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   bool _isLoadingLocation = false;
   late RiderControllerSocket _orderController;
 
+  // Green theme colors
+  static const Color primaryGreen = Color(0xFF2E7D32);
+  static const Color lightGreen = Color(0xFF4CAF50);
+  static const Color accentGreen = Color(0xFF66BB6A);
+  static const Color backgroundGreen = Color(0xFFE8F5E8);
+
   @override
   void initState() {
     super.initState();
@@ -31,119 +37,88 @@ class _RiderJobsPageState extends State<RiderJobsPage>
 
   Future<void> _initializeRider() async {
     try {
-      // Check rider approval status first
       final status = await RiderStatusService.getCurrentStatus();
       if (status != RiderStatus.approved) {
         _showApprovalRequiredDialog();
         return;
       }
 
-      // Get current location
       await _getCurrentLocation();
-      
-      // Initialize socket connection
       await _orderController.initializeSocket(riderId: widget.riderId);
-      
-      // Fetch available orders
       await _fetchOrders();
+
+      // Watch for real-time updates on rider's orders
+      _setupRiderOrdersWatcher();
     } catch (e) {
-      _showErrorSnackBar('เกิดข้อผิดพลาดในการเริ่มต้น: $e');
+      _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
+    }
+  }
+
+  void _setupRiderOrdersWatcher() {
+    // Watch rider's assigned orders for real-time updates
+    final myOrders = _orderController.orders
+        .where((order) => order.riderId == widget.riderId)
+        .toList();
+
+    for (var order in myOrders) {
+      _orderController.watchOrder(order.orderId);
     }
   }
 
   Future<void> _getCurrentLocation() async {
-    setState(() {
-      _isLoadingLocation = true;
-    });
-
+    setState(() => _isLoadingLocation = true);
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        throw Exception('บริการตำแหน่งไม่เปิดใช้งาน');
-      }
+      if (!serviceEnabled) throw Exception('บริการตำแหน่งไม่เปิด');
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          throw Exception('ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง');
+          throw Exception('ไม่อนุญาตใช้ตำแหน่ง');
         }
       }
 
-      _currentPosition = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      print('📍 Current location: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}');
+      _currentPosition = await Geolocator.getCurrentPosition();
     } catch (e) {
-      print('❌ Location error: $e');
-      _showErrorSnackBar('ไม่สามารถรับตำแหน่งปัจจุบันได้: $e');
+      _showErrorSnackBar('ไม่สามารถรับตำแหน่งได้: $e');
     } finally {
-      setState(() {
-        _isLoadingLocation = false;
-      });
+      setState(() => _isLoadingLocation = false);
     }
   }
 
   Future<void> _fetchOrders() async {
-    if (_currentPosition != null) {
-      await _orderController.fetchOrdersByRider(riderId: widget.riderId);
-    }
-  }
-
-  Future<void> _acceptOrder(Order order) async {
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
-
-      final success = await _orderController.updateOrderStatus(
-        order.orderId,
-        'rider_assigned',
-        additionalData: {'rider_id': widget.riderId},
-      );
-
-      Navigator.of(context).pop(); // Close loading dialog
-
-      if (success) {
-        _showSuccessSnackBar('รับงานสำเร็จ!');
-        await _fetchOrders(); // Refresh orders
-      } else {
-        _showErrorSnackBar('ไม่สามารถรับงานได้: ${_orderController.error}');
-      }
-    } catch (e) {
-      Navigator.of(context).pop();
-      _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
-    }
+    await _orderController.fetchOrdersByRider(riderId: widget.riderId);
   }
 
   Future<void> _updateOrderStatus(Order order, String status) async {
+    _showLoadingDialog();
     try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
-
       final success = await _orderController.updateOrderStatus(
         order.orderId,
         status,
       );
-
-      Navigator.of(context).pop();
+      Navigator.pop(context);
 
       if (success) {
-        _showSuccessSnackBar('อัปเดตสถานะสำเร็จ!');
+        _showSuccessSnackBar('อัปเดตสำเร็จ!');
         await _fetchOrders();
       } else {
-        _showErrorSnackBar('ไม่สามารถอัปเดตสถานะได้: ${_orderController.error}');
+        _showErrorSnackBar('อัปเดตไม่สำเร็จ');
       }
     } catch (e) {
-      Navigator.of(context).pop();
+      Navigator.pop(context);
       _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
     }
+  }
+
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) =>
+          const Center(child: CircularProgressIndicator(color: lightGreen)),
+    );
   }
 
   void _showApprovalRequiredDialog() {
@@ -151,14 +126,12 @@ class _RiderJobsPageState extends State<RiderJobsPage>
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('ยังไม่ได้รับการอนุมัติ'),
-        content: const Text(
-          'คุณต้องได้รับการอนุมัติจากทีมงานก่อนจึงจะสามารถรับงานได้\nกรุณาตรวจสอบสถานะการอนุมัติ',
-        ),
+        title: const Text('ยังไม่ได้รับอนุมัติ'),
+        content: const Text('กรุณาตรวจสอบสถานะการอนุมัติ'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('ตกลง'),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ตกลง', style: TextStyle(color: primaryGreen)),
           ),
         ],
       ),
@@ -168,11 +141,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   void _showErrorSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     }
   }
@@ -180,11 +149,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   void _showSuccessSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
+        SnackBar(content: Text(message), backgroundColor: lightGreen),
       );
     }
   }
@@ -201,10 +166,15 @@ class _RiderJobsPageState extends State<RiderJobsPage>
     return ChangeNotifierProvider.value(
       value: _orderController,
       child: Scaffold(
+        backgroundColor: backgroundGreen,
         appBar: AppBar(
-          title: const Text('งานส่งอาหาร'),
-          backgroundColor: Colors.orange,
+          title: const Text(
+            'งานส่งอาหาร',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: primaryGreen,
           foregroundColor: Colors.white,
+          elevation: 0,
           bottom: TabBar(
             controller: _tabController,
             labelColor: Colors.white,
@@ -219,34 +189,21 @@ class _RiderJobsPageState extends State<RiderJobsPage>
           actions: [
             Consumer<RiderControllerSocket>(
               builder: (context, controller, _) {
-                return Stack(
-                  children: [
-                    IconButton(
-                      onPressed: () async {
-                        await _getCurrentLocation();
-                        await _fetchOrders();
-                      },
-                      icon: _isLoadingLocation
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.refresh),
-                    ),
-                    if (controller.isSocketConnected)
-                      const Positioned(
-                        right: 8,
-                        top: 8,
-                        child: CircleAvatar(
-                          radius: 4,
-                          backgroundColor: Colors.green,
-                        ),
-                      ),
-                  ],
+                return IconButton(
+                  onPressed: () async {
+                    await _getCurrentLocation();
+                    await _fetchOrders();
+                  },
+                  icon: _isLoadingLocation
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.refresh),
                 );
               },
             ),
@@ -255,37 +212,13 @@ class _RiderJobsPageState extends State<RiderJobsPage>
         body: Consumer<RiderControllerSocket>(
           builder: (context, controller, _) {
             if (controller.isLoading && controller.orders.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(
+                child: CircularProgressIndicator(color: lightGreen),
+              );
             }
 
             if (controller.error != null) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, size: 64, color: Colors.red),
-                    const SizedBox(height: 16),
-                    Text(
-                      'เกิดข้อผิดพลาด',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      controller.error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () async {
-                        controller.clearError();
-                        await _fetchOrders();
-                      },
-                      child: const Text('ลองใหม่'),
-                    ),
-                  ],
-                ),
-              );
+              return _buildErrorWidget(controller);
             }
 
             return TabBarView(
@@ -302,82 +235,81 @@ class _RiderJobsPageState extends State<RiderJobsPage>
     );
   }
 
+  Widget _buildErrorWidget(RiderControllerSocket controller) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          const Text('เกิดข้อผิดพลาด', style: TextStyle(fontSize: 18)),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () async {
+              controller.clearError();
+              await _fetchOrders();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: lightGreen),
+            child: const Text('ลองใหม่', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAvailableOrdersTab(RiderControllerSocket controller) {
-    // Orders that are available for riders to pick up
     final availableOrders = controller.orders
-        .where((order) => 
-            order.riderId == null && 
-            ['confirmed', 'accepted', 'preparing', 'ready_for_pickup'].contains(order.status))
+        .where(
+          (order) =>
+              order.riderId == null &&
+              [
+                'confirmed',
+                'accepted',
+                'preparing',
+                'ready_for_pickup',
+              ].contains(order.status),
+        )
         .toList();
 
     if (availableOrders.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inbox, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'ไม่มีงานใหม่ในขณะนี้',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'ลากลงเพื่อรีเฟรช',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-      );
+      return _buildEmptyState('ไม่มีงานใหม่', Icons.inbox);
     }
 
     return RefreshIndicator(
-      onRefresh: () async {
-        await _getCurrentLocation();
-        await _fetchOrders();
-      },
+      color: lightGreen,
+      onRefresh: _fetchOrders,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: availableOrders.length,
-        itemBuilder: (context, index) {
-          final order = availableOrders[index];
-          return _buildAvailableOrderCard(order);
-        },
+        itemBuilder: (context, index) =>
+            _buildAvailableOrderCard(availableOrders[index]),
       ),
     );
   }
 
   Widget _buildMyOrdersTab(RiderControllerSocket controller) {
-    // Orders assigned to this rider
     final myOrders = controller.orders
-        .where((order) => 
-            order.riderId == widget.riderId && 
-            !['completed', 'cancelled'].contains(order.status))
+        .where(
+          (order) =>
+              order.riderId == widget.riderId &&
+              order.status == 'rider_assigned',
+        )
         .toList();
 
     if (myOrders.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.assignment_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'คุณไม่มีงานที่กำลังดำเนินการ',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-          ],
-        ),
-      );
+      return _buildEmptyState('ไม่มีงานที่รับไว้', Icons.assignment_outlined);
     }
 
     return RefreshIndicator(
+      color: lightGreen,
       onRefresh: _fetchOrders,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: myOrders.length,
         itemBuilder: (context, index) {
           final order = myOrders[index];
+          // Watch each order for real-time updates
+          controller.watchOrder(order.orderId);
           return _buildMyOrderCard(order);
         },
       ),
@@ -385,70 +317,49 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   }
 
   Widget _buildHistoryTab(RiderControllerSocket controller) {
-    // Completed and cancelled orders
     final historyOrders = controller.orders
-        .where((order) => 
-            order.riderId == widget.riderId && 
-            ['completed', 'cancelled'].contains(order.status))
+        .where(
+          (order) =>
+              order.riderId == widget.riderId &&
+              ['completed', 'cancelled'].contains(order.status),
+        )
         .toList();
 
     if (historyOrders.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.history, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'ยังไม่มีประวัติการส่ง',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-          ],
-        ),
-      );
+      return _buildEmptyState('ไม่มีประวัติ', Icons.history);
     }
 
     return RefreshIndicator(
+      color: lightGreen,
       onRefresh: _fetchOrders,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: historyOrders.length,
-        itemBuilder: (context, index) {
-          final order = historyOrders[index];
-          return _buildHistoryOrderCard(order);
-        },
+        itemBuilder: (context, index) =>
+            _buildHistoryCard(historyOrders[index]),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String message, IconData icon) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 64, color: Colors.grey),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: const TextStyle(fontSize: 18, color: Colors.grey),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildAvailableOrderCard(Order order) {
-    // Calculate distance if current position is available
-    double? distanceToShop;
-    double? distanceToCustomer;
-    
-    if (_currentPosition != null && 
-        order.marketLocation?['latitude'] != null && 
-        order.marketLocation?['longitude'] != null) {
-      distanceToShop = Geolocator.distanceBetween(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-        double.parse(order.marketLocation!['latitude'].toString()),
-        double.parse(order.marketLocation!['longitude'].toString()),
-      ) / 1000; // Convert to km
-      
-      if (order.customerLocation?['latitude'] != null && 
-          order.customerLocation?['longitude'] != null) {
-        distanceToCustomer = Geolocator.distanceBetween(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-          double.parse(order.customerLocation!['latitude'].toString()),
-          double.parse(order.customerLocation!['longitude'].toString()),
-        ) / 1000; // Convert to km
-      }
-    }
-
-    // Calculate estimated earnings (80% of delivery fee)
-    final estimatedEarning = (order.deliveryFee * 0.8).round();
+    final distanceKm = order.distanceKm ?? 0.0;
+    final earning = (order.deliveryFee);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -459,7 +370,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Order header
+            // Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -469,100 +380,117 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: primaryGreen,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: order.statusColor.withOpacity(0.2),
+                    color: lightGreen.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: lightGreen),
                   ),
                   child: Text(
-                    order.statusText,
-                    style: TextStyle(
-                      color: order.statusColor,
+                    _getStatusText(order.status),
+                    style: const TextStyle(
+                      color: primaryGreen,
                       fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            
-            // Earning and distance info
+
+            // Earning & Distance
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
+                color: lightGreen.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: lightGreen.withOpacity(0.3)),
               ),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.monetization_on, 
-                                color: Colors.green, size: 16),
-                            const SizedBox(width: 4),
-                            Text(
-                              'รายได้: ฿$estimatedEarning',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.monetization_on,
+                        color: lightGreen,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '฿$earning',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: primaryGreen,
                         ),
-                        const SizedBox(height: 4),
-                        if (distanceToShop != null)
-                          Row(
-                            children: [
-                              const Icon(Icons.store, size: 14, color: Colors.orange),
-                              const SizedBox(width: 4),
-                              Text(
-                                'ห่างจากร้าน: ${distanceToShop.toStringAsFixed(1)} กม.',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        if (distanceToCustomer != null)
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on, size: 14, color: Colors.blue),
-                              const SizedBox(width: 4),
-                              Text(
-                                'ห่างจากลูกค้า: ${distanceToCustomer.toStringAsFixed(1)} กม.',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.route, size: 16, color: primaryGreen),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${distanceKm.toStringAsFixed(1)} กม.',
+                        style: const TextStyle(
+                          color: primaryGreen,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
 
-            // Order details
-            _buildOrderDetailsSection(order),
-            const SizedBox(height: 16),
+            // Address
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.location_on, color: Colors.red, size: 16),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    order.address,
+                    style: const TextStyle(fontSize: 13),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Items summary
+            if (order.items.isNotEmpty) ...[
+              Text(
+                'รายการ: ${order.items.length} เมนู - ฿${order.totalPrice.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  color: primaryGreen,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
 
             // Accept button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => _showAcceptOrderDialog(order),
+                onPressed: () => _showAcceptDialog(order),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
+                  backgroundColor: lightGreen,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -571,6 +499,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                 child: const Text(
                   'รับงาน',
                   style: TextStyle(
+                    color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -584,6 +513,9 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   }
 
   Widget _buildMyOrderCard(Order order) {
+    final distanceKm = order.distanceKm ?? 0.0;
+    final earning = (order.deliveryFee);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 4,
@@ -593,31 +525,45 @@ class _RiderJobsPageState extends State<RiderJobsPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Order header
+            // Header with order ID
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(
-                    order.shopName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.shopName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: primaryGreen,
+                        ),
+                      ),
+                      Text(
+                        'Order #${order.orderId}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: order.statusColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
+                    color: lightGreen.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: lightGreen),
                   ),
                   child: Text(
-                    order.statusText,
-                    style: TextStyle(
-                      color: order.statusColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                    '฿$earning',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: primaryGreen,
                     ),
                   ),
                 ),
@@ -625,87 +571,537 @@ class _RiderJobsPageState extends State<RiderJobsPage>
             ),
             const SizedBox(height: 12),
 
-            // Order details
-            _buildOrderDetailsSection(order),
+            // Customer info section
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.person, color: Colors.blue, size: 16),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'ลูกค้า:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      if (order.customerLocation?['name'] != null)
+                        Text(
+                          order.customerLocation!['name'],
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.phone, color: Colors.blue, size: 14),
+                      const SizedBox(width: 6),
+                      if (order.customerLocation?['phone'] != null)
+                        Text(
+                          order.customerLocation!['phone'],
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        color: Colors.red,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          order.address,
+                          style: const TextStyle(fontSize: 12),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: primaryGreen.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${distanceKm.toStringAsFixed(1)} กม.',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: primaryGreen,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Delivery info
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.delivery_dining,
+                          color: Colors.orange,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          order.deliveryType,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.payment,
+                          color: Colors.purple,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          order.paymentMethod,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.purple,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Items with detailed options
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: backgroundGreen.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: primaryGreen.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.restaurant_menu,
+                        color: primaryGreen,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'รายการอาหารที่สั่ง:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: primaryGreen,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${order.items.length} รายการ',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: primaryGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ...order.items.map((item) => _buildDetailedItemCard(item)),
+                  const Divider(color: lightGreen, thickness: 1),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ค่าอาหาร: ฿${(order.totalPrice - order.deliveryFee).toStringAsFixed(0)}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          Text(
+                            'ค่าส่ง: ฿${order.deliveryFee.toStringAsFixed(0)}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'รวม: ฿${order.totalPrice.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: primaryGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Note section if available
+            if (order.note != null && order.note!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.yellow.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.note, color: Colors.orange, size: 16),
+                        SizedBox(width: 6),
+                        Text(
+                          'หมายเหตุพิเศษ:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(order.note!, style: const TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
 
-            // Action buttons based on status
-            _buildStatusActionButtons(order),
+            // Action button
+            _buildActionButton(order),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHistoryOrderCard(Order order) {
+  Widget _buildDetailedItemCard(OrderItem item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: lightGreen.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: primaryGreen.withOpacity(0.1),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Item header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  item.foodName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: primaryGreen,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: lightGreen,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'x${item.quantity}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Base price
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'ราคาฐาน: ฿${item.sellPrice.toStringAsFixed(0)}',
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              Text(
+                'รวม: ฿${item.subtotal.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: primaryGreen,
+                ),
+              ),
+            ],
+          ),
+
+          // Selected options if any
+          if (item.selectedOptions.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: accentGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: accentGreen.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.add_circle, color: accentGreen, size: 14),
+                      SizedBox(width: 4),
+                      Text(
+                        'ตัวเลือกเพิ่มเติม:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: accentGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: item.selectedOptions.map((option) {
+                      final label = option['label']?.toString() ?? '';
+                      final extraPrice =
+                          option['extraPrice']?.toString() ?? '0';
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: primaryGreen.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: primaryGreen.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Text(
+                          '$label (+฿$extraPrice)',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: primaryGreen,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemWithOptions(OrderItem item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  item.foodName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Text(
+                    'x${item.quantity}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: primaryGreen,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '฿${item.subtotal.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: primaryGreen,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (item.selectedOptions.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Wrap(
+                spacing: 6,
+                children: item.selectedOptions.map((option) {
+                  final label = option['label'] ?? '';
+                  final price = option['extraPrice'] ?? 0;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accentGreen.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '+$label (+฿$price)',
+                      style: const TextStyle(fontSize: 11, color: primaryGreen),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryCard(Order order) {
     final isCompleted = order.status == 'completed';
-    final earnings = isCompleted ? (order.deliveryFee * 0.8).round() : 0;
+    final earning = isCompleted ? (order.deliveryFee) : 0;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.all(12),
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
                     order.shopName,
-                    style: const TextStyle(
-                      fontSize: 16,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatDate(order.createdAt),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(order.status).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _getStatusText(order.status),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: _getStatusColor(order.status),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: order.statusColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        order.statusText,
-                        style: TextStyle(
-                          color: order.statusColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                if (isCompleted) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '฿$earning',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: lightGreen,
                     ),
-                    if (isCompleted) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '฿$earnings',
-                        style: const TextStyle(
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ],
-            ),
-            const SizedBox(height: 8),
-            
-            Text(
-              'วันที่: ${_formatDate(order.createdAt)}',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-            Text(
-              'ที่อยู่: ${order.address}',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -713,208 +1109,49 @@ class _RiderJobsPageState extends State<RiderJobsPage>
     );
   }
 
-  Widget _buildOrderDetailsSection(Order order) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Customer address
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.location_on, color: Colors.red, size: 16),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                order.address,
-                style: const TextStyle(fontSize: 14),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+  Widget _buildActionButton(Order order) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          // ส่งแค่ orderId และ riderId
+          Navigator.pushNamed(
+            context,
+            '/goRestaurant',
+            arguments: {'orderId': order.orderId, 'riderId': widget.riderId},
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: lightGreen,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        const SizedBox(height: 8),
-
-        // Payment method
-        Row(
-          children: [
-            const Icon(Icons.payment, color: Colors.blue, size: 16),
-            const SizedBox(width: 8),
-            Text(
-              'ชำระเงิน: ${order.paymentMethod}',
-              style: const TextStyle(fontSize: 14),
-            ),
-          ],
+        icon: const Icon(Icons.visibility, color: Colors.white),
+        label: const Text(
+          'ดูรายละเอียดงาน',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        const SizedBox(height: 8),
-
-        // Order items
-        if (order.items.isNotEmpty) ...[
-          const Text(
-            'รายการอาหาร:',
-            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-          ),
-          const SizedBox(height: 4),
-          ...order.items.take(3).map((item) => Padding(
-            padding: const EdgeInsets.only(left: 16, bottom: 2),
-            child: Text(
-              '• ${item.foodName} x${item.quantity}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          )),
-          if (order.items.length > 3)
-            Padding(
-              padding: const EdgeInsets.only(left: 16),
-              child: Text(
-                'และอีก ${order.items.length - 3} รายการ',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ),
-        ],
-
-        const SizedBox(height: 8),
-
-        // Total price
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'ยอดรวม:',
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
-            Text(
-              '฿${order.totalPrice.toStringAsFixed(0)}',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Colors.green,
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 
-  Widget _buildStatusActionButtons(Order order) {
-    switch (order.status) {
-      case 'rider_assigned':
-        return Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _updateOrderStatus(order, 'going_to_shop'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('เริ่มเดินทางไปร้าน'),
-              ),
-            ),
-          ],
-        );
-
-      case 'going_to_shop':
-        return Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _updateOrderStatus(order, 'arrived_at_shop'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('ถึงร้านแล้ว'),
-              ),
-            ),
-          ],
-        );
-
-      case 'arrived_at_shop':
-      case 'ready_for_pickup':
-        return Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _updateOrderStatus(order, 'picked_up'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('รับอาหารแล้ว'),
-              ),
-            ),
-          ],
-        );
-
-      case 'picked_up':
-        return Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _updateOrderStatus(order, 'delivering'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('เริ่มจัดส่ง'),
-              ),
-            ),
-          ],
-        );
-
-      case 'delivering':
-        return Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _updateOrderStatus(order, 'arrived_at_customer'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('ถึงลูกค้าแล้ว'),
-              ),
-            ),
-          ],
-        );
-
-      case 'arrived_at_customer':
-        return Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _updateOrderStatus(order, 'completed'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('ส่งเสร็จแล้ว'),
-              ),
-            ),
-          ],
-        );
-
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
-  void _showAcceptOrderDialog(Order order) {
+  void _showAcceptDialog(Order order) {
+    final earning = (order.deliveryFee);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('ยืนยันรับงาน'),
+        title: const Text(
+          'ยืนยันรับงาน',
+          style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('ร้าน: ${order.shopName}'),
+            Text('รายได้: ฿$earning'),
+            Text('ระยะทาง: ${(order.distanceKm ?? 0).toStringAsFixed(1)} กม.'),
             const SizedBox(height: 8),
-            Text('รายได้: ฿${(order.deliveryFee * 0.8).round()}'),
-            const SizedBox(height: 8),
-            Text('ที่อยู่จัดส่ง: ${order.address}'),
-            const SizedBox(height: 16),
             const Text(
               'คุณต้องการรับงานนี้หรือไม่?',
               style: TextStyle(fontWeight: FontWeight.bold),
@@ -923,19 +1160,25 @@ class _RiderJobsPageState extends State<RiderJobsPage>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('ยกเลิก'),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ยกเลิก', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _acceptOrder(order);
+            onPressed: () async {
+              Navigator.pop(context);
+              final success = await _orderController.assignRider(
+                order.orderId,
+                widget.riderId,
+              );
+              if (success) {
+                _showSuccessSnackBar('รับงานสำเร็จ!');
+                await _fetchOrders();
+              } else {
+                _showErrorSnackBar('ไม่สามารถรับงานได้');
+              }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('ยืนยันรับงาน'),
+            style: ElevatedButton.styleFrom(backgroundColor: lightGreen),
+            child: const Text('ยืนยัน', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -945,21 +1188,40 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   String _formatDate(DateTime dateTime) {
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
-}
 
-// Additional models needed for the UI
-extension OrderExtensions on Order {
-  // Market location data from API
-  Map<String, dynamic>? get marketLocation {
-    // This would come from the API response
-    // For now, returning null - should be populated from API
-    return null;
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'completed':
+        return primaryGreen;
+      case 'cancelled':
+        return Colors.red;
+      case 'rider_assigned':
+        return lightGreen;
+      default:
+        return Colors.grey;
+    }
   }
-  
-  // Customer location data from API  
-  Map<String, dynamic>? get customerLocation {
-    // This would come from the API response
-    // For now, returning null - should be populated from API
-    return null;
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'waiting':
+        return 'รอยืนยัน';
+      case 'confirmed':
+        return 'ยืนยันแล้ว';
+      case 'accepted':
+        return 'รับออเดอร์';
+      case 'rider_assigned':
+        return 'มีไรเดอร์';
+      case 'preparing':
+        return 'กำลังทำ';
+      case 'ready_for_pickup':
+        return 'พร้อมรับ';
+      case 'completed':
+        return 'เสร็จสิ้น';
+      case 'cancelled':
+        return 'ยกเลิก';
+      default:
+        return status;
+    }
   }
 }

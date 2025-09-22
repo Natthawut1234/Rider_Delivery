@@ -51,7 +51,7 @@ class MyApp extends StatelessWidget {
         '/wellcome': (_) => wellcomePage(),
         '/home': (_) => AuthGuard(child: const HomePage()),
         // '/jobStart': (_) => AuthGuard(child: const JobStartPage()),
-        '/GoRestaurant': (_) => AuthGuard(child: GoRestaurant()),
+        '/goRestaurant': (_) => AuthGuard(child: GoRestaurant()),
         '/chat': (_) => AuthGuard(child: const Chat()),
         '/goCustomer': (_) => AuthGuard(child: const GoCustomer()),
         '/deliveryConfirm': (_) =>

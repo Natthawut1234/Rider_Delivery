@@ -1291,137 +1291,6 @@ class _HomePageState extends State<HomePage> {
                             ],
                           ),
                         ),
-
-                        // Debug Panel (คอมเม้นท์ออกแล้ว - ใช้เมื่อต้องการทดสอบเท่านั้น)
-                        /*
-                          Container(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 8,
-                            ),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey[300]!),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Debug Panel (สำหรับทดสอบ)',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[700],
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.orange[600],
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                          ),
-                                        ),
-                                        onPressed: () async {
-                                          await RiderStatusService.setTestStatus(
-                                            RiderStatus.pending,
-                                          );
-                                          _checkRiderStatus();
-                                        },
-                                        child: const Text(
-                                          'รอการอนุมัติ',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.green[600],
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                          ),
-                                        ),
-                                        onPressed: () async {
-                                          await RiderStatusService.setApproved(
-                                            '🎉 ยินดีด้วย! เอกสารของคุณได้รับการอนุมัติแล้ว\nคุณสามารถเริ่มรับงานได้แล้ว',
-                                          );
-                                          _checkRiderStatus();
-                                        },
-                                        child: const Text(
-                                          'อนุมัติ',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red[600],
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                          ),
-                                        ),
-                                        onPressed: () async {
-                                          await RiderStatusService.setRejected(
-                                            '❌ เอกสารของคุณไม่ผ่านการตรวจสอบ\nกรุณาติดต่อทีมงานเพื่อแก้ไข',
-                                          );
-                                          _checkRiderStatus();
-                                        },
-                                        child: const Text(
-                                          'ปฏิเสธ',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.grey[600],
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                          ),
-                                        ),
-                                        onPressed: () async {
-                                          await RiderStatusService.clearStatus();
-                                          _checkRiderStatus();
-                                        },
-                                        child: const Text(
-                                          'รีเซ็ต',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          */
                         const SizedBox(height: 8),
                       ],
                     ),
@@ -1462,7 +1331,7 @@ class _HomePageState extends State<HomePage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
-                                        RiderJobsPage(riderId: _riderId  ?? 0),
+                                        RiderJobsPage(riderId: _riderId  ?? 0), //รับงาน
                                     ),
                                   );
                                 }

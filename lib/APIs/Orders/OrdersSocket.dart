@@ -1,4 +1,3 @@
-// Fixed controllers/order_controller.dart
 import 'dart:convert';
 import 'package:rider_delivery/APIs/Orders/models/Order_items.dart';
 import 'package:rider_delivery/APIs/baseAPI_URL/baseURL.dart';
@@ -295,6 +294,30 @@ class RiderControllerSocket extends ChangeNotifier {
       await fetchOrdersByRider(riderId: _currentUserId!);
     } else {
       await fetchOrders();
+    }
+  }
+
+  // Assign rider to order
+  Future<bool> assignRider(int orderId, int riderId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/assign_rider'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'order_id': orderId, 'rider_id': riderId}),
+      );
+
+      final data = json.decode(response.body);
+      if (response.statusCode == 200 && data['success'] == true) {
+        return true;
+      } else {
+        _error = data['error'] ?? 'Failed to assign rider';
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _error = 'Network error: $e';
+      notifyListeners();
+      return false;
     }
   }
 
