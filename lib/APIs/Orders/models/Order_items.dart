@@ -27,6 +27,10 @@ class Order {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<OrderItem> items;
+  final Map<String, dynamic>? marketLocation;
+  final Map<String, dynamic>? customerLocation;
+  final Map<String, dynamic>? distanceInfo;
+  final Map<String, dynamic>? deliverySummary;
 
   Order({
     required this.orderId,
@@ -46,6 +50,11 @@ class Order {
     required this.createdAt,
     required this.updatedAt,
     required this.items,
+
+    this.marketLocation,
+    this.customerLocation,
+    this.distanceInfo,
+    this.deliverySummary
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
