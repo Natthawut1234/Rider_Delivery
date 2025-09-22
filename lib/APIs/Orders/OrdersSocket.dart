@@ -47,12 +47,14 @@ class RiderControllerSocket extends ChangeNotifier {
       // Test server connectivity first
       bool serverReachable = await _socketService.isServerReachable();
       if (!serverReachable) {
-        throw Exception('Server is not reachable at ${_socketService.getConnectionStatus()['serverUrl']}');
+        throw Exception(
+          'Server is not reachable at ${_socketService.getConnectionStatus()['serverUrl']}',
+        );
       }
 
       // Connect to socket
       await _socketService.connect();
-      
+
       if (_isDisposed) return; // Check if disposed during connection
 
       _setupSocketListeners();
@@ -100,7 +102,6 @@ class RiderControllerSocket extends ChangeNotifier {
 
       _clearError();
       print('✅ Socket initialization complete');
-
     } catch (e) {
       _error = 'Failed to connect to socket: $e';
       print('❌ Socket initialization failed: $e');
@@ -184,7 +185,7 @@ class RiderControllerSocket extends ChangeNotifier {
   // Fixed: Order update handling with disposal check
   void _handleOrderUpdate(dynamic data) {
     if (_isDisposed) return;
-    
+
     if (data == null) {
       print('⚠️ Received null order update data');
       return;
@@ -201,14 +202,18 @@ class RiderControllerSocket extends ChangeNotifier {
     // Filter only relevant orders
     if (_currentMarketId != null && data['market_id'] != null) {
       if (data['market_id'] != _currentMarketId) {
-        print('🚫 Filtered out order from different market: ${data['market_id']} (current: $_currentMarketId)');
+        print(
+          '🚫 Filtered out order from different market: ${data['market_id']} (current: $_currentMarketId)',
+        );
         return;
       }
     }
 
     if (_currentUserId != null && data['user_id'] != null) {
       if (data['user_id'] != _currentUserId) {
-        print('🚫 Filtered out order from different user: ${data['user_id']} (current: $_currentUserId)');
+        print(
+          '🚫 Filtered out order from different user: ${data['user_id']} (current: $_currentUserId)',
+        );
         return;
       }
     }
@@ -221,7 +226,8 @@ class RiderControllerSocket extends ChangeNotifier {
         final newStatus = data['status'] ?? _currentOrder!.status;
         final newRiderId = data['rider_id'] ?? _currentOrder!.riderId;
 
-        if (_currentOrder!.status != newStatus || _currentOrder!.riderId != newRiderId) {
+        if (_currentOrder!.status != newStatus ||
+            _currentOrder!.riderId != newRiderId) {
           _currentOrder = _currentOrder?.copyWith(
             status: newStatus,
             riderId: newRiderId,
@@ -250,7 +256,9 @@ class RiderControllerSocket extends ChangeNotifier {
                 : DateTime.now(),
           );
           hasChanges = true;
-          print('📝 Updated order in list: $orderId ($oldStatus -> ${_orders[index].status})');
+          print(
+            '📝 Updated order in list: $orderId ($oldStatus -> ${_orders[index].status})',
+          );
         }
       } else {
         print('⚠️ Order $orderId not found in local list for update');
@@ -282,7 +290,7 @@ class RiderControllerSocket extends ChangeNotifier {
   // Helper method to refresh current data based on type
   Future<void> _refreshCurrentData() async {
     if (_isDisposed) return;
-    
+
     if (_currentUserId != null) {
       await fetchOrdersByRider(riderId: _currentUserId!);
     } else {
@@ -293,7 +301,7 @@ class RiderControllerSocket extends ChangeNotifier {
   // Fixed: Fetch orders for rider with better error handling
   Future<void> fetchOrdersByRider({required int riderId}) async {
     if (_isDisposed) return;
-    
+
     _setLoading(true);
     _clearError();
     _currentUserId = riderId;
@@ -311,7 +319,7 @@ class RiderControllerSocket extends ChangeNotifier {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         print("fetch data: ${data}");
-        
+
         if (data['success'] == true) {
           final List<dynamic> ordersData = data['data'] ?? [];
 
@@ -366,7 +374,7 @@ class RiderControllerSocket extends ChangeNotifier {
     Map<String, dynamic>? additionalData,
   }) async {
     if (_isDisposed) return false;
-    
+
     try {
       print('🔄 Updating order $orderId status to $status');
 
@@ -383,7 +391,9 @@ class RiderControllerSocket extends ChangeNotifier {
       final data = json.decode(response.body);
       if (response.statusCode == 200 && data['success'] == true) {
         // Update local order status immediately
-        final orderIndex = _orders.indexWhere((order) => order.orderId == orderId);
+        final orderIndex = _orders.indexWhere(
+          (order) => order.orderId == orderId,
+        );
         if (orderIndex != -1) {
           _orders[orderIndex] = _orders[orderIndex].copyWith(
             status: status,
@@ -443,7 +453,7 @@ class RiderControllerSocket extends ChangeNotifier {
       print('📊 Controller is disposed');
       return;
     }
-    
+
     print('📊 Current orders state:');
     print('   Total orders: ${_orders.length}');
     print('   Current market ID: $_currentMarketId');
@@ -477,7 +487,7 @@ class RiderControllerSocket extends ChangeNotifier {
   // Fetch orders from API
   Future<void> fetchOrders({int? userId, String? status}) async {
     if (_isDisposed) return;
-    
+
     _setLoading(true);
     _clearError();
 
@@ -534,9 +544,12 @@ class RiderControllerSocket extends ChangeNotifier {
   List<Order> get rejectedOrders {
     if (_isDisposed) return [];
     return _orders
-        .where((order) => order.status == 'cancelled' || order.status == 'rejected')
+        .where(
+          (order) => order.status == 'cancelled' || order.status == 'rejected',
+        )
         .toList();
   }
+
   List<Order> get ordersWithRiders {
     if (_isDisposed) return [];
     return _orders.where((order) => order.hasRider).toList();
@@ -546,16 +559,16 @@ class RiderControllerSocket extends ChangeNotifier {
   @override
   void dispose() {
     if (_isDisposed) return;
-    
+
     print('🗑️ Disposing RiderControllerSocket...');
     _isDisposed = true;
-    
+
     try {
       _socketService.disconnect();
     } catch (e) {
       print('⚠️ Error disconnecting socket during disposal: $e');
     }
-    
+
     super.dispose();
     print('✅ RiderControllerSocket disposed safely');
   }
