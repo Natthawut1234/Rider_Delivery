@@ -14,6 +14,7 @@ class Order {
   final int userId;
   final int marketId;
   final String shopName;
+  final int? sellPrice;
   final int? riderId;
   final String? foodName;
   final String address;
@@ -37,6 +38,7 @@ class Order {
     required this.userId,
     required this.marketId,
     required this.shopName,
+    this.sellPrice,
     this.riderId,
     this.foodName,
     required this.address,
@@ -63,6 +65,7 @@ class Order {
       userId: json['user_id'],
       marketId: json['market_id'],
       shopName: json['shop_name'],
+      sellPrice: json['sell_price'],
       riderId: json['rider_id'],
       foodName: json['food_name'],
       address: json['address'],

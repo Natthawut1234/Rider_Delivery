@@ -19,6 +19,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
   bool arrivedAtRestaurant = false;
   bool confirmedArrival = false;
   bool _isLoading = true;
+  double get itemsSubtotal {
+    return orderItems.fold(0.0, (sum, item) => sum + item.subtotal);
+  }
 
   @override
   void didChangeDependencies() {
@@ -30,7 +33,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
       if (args != null) {
         orderId = args['orderId'];
         riderId = args['riderId'];
-        print('GoRestaurant: Received orderId: $orderId, riderId: $riderId'); // Debug
+        print(
+          'GoRestaurant: Received orderId: $orderId, riderId: $riderId',
+        ); // Debug
         _initializeData();
       } else {
         print('GoRestaurant: No arguments received'); // Debug
@@ -55,11 +60,15 @@ class _GoRestaurantState extends State<GoRestaurant> {
       return;
     }
 
-    print('GoRestaurant: Looking for order $orderId in ${_orderController!.orders.length} orders'); // Debug
-    
+    print(
+      'GoRestaurant: Looking for order $orderId in ${_orderController!.orders.length} orders',
+    ); // Debug
+
     // Print all available orders for debugging
     for (var order in _orderController!.orders) {
-      print('Available order: ${order.orderId} - Status: ${order.status} - Rider: ${order.riderId}');
+      print(
+        'Available order: ${order.orderId} - Status: ${order.status} - Rider: ${order.riderId}',
+      );
     }
 
     // หาข้อมูลออเดอร์จาก controller
@@ -74,7 +83,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
 
     // ถ้าไม่พบในรายการ ลองดึงข้อมูลใหม่
     if (order == null) {
-      print('GoRestaurant: Order not found in current list, fetching fresh data...'); // Debug
+      print(
+        'GoRestaurant: Order not found in current list, fetching fresh data...',
+      ); // Debug
       try {
         await _orderController!.fetchOrdersByRider(riderId: riderId!);
         // ลองหาใหม่หลังจากดึงข้อมูล
@@ -193,7 +204,10 @@ class _GoRestaurantState extends State<GoRestaurant> {
               const SizedBox(height: 16),
               Text('ไม่พบข้อมูลออเดอร์ #${orderId ?? 'N/A'}'),
               const SizedBox(height: 8),
-              Text('Rider ID: ${riderId ?? 'N/A'}', style: TextStyle(color: Colors.grey)),
+              Text(
+                'Rider ID: ${riderId ?? 'N/A'}',
+                style: TextStyle(color: Colors.grey),
+              ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -208,7 +222,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
                   const SizedBox(width: 16),
                   ElevatedButton(
                     onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey,
+                    ),
                     child: const Text('กลับ'),
                   ),
                 ],
@@ -365,12 +381,13 @@ class _GoRestaurantState extends State<GoRestaurant> {
                       '${(totalPrice - deliveryFee).toStringAsFixed(0)} บาท',
                     ),
                     _buildInfoRow(
-                      'ค่าส่ง',
+                      'รายได้',
                       '${deliveryFee.toStringAsFixed(0)} บาท',
+                      isTotal: true,
                     ),
                     _buildInfoRow(
-                      'รวมทั้งหมด',
-                      '${totalPrice.toStringAsFixed(0)} บาท',
+                      'รวมที่ต้องจ่าย',
+                      '${(itemsSubtotal).toStringAsFixed(0)} บาท',
                       isTotal: true,
                     ),
                   ],

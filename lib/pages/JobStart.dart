@@ -20,6 +20,9 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   Position? _currentPosition;
   bool _isLoadingLocation = false;
   late RiderControllerSocket _orderController;
+  double _thisSubprice(Order order) {
+  return order.items.fold(0.0, (sum, item) => sum + item.subtotal);
+}
 
   // Green theme colors
   static const Color primaryGreen = Color(0xFF2E7D32);
@@ -471,11 +474,12 @@ class _RiderJobsPageState extends State<RiderJobsPage>
               ],
             ),
             const SizedBox(height: 12),
+            
 
             // Items summary
             if (order.items.isNotEmpty) ...[
               Text(
-                'รายการ: ${order.items.length} เมนู - ฿${order.totalPrice.toStringAsFixed(0)}',
+                'รายการ: ${order.items.length} เมนู - ฿${{_thisSubprice(order).toStringAsFixed(0)}}',
                 style: const TextStyle(
                   color: primaryGreen,
                   fontWeight: FontWeight.w500,
@@ -765,7 +769,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'ค่าอาหาร: ฿${(order.totalPrice - order.deliveryFee).toStringAsFixed(0)}',
+                            'ค่าอาหาร: ฿${(_thisSubprice(order)).toStringAsFixed(0)}',
                             style: const TextStyle(fontSize: 12),
                           ),
                           Text(
@@ -775,7 +779,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                         ],
                       ),
                       Text(
-                        'รวม: ฿${order.totalPrice.toStringAsFixed(0)}',
+                        'รวมที่ต้องจ่าย: ฿${order.totalPrice.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
