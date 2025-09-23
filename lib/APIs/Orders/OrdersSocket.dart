@@ -24,30 +24,35 @@ class RiderControllerSocket extends ChangeNotifier {
   Order? get currentOrder => _currentOrder;
   bool get isSocketConnected => !_isDisposed && _socketService.isConnected;
 
-  // Fixed: Better socket initialization with error handling
-   Future<void> initializeSocket({required int riderId}) async {
+  // แก้ไข initializeSocket method
+  Future<void> initializeSocket({required int riderId}) async {
     try {
       print('🔌 [RiderSocket] Initializing socket for riderId=$riderId');
 
       await _socketService.connect();
 
+      // ⭐ เพิ่มการ setup listeners ก่อน
+      _setupSocketListeners();
+
       // ลงทะเบียนเป็นไรเดอร์
-      _socketService.emit("register_rider", {"riderId": riderId});
-      print('📡 [RiderSocket] Sent register_rider with riderId=$riderId');
-
-      // ฟังอีเวนท์อัพเดทออเดอร์
-      _socketService.on("order:updated", (data) {
-        print("📦 [RiderSocket] Order update received: $data");
+      _socketService.emit("register_user", {
+        "riderId": riderId,
+        "userType": "rider",
       });
+      print('📡 [RiderSocket] Sent register_user with riderId=$riderId');
 
-      _socketService.on("pong", (data) {
-        print("🏓 [RiderSocket] Pong received: $data");
-      });
+      // Join rider room
+      _socketService.emit("join_room", {"room": "rider:$riderId"});
+      print('📍 [RiderSocket] Joined rider room: rider:$riderId');
 
+      // ⭐ ลบ duplicate listeners ออก (ย้ายไปใน _setupSocketListeners แล้ว)
     } catch (e) {
       print('❌ [RiderSocket] Socket init failed: $e');
+      _error = 'Failed to connect to socket: $e';
+      notifyListeners();
     }
   }
+
   // Fixed: Better listener setup with disposal check
   void _setupSocketListeners() {
     if (_isDisposed) return;
@@ -119,104 +124,6 @@ class RiderControllerSocket extends ChangeNotifier {
     print('✅ Socket listeners setup complete');
   }
 
-  // Fixed: Order update handling with disposal check
-  void _handleOrderUpdate(dynamic data) {
-    if (_isDisposed) return;
-
-    if (data == null) {
-      print('⚠️ Received null order update data');
-      return;
-    }
-
-    print('🔄 Processing order update: $data');
-
-    final orderId = data['order_id'];
-    if (orderId == null) {
-      print('⚠️ Order update missing order_id');
-      return;
-    }
-
-    // Filter only relevant orders
-    if (_currentMarketId != null && data['market_id'] != null) {
-      if (data['market_id'] != _currentMarketId) {
-        print(
-          '🚫 Filtered out order from different market: ${data['market_id']} (current: $_currentMarketId)',
-        );
-        return;
-      }
-    }
-
-    if (_currentUserId != null && data['user_id'] != null) {
-      if (data['user_id'] != _currentUserId) {
-        print(
-          '🚫 Filtered out order from different user: ${data['user_id']} (current: $_currentUserId)',
-        );
-        return;
-      }
-    }
-
-    try {
-      bool hasChanges = false;
-
-      // Update current order if it matches
-      if (_currentOrder?.orderId == orderId) {
-        final newStatus = data['status'] ?? _currentOrder!.status;
-        final newRiderId = data['rider_id'] ?? _currentOrder!.riderId;
-
-        if (_currentOrder!.status != newStatus ||
-            _currentOrder!.riderId != newRiderId) {
-          _currentOrder = _currentOrder?.copyWith(
-            status: newStatus,
-            riderId: newRiderId,
-            updatedAt: data['timestamp'] != null
-                ? DateTime.parse(data['timestamp'])
-                : DateTime.now(),
-          );
-          hasChanges = true;
-          print('📝 Updated current order: ${_currentOrder?.orderId}');
-        }
-      }
-
-      // Update order in list
-      final index = _orders.indexWhere((order) => order.orderId == orderId);
-      if (index != -1) {
-        final oldStatus = _orders[index].status;
-        final newStatus = data['status'] ?? _orders[index].status;
-        final newRiderId = data['rider_id'] ?? _orders[index].riderId;
-
-        if (oldStatus != newStatus || _orders[index].riderId != newRiderId) {
-          _orders[index] = _orders[index].copyWith(
-            status: newStatus,
-            riderId: newRiderId,
-            updatedAt: data['timestamp'] != null
-                ? DateTime.parse(data['timestamp'])
-                : DateTime.now(),
-          );
-          hasChanges = true;
-          print(
-            '📝 Updated order in list: $orderId ($oldStatus -> ${_orders[index].status})',
-          );
-        }
-      } else {
-        print('⚠️ Order $orderId not found in local list for update');
-        hasChanges = true;
-        _refreshCurrentData();
-      }
-
-      // Force UI update if there are changes
-      if (hasChanges && !_isDisposed) {
-        print('🔄 Notifying listeners of order update');
-        notifyListeners();
-      }
-    } catch (e) {
-      print('❌ Error handling order update: $e');
-      if (!_isDisposed) {
-        _error = 'Error processing order update: $e';
-        notifyListeners();
-      }
-    }
-  }
-
   // Handle new order notification
   void _handleNewOrderNotification(dynamic data) {
     if (_isDisposed) return;
@@ -259,7 +166,7 @@ class RiderControllerSocket extends ChangeNotifier {
     }
   }
 
-  // Fixed: Fetch orders for rider with better error handling
+  // ปรับปรุง fetchOrdersByRider ให้รองรับออเดอร์ที่พร้อมให้ไรเดอร์รับ
   Future<void> fetchOrdersByRider({required int riderId}) async {
     if (_isDisposed) return;
 
@@ -268,7 +175,7 @@ class RiderControllerSocket extends ChangeNotifier {
     _currentUserId = riderId;
 
     try {
-      // Use the correct endpoint from your backend
+      // ⭐ เปลี่ยน query เป็นการดึงออเดอร์ของไรเดอร์ + ออเดอร์ที่พร้อมรับ
       String url = '$baseUrl/orders?rider_id=$riderId';
       print('👤 Fetching orders for rider $riderId from: $url');
 
@@ -284,7 +191,7 @@ class RiderControllerSocket extends ChangeNotifier {
         if (data['success'] == true) {
           final List<dynamic> ordersData = data['data'] ?? [];
 
-          // Convert to Order objects and filter for this rider
+          // Convert to Order objects
           final parsedOrders = ordersData
               .map((orderJson) {
                 try {
@@ -299,18 +206,56 @@ class RiderControllerSocket extends ChangeNotifier {
               .cast<Order>()
               .toList();
 
-          // Sort by createdAt newest first
+          // Sort by createdAt newest first, with available orders first
           _orders = parsedOrders
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            ..sort((a, b) {
+              // ออเดอร์ที่ยังไม่มีไรเดอร์และพร้อมรับ จะขึ้นก่อน
+              if (a.riderId == null &&
+                  [
+                    'confirmed',
+                    'accepted',
+                    'preparing',
+                    'ready_for_pickup',
+                  ].contains(a.status) &&
+                  b.riderId == riderId) {
+                return -1;
+              }
+              if (b.riderId == null &&
+                  [
+                    'confirmed',
+                    'accepted',
+                    'preparing',
+                    'ready_for_pickup',
+                  ].contains(b.status) &&
+                  a.riderId == riderId) {
+                return 1;
+              }
+              return b.createdAt.compareTo(a.createdAt);
+            });
 
           print('✅ Successfully loaded ${_orders.length} rider orders');
 
           // Group orders by status for logging
           final statusGroups = <String, int>{};
+          final availableOrders = _orders
+              .where(
+                (o) =>
+                    o.riderId == null &&
+                    [
+                      'confirmed',
+                      'accepted',
+                      'preparing',
+                      'ready_for_pickup',
+                    ].contains(o.status),
+              )
+              .length;
+
           for (var order in _orders) {
             statusGroups[order.status] = (statusGroups[order.status] ?? 0) + 1;
           }
+
           print('📊 Rider orders by status: $statusGroups');
+          print('🎯 Available orders for pickup: $availableOrders');
         } else {
           _error = data['error'] ?? 'Failed to fetch rider orders';
           print('❌ API Error: $_error');
@@ -318,7 +263,6 @@ class RiderControllerSocket extends ChangeNotifier {
       } else {
         _error = 'HTTP Error: ${response.statusCode} - ${response.body}';
         print('❌ HTTP Error: ${response.statusCode}');
-        print('Response body: ${response.body}');
       }
     } catch (e) {
       _error = 'Network error: $e';
@@ -494,6 +438,115 @@ class RiderControllerSocket extends ChangeNotifier {
       print('❌ Network error: $e');
     } finally {
       _setLoading(false);
+    }
+  }
+
+  // ⭐ เพิ่ม method สำหรับดึงออเดอร์ที่พร้อมให้รับ
+  List<Order> get availableOrders {
+    if (_isDisposed) return [];
+    return _orders
+        .where(
+          (order) =>
+              order.riderId == null &&
+              [
+                'confirmed',
+                'accepted',
+                'preparing',
+                'ready_for_pickup',
+              ].contains(order.status),
+        )
+        .toList();
+  }
+
+  // ปรับปรุง _handleOrderUpdate ให้ refresh data เมื่อมีออเดอร์ใหม่
+  void _handleOrderUpdate(dynamic data) {
+    if (_isDisposed) return;
+
+    if (data == null) {
+      print('⚠️ Received null order update data');
+      return;
+    }
+
+    print('🔄 Processing order update: $data');
+
+    final orderId = data['order_id'];
+    final status = data['status'];
+
+    if (orderId == null) {
+      print('⚠️ Order update missing order_id');
+      return;
+    }
+
+    try {
+      bool hasChanges = false;
+      bool needsRefresh = false;
+
+      // ⭐ ถ้าเป็นออเดอร์ที่เปลี่ยนเป็น confirmed/preparing/ready_for_pickup
+      // ต้อง refresh เพื่อแสดงออเดอร์ใหม่ที่พร้อมรับ
+      if (['confirmed', 'preparing', 'ready_for_pickup'].contains(status)) {
+        print('🆕 New available order detected: $orderId with status: $status');
+        needsRefresh = true;
+      }
+
+      // Update existing order in list
+      final index = _orders.indexWhere((order) => order.orderId == orderId);
+      if (index != -1) {
+        final oldStatus = _orders[index].status;
+        final newStatus = data['status'] ?? _orders[index].status;
+        final newRiderId = data['rider_id'] ?? _orders[index].riderId;
+
+        if (oldStatus != newStatus || _orders[index].riderId != newRiderId) {
+          _orders[index] = _orders[index].copyWith(
+            status: newStatus,
+            riderId: newRiderId,
+            updatedAt: data['timestamp'] != null
+                ? DateTime.parse(data['timestamp'])
+                : DateTime.now(),
+          );
+          hasChanges = true;
+          print(
+            '📝 Updated order in list: $orderId ($oldStatus -> $newStatus)',
+          );
+        }
+      } else {
+        // ออเดอร์ใหม่ที่ไม่อยู่ใน list
+        needsRefresh = true;
+        print('🆕 New order not in list, need refresh: $orderId');
+      }
+
+      // Update current order if matches
+      if (_currentOrder?.orderId == orderId) {
+        final newStatus = data['status'] ?? _currentOrder!.status;
+        final newRiderId = data['rider_id'] ?? _currentOrder!.riderId;
+
+        if (_currentOrder!.status != newStatus ||
+            _currentOrder!.riderId != newRiderId) {
+          _currentOrder = _currentOrder?.copyWith(
+            status: newStatus,
+            riderId: newRiderId,
+            updatedAt: data['timestamp'] != null
+                ? DateTime.parse(data['timestamp'])
+                : DateTime.now(),
+          );
+          hasChanges = true;
+          print('📝 Updated current order: ${_currentOrder?.orderId}');
+        }
+      }
+
+      // Refresh data if needed
+      if (needsRefresh) {
+        print('🔄 Refreshing rider orders due to new available order');
+        _refreshCurrentData();
+      } else if (hasChanges && !_isDisposed) {
+        print('🔄 Notifying listeners of order update');
+        notifyListeners();
+      }
+    } catch (e) {
+      print('❌ Error handling order update: $e');
+      if (!_isDisposed) {
+        _error = 'Error processing order update: $e';
+        notifyListeners();
+      }
     }
   }
 

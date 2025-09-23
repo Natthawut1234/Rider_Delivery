@@ -1,4 +1,4 @@
-// services/socket_service.dart - Fixed version
+// services/socket_service.dart
 import 'package:rider_delivery/APIs/baseAPI_URL/baseURL.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
@@ -10,8 +10,8 @@ class SocketService {
   IO.Socket? _socket;
   bool _isConnected = false;
 
-  // Fixed: Use correct server URL without path
-  static const String serverUrl = BaseAPI_URL.HostSocketURL; 
+  // Server configuration
+  static const String serverUrl = '${BaseAPI_URL.HostSocketURL}'; // เปลี่ยนตาม server ของคุณ
 
   bool get isConnected => _isConnected && _socket != null && _socket!.connected;
 
@@ -24,27 +24,17 @@ class SocketService {
     try {
       print('🔄 Attempting to connect to $serverUrl');
 
-      // Dispose existing socket first
-      if (_socket != null) {
-        _socket!.dispose();
-        _socket = null;
-      }
-
       _socket = IO.io(
         serverUrl,
         IO.OptionBuilder()
-            .setTransports(['websocket', 'polling']) // Add polling as fallback
-            .setTimeout(10000) // 10 second timeout
-            .setReconnectionAttempts(3)
-            .setReconnectionDelay(2000)
-            .enableAutoConnect() // Enable auto connect
-            .enableForceNew() // Force new connection
+            .setTransports(['websocket'])
+            .disableAutoConnect()
+            .setExtraHeaders({'Connection': 'upgrade'})
             .build(),
       );
 
-      // Setup connection handlers before connecting
       _socket!.onConnect((data) {
-        print('✅ Socket connected successfully: ${_socket!.id}');
+        print('✅ Socket connected: ${_socket!.id}');
         _isConnected = true;
       });
 
@@ -60,46 +50,25 @@ class SocketService {
 
       _socket!.onError((error) {
         print('🚫 Socket error: $error');
-        _isConnected = false;
       });
 
-      _socket!.onReconnect((data) {
-        print('🔄 Socket reconnected: $data');
-        _isConnected = true;
-      });
-
-      _socket!.onReconnectError((error) {
-        print('🚫 Socket reconnection error: $error');
-        _isConnected = false;
-      });
-
-      // Connect the socket
       _socket!.connect();
 
-      // Wait for connection with longer timeout
-      int attempts = 0;
-      while (!isConnected && attempts < 30) { // 30 attempts = 6 seconds
-        await Future.delayed(Duration(milliseconds: 200));
-        attempts++;
-      }
+      // Wait for connection with timeout
+      await Future.delayed(Duration(seconds: 2));
 
       if (!isConnected) {
-        throw Exception('Socket connection timeout after 6 seconds');
+        throw Exception('Failed to establish socket connection');
       }
-
-      print('✅ Socket connection established successfully');
     } catch (e) {
       print('❌ Socket connection failed: $e');
       _isConnected = false;
-      _socket?.dispose();
-      _socket = null;
       rethrow;
     }
   }
 
   void disconnect() {
     if (_socket != null) {
-      print('🔴 Disconnecting socket...');
       _socket!.disconnect();
       _socket!.dispose();
       _socket = null;
@@ -108,22 +77,80 @@ class SocketService {
     }
   }
 
-  Future<void> reconnect() async {
+  void reconnect() {
     print('🔄 Reconnecting socket...');
     disconnect();
-    await Future.delayed(Duration(milliseconds: 1000)); // Wait before reconnecting
-    await connect();
+    connect();
   }
 
-  // Test connection to server
-  Future<bool> testServerConnection() async {
-    try {
-      print('🧪 Testing server connection to $serverUrl');
-      // You might want to add HTTP ping test here if available
-      return true;
-    } catch (e) {
-      print('❌ Server connection test failed: $e');
-      return false;
+  // Register user with socket
+  void registerUser(int userId) {
+    if (isConnected) {
+      _socket!.emit('register_user', {'userId': userId});
+      print('👤 User $userId registered with socket');
+    } else {
+      print('❌ Cannot register user: Socket not connected');
+    }
+  }
+
+  // Watch order for real-time updates
+  void watchOrder(int orderId) {
+    if (isConnected) {
+      String event = '';
+      switch (()) {
+        case 'customer':
+          event = 'customer:watchOrder';
+          break;
+        case 'shop':
+          event = 'shop:watchOrder';
+          break;
+        case 'rider':
+          event = 'rider:watchOrder';
+          break;
+        default:
+          event = 'customer:watchOrder';
+      }
+
+      _socket!.emit(event, orderId);
+      print('👁️ Watching order $orderId');
+    } else {
+      print('❌ Cannot watch order: Socket not connected');
+    }
+  }
+
+  // Accept order as shop
+  void shopAcceptOrder(int orderId, int shopId) {
+    if (isConnected) {
+      _socket!.emit('shop:acceptOrder', {
+        'order_id': orderId,
+        'shop_id': shopId,
+      });
+      print('🏪 Shop $shopId accepting order $orderId');
+    } else {
+      print('❌ Cannot accept order: Socket not connected');
+    }
+  }
+
+  // Accept order as rider
+  void riderAcceptOrder(int orderId, int riderId) {
+    if (isConnected) {
+      _socket!.emit('rider:acceptOrder', {
+        'order_id': orderId,
+        'rider_id': riderId,
+      });
+      print('🏍️ Rider $riderId accepting order $orderId');
+    } else {
+      print('❌ Cannot accept order: Socket not connected');
+    }
+  }
+
+  // Emit new order
+  void emitNewOrder(Map<String, dynamic> orderData) {
+    if (isConnected) {
+      _socket!.emit('new_order', orderData);
+      print('📦 New order emitted: ${orderData['order_id']}');
+    } else {
+      print('❌ Cannot emit new order: Socket not connected');
     }
   }
 
@@ -156,7 +183,7 @@ class SocketService {
         print('📡 Emitted event: $event (no data)');
       }
     } else {
-      print('❌ Cannot emit $event: Socket not connected (connected: ${_socket?.connected}, has socket: ${_socket != null})');
+      print('❌ Cannot emit $event: Socket not connected');
     }
   }
 
@@ -171,52 +198,17 @@ class SocketService {
     };
   }
 
-  // Test connection with server response
+  // Test connection
   void testConnection() {
     if (isConnected) {
-      print('🧪 Testing connection with ping...');
-      _socket!.emit('ping', {
-        'message': 'Connection test from rider',
+      print('🧪 Testing connection...');
+      _socket!.emit('test', {
+        'message': 'Connection test',
         'timestamp': DateTime.now().toIso8601String(),
       });
     } else {
       print('❌ Cannot test connection: Socket not connected');
       print('Connection status: ${getConnectionStatus()}');
-    }
-  }
-
-  // Check if server is reachable
-  Future<bool> isServerReachable() async {
-    try {
-      // Simple connection test
-      final testSocket = IO.io(
-        serverUrl,
-        IO.OptionBuilder()
-            .setTimeout(3000)
-            .setTransports(['polling']) // Use polling for quick test
-            .disableAutoConnect()
-            .build(),
-      );
-
-      bool connected = false;
-      testSocket.onConnect((data) {
-        connected = true;
-      });
-
-      testSocket.connect();
-      
-      // Wait for connection
-      int attempts = 0;
-      while (!connected && attempts < 15) { // 3 second timeout
-        await Future.delayed(Duration(milliseconds: 200));
-        attempts++;
-      }
-
-      testSocket.dispose();
-      return connected;
-    } catch (e) {
-      print('❌ Server reachability test failed: $e');
-      return false;
     }
   }
 }
