@@ -11,7 +11,7 @@ class SocketService {
   bool _isConnected = false;
 
   // Fixed: Use correct server URL without path
-  static const String serverUrl = BaseAPI_URL.SocketURL; 
+  static const String serverUrl = BaseAPI_URL.HostSocketURL; 
 
   bool get isConnected => _isConnected && _socket != null && _socket!.connected;
 

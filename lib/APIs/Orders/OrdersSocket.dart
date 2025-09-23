@@ -25,91 +25,29 @@ class RiderControllerSocket extends ChangeNotifier {
   bool get isSocketConnected => !_isDisposed && _socketService.isConnected;
 
   // Fixed: Better socket initialization with error handling
-  Future<void> initializeSocket({
-    int? userId,
-    int? marketId,
-    int? riderId,
-  }) async {
-    if (_isDisposed) {
-      print('⚠️ Controller is disposed, cannot initialize socket');
-      return;
-    }
-
+   Future<void> initializeSocket({required int riderId}) async {
     try {
-      print('🔌 Initializing socket connection...');
-      _setLoading(true);
+      print('🔌 [RiderSocket] Initializing socket for riderId=$riderId');
 
-      // Store current user data
-      _currentUserId = userId;
-      _currentMarketId = marketId;
-
-      // Test server connectivity first
-      bool serverReachable = await _socketService.isServerReachable();
-      if (!serverReachable) {
-        throw Exception(
-          'Server is not reachable at ${_socketService.getConnectionStatus()['serverUrl']}',
-        );
-      }
-
-      // Connect to socket
       await _socketService.connect();
 
-      if (_isDisposed) return; // Check if disposed during connection
+      // ลงทะเบียนเป็นไรเดอร์
+      _socketService.emit("register_rider", {"riderId": riderId});
+      print('📡 [RiderSocket] Sent register_rider with riderId=$riderId');
 
-      _setupSocketListeners();
+      // ฟังอีเวนท์อัพเดทออเดอร์
+      _socketService.on("order:updated", (data) {
+        print("📦 [RiderSocket] Order update received: $data");
+      });
 
-      // Register user with comprehensive data
-      Map<String, dynamic> registrationData = {};
-      String userType = 'customer';
+      _socketService.on("pong", (data) {
+        print("🏓 [RiderSocket] Pong received: $data");
+      });
 
-      if (userId != null) {
-        registrationData['userId'] = userId;
-        userType = 'customer';
-      }
-      if (marketId != null) {
-        registrationData['marketId'] = marketId;
-        userType = 'shop';
-      }
-      if (riderId != null) {
-        registrationData['riderId'] = riderId;
-        userType = 'rider';
-      }
-
-      registrationData['userType'] = userType;
-
-      print('📝 Registering user with data: $registrationData');
-      _socketService.emit("register_user", registrationData);
-
-      // Join appropriate rooms
-      if (userId != null) {
-        final customerRoom = "customer:$userId";
-        _socketService.emit("join_room", {"room": customerRoom});
-        print('📍 Joined customer room: $customerRoom');
-      }
-
-      if (marketId != null) {
-        final shopRoom = "shop:$marketId";
-        _socketService.emit("join_room", {"room": shopRoom});
-        print('📍 Joined shop room: $shopRoom');
-      }
-
-      if (riderId != null) {
-        final riderRoom = "rider:$riderId";
-        _socketService.emit("join_room", {"room": riderRoom});
-        print('📍 Joined rider room: $riderRoom');
-      }
-
-      _clearError();
-      print('✅ Socket initialization complete');
     } catch (e) {
-      _error = 'Failed to connect to socket: $e';
-      print('❌ Socket initialization failed: $e');
-      print('📊 Connection status: ${_socketService.getConnectionStatus()}');
-    } finally {
-      _setLoading(false);
+      print('❌ [RiderSocket] Socket init failed: $e');
     }
   }
-
   // Fixed: Better listener setup with disposal check
   void _setupSocketListeners() {
     if (_isDisposed) return;
@@ -494,9 +432,8 @@ class RiderControllerSocket extends ChangeNotifier {
 
   // Watch specific order
   void watchOrder(int orderId) {
-    if (_isDisposed) return;
-    print('👁️ Watching order: $orderId');
     _socketService.emit("rider:watchOrder", orderId);
+    print("👁️ [RiderSocket] Watching order $orderId");
   }
 
   // Send heartbeat to check connection

@@ -21,8 +21,8 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   bool _isLoadingLocation = false;
   late RiderControllerSocket _orderController;
   double _thisSubprice(Order order) {
-  return order.items.fold(0.0, (sum, item) => sum + item.subtotal);
-}
+    return order.items.fold(0.0, (sum, item) => sum + item.subtotal);
+  }
 
   // Green theme colors
   static const Color primaryGreen = Color(0xFF2E7D32);
@@ -40,18 +40,29 @@ class _RiderJobsPageState extends State<RiderJobsPage>
 
   Future<void> _initializeRider() async {
     try {
+      print('🚀 [Init] เริ่ม _initializeRider()');
+      print('➡️ [Init] Rider widget.riderId = ${widget.riderId}');
+
       final status = await RiderStatusService.getCurrentStatus();
+      print('📊 [Init] Current rider status = $status');
+
       if (status != RiderStatus.approved) {
         _showApprovalRequiredDialog();
         return;
       }
 
       await _getCurrentLocation();
+
+      // ✅ connect socket + register_rider
       await _orderController.initializeSocket(riderId: widget.riderId);
+
+      // ดึง orders ล่าสุด
       await _fetchOrders();
 
-      // Watch for real-time updates on rider's orders
+      // ติดตาม real-time update
       _setupRiderOrdersWatcher();
+
+      print('🎉 [Init] Rider initialization completed successfully');
     } catch (e) {
       _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
     }
@@ -474,7 +485,6 @@ class _RiderJobsPageState extends State<RiderJobsPage>
               ],
             ),
             const SizedBox(height: 12),
-            
 
             // Items summary
             if (order.items.isNotEmpty) ...[
