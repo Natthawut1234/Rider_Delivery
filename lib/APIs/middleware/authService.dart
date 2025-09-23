@@ -11,6 +11,49 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
+  // ฟังก์ชันดึง rider_id จาก user_id
+  Future<void> _fetchRiderProfile(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${BaseAPI_URL.baseURL}/riders/profile/$userId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('🔍 Rider Profile Response: $data');
+
+        if (data['rider_id'] != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt('rider_id', data['rider_id']);
+          print('✅ Fetched and saved actual rider_id: ${data['rider_id']}');
+        }
+      } else {
+        print('⚠️ Failed to fetch rider profile: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error fetching rider profile: $e');
+    }
+  }
+
+  // ฟังก์ชันช่วยดึง rider_id ที่ถูกต้อง
+  Future<int?> getRiderId() async {
+    final prefs = await SharedPreferences.getInstance();
+    int? riderId = prefs.getInt('rider_id');
+
+    // ถ้าไม่มี rider_id แต่มี user_id ให้ลองดึง rider_id อีกครั้ง
+    if (riderId == null) {
+      int? userId = prefs.getInt('user_id');
+      if (userId != null) {
+        print('🔍 No rider_id found, trying to fetch with user_id: $userId');
+        await _fetchRiderProfile(userId);
+        riderId = prefs.getInt('rider_id');
+      }
+    }
+
+    return riderId;
+  }
+
   // Login แบบ manual (email + password)
   Future<Map<String, dynamic>> loginRider(String email, String password) async {
     try {
@@ -32,6 +75,30 @@ class AuthService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', data['token']);
         await prefs.setString('user_rider', jsonEncode(data['user']));
+
+        // บันทึก rider_id จาก rider_status หรือ user_id
+        if (data['rider_status'] != null &&
+            data['rider_status']['rider_id'] != null) {
+          await prefs.setInt('rider_id', data['rider_status']['rider_id']);
+          print(
+            '✅ Saved rider_id from rider_status: ${data['rider_status']['rider_id']}',
+          );
+        } else if (data['user'] != null && data['user']['rider_id'] != null) {
+          await prefs.setInt('rider_id', data['user']['rider_id']);
+          print('✅ Saved rider_id from user: ${data['user']['rider_id']}');
+        } else {
+          // ถ้าไม่มี rider_id ใน response ให้ใช้ user_id แทนชั่วคราว
+          // และจะต้องหา rider_id จริงทีหลัง
+          if (data['user'] != null && data['user']['user_id'] != null) {
+            await prefs.setInt('user_id', data['user']['user_id']);
+            print(
+              '⚠️ No rider_id found, saved user_id: ${data['user']['user_id']} (need to fetch rider_id later)',
+            );
+
+            // ขอให้ server ส่ง rider_id จริงด้วย
+            await _fetchRiderProfile(data['user']['user_id']);
+          }
+        }
 
         // บันทึก refresh token ถ้ามี
         if (data['refresh_token'] != null) {
@@ -89,6 +156,32 @@ class AuthService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', data['token']);
         await prefs.setString('user_rider', jsonEncode(data['user']));
+
+        // บันทึก rider_id จาก rider_status หรือ user_id
+        if (data['rider_status'] != null &&
+            data['rider_status']['rider_id'] != null) {
+          await prefs.setInt('rider_id', data['rider_status']['rider_id']);
+          print(
+            '✅ Saved rider_id from rider_status (Google): ${data['rider_status']['rider_id']}',
+          );
+        } else if (data['user'] != null && data['user']['rider_id'] != null) {
+          await prefs.setInt('rider_id', data['user']['rider_id']);
+          print(
+            '✅ Saved rider_id from user (Google): ${data['user']['rider_id']}',
+          );
+        } else {
+          // ถ้าไม่มี rider_id ใน response ให้ใช้ user_id แทนชั่วคราว
+          // และจะต้องหา rider_id จริงทีหลัง
+          if (data['user'] != null && data['user']['user_id'] != null) {
+            await prefs.setInt('user_id', data['user']['user_id']);
+            print(
+              '⚠️ No rider_id found (Google), saved user_id: ${data['user']['user_id']} (need to fetch rider_id later)',
+            );
+
+            // ขอให้ server ส่ง rider_id จริงด้วย
+            await _fetchRiderProfile(data['user']['user_id']);
+          }
+        }
 
         // บันทึก refresh token ถ้ามี
         if (data['refresh_token'] != null) {

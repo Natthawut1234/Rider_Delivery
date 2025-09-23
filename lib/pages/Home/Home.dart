@@ -1462,7 +1462,7 @@ class _HomePageState extends State<HomePage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
-                                        JobStartPage(riderId: _riderId  ?? 0),
+                                        RiderJobsPage(riderId: _riderId  ?? 0),
                                     ),
                                   );
                                 }
