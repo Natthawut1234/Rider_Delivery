@@ -432,12 +432,12 @@ class _GoCustomerState extends State<GoCustomer> {
 
     // final payType = data['payType'] ?? '-';
     final restaurantName = data['restaurantName'] ?? '-';
-    // final restaurantAddress = data['restaurantAddress'] ?? '-';
+    final restaurantAddress = data['restaurantAddress'] ?? '-';
     final customerName = data['customerName'] ?? '-';
     final titleCustomerAddress = data['titleCustomerAddress'] ?? '-';
     final customerAddress = data['customerAddress'] ?? '-';
-    final note1 = data['note1'] ?? 'แขวน/วางไว้จุดที่ระบุ: -';
-    final note2 = data['note2'] ?? 'เพิ่มเติม: -';
+    final deliveryType = data['deliveryType'] ?? '-';
+    final note = data['note'] ?? 'เพิ่มเติม: -';
 
     // เพิ่มการคำนวณยอดที่รับจากลูกค้า: รายรับ (earn) + จ่ายให้ร้าน (payAtShop) + โบนัส (bonus)
     final double earn = (data['earn'] is num)
@@ -518,7 +518,7 @@ class _GoCustomerState extends State<GoCustomer> {
                   Container(height: 40, width: 2, color: Colors.white30),
                   Expanded(
                     child: Column(
-                      children: const [
+                      children: [
                         Text(
                           '2. ส่งให้ลูกค้า',
                           style: TextStyle(
@@ -529,7 +529,7 @@ class _GoCustomerState extends State<GoCustomer> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'สมุย',
+                          customerName,
                           style: TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],
@@ -784,8 +784,8 @@ class _GoCustomerState extends State<GoCustomer> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            note1,
-                            style: const TextStyle(color: Colors.green),
+                            deliveryType,
+                            style: TextStyle(color: Colors.green[700]),
                           ),
                         ),
                       ],
@@ -808,8 +808,11 @@ class _GoCustomerState extends State<GoCustomer> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            note2,
-                            style: TextStyle(color: Colors.green),
+                            'เพิ่มเติม: ' +
+                                (note.isNotEmpty
+                                    ? note
+                                    : 'ไม่มีหมายเหตุเพิ่มเติม'),
+                            style: TextStyle(color: Colors.green[700]),
                           ),
                         ),
                       ],

@@ -585,6 +585,111 @@ class _RiderJobsPageState extends State<RiderJobsPage>
             ),
             const SizedBox(height: 12),
 
+            // Restaurant info section
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                // Updated color styling for restaurant section
+                color: Colors.deepOrange.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.deepOrange.withOpacity(0.35)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.storefront,
+                        color: Colors.deepOrange,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'ร้าน: ${order.shopName}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepOrange,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.phone,
+                        color: Colors.deepOrange,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 6),
+                      Builder(
+                        builder: (_) {
+                          final shopPhone = order.marketLocation?['phone']
+                              ?.toString();
+                          return Text(
+                            shopPhone == null || shopPhone.isEmpty
+                                ? 'ไม่มีเบอร์ร้าน'
+                                : shopPhone,
+                            style: const TextStyle(fontSize: 13),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        color: Colors.red,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Builder(
+                          builder: (_) {
+                            final shopAddress = order.marketLocation?['address']
+                                ?.toString();
+                            return Text(
+                              shopAddress == null || shopAddress.isEmpty
+                                  ? 'ไม่พบที่อยู่ร้าน'
+                                  : shopAddress,
+                              style: const TextStyle(fontSize: 12),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.deepOrange.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${distanceKm.toStringAsFixed(1)} กม.',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.deepOrange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
             // Customer info section
             Container(
               padding: const EdgeInsets.all(12),
@@ -600,19 +705,21 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                     children: [
                       const Icon(Icons.person, color: Colors.blue, size: 16),
                       const SizedBox(width: 6),
-                      const Text(
-                        'ลูกค้า:',
-                        style: TextStyle(
+                      Text(
+                        order.clientName != null
+                            ? 'ลูกค้า: ${order.clientName}'
+                            : 'ลูกค้า: ไม่ระบุ',
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Colors.blue,
                         ),
                       ),
                       const SizedBox(width: 4),
-                      if (order.customerLocation?['name'] != null)
-                        Text(
-                          order.customerLocation!['name'],
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
+                      // if (order.customerLocation?['name'] != null)
+                      //   Text(
+                      //     order.customerLocation!['name'],
+                      //     style: const TextStyle(fontWeight: FontWeight.w500),
+                      //   ),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -789,7 +896,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                         ],
                       ),
                       Text(
-                        'รวมที่ต้องจ่าย: ฿${order.totalPrice.toStringAsFixed(0)}',
+                        'รวมที่ต้องรับจากลูกค้า: ฿${order.totalPrice.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,

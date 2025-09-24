@@ -16,6 +16,7 @@ class RiderControllerSocket extends ChangeNotifier {
   int? _currentMarketId;
   int? _currentUserId;
   bool _isDisposed = false; // Track disposal state
+  // final Map<int, Map<String, dynamic>> _marketCache = {}; // cache market info
 
   // Getters
   List<Order> get orders => _orders;
@@ -256,6 +257,28 @@ class RiderControllerSocket extends ChangeNotifier {
 
           print('📊 Rider orders by status: $statusGroups');
           print('🎯 Available orders for pickup: $availableOrders');
+
+          // // Hydrate missing marketLocation from cache / peers (non-blocking)
+          // for (var i = 0; i < _orders.length; i++) {
+          //   final o = _orders[i];
+          //   if (o.marketLocation == null) {
+          //     // Try cache first
+          //     final cached = _marketCache[o.marketId];
+          //     if (cached != null) {
+          //       _orders[i] = o.copyWith(marketLocation: cached);
+          //     } else {
+          //       // Try reuse from another order in list
+          //       final peer = _orders.firstWhere(
+          //         (p) => p.marketId == o.marketId && p.marketLocation != null,
+          //         orElse: () => o,
+          //       );
+          //       if (peer != o && peer.marketLocation != null) {
+          //         _marketCache[o.marketId] = peer.marketLocation!;
+          //         _orders[i] = o.copyWith(marketLocation: peer.marketLocation);
+          //       }
+          //     }
+          //   }
+          // }
         } else {
           _error = data['error'] ?? 'Failed to fetch rider orders';
           print('❌ API Error: $_error');
@@ -271,6 +294,77 @@ class RiderControllerSocket extends ChangeNotifier {
       _setLoading(false);
     }
   }
+
+  // // Public method to ensure market info for a given orderId
+  // Future<void> hydrateMarketInfoForOrder(int orderId) async {
+  //   if (_isDisposed) return;
+  //   final idx = _orders.indexWhere((o) => o.orderId == orderId);
+  //   if (idx == -1) return;
+  //   final order = _orders[idx];
+  //   if (order.marketLocation != null) return; // already has
+
+  //   // 1. Try cache
+  //   final cached = _marketCache[order.marketId];
+  //   if (cached != null) {
+  //     _orders[idx] = order.copyWith(marketLocation: cached);
+  //     notifyListeners();
+  //     return;
+  //   }
+
+  //   // 2. Try peer order
+  //   final peer = _orders.firstWhere(
+  //     (p) => p.marketId == order.marketId && p.marketLocation != null,
+  //     orElse: () => order,
+  //   );
+  //   if (peer != order && peer.marketLocation != null) {
+  //     _marketCache[order.marketId] = peer.marketLocation!;
+  //     _orders[idx] = order.copyWith(marketLocation: peer.marketLocation);
+  //     notifyListeners();
+  //     return;
+  //   }
+
+  //   // 3. Fetch from backend (best-effort). We don't know exact endpoint pattern; try plural then singular.
+  //   final endpoints = [
+  //     '${BaseAPI_URL.baseURL}/markets/${order.marketId}',
+  //     '${BaseAPI_URL.baseURL}/market/${order.marketId}',
+  //   ];
+  //   for (final url in endpoints) {
+  //     try {
+  //       print(
+  //         '🌐 Fetching market detail for marketId=${order.marketId} via $url',
+  //       );
+  //       final resp = await http.get(
+  //         Uri.parse(url),
+  //         headers: {'Content-Type': 'application/json'},
+  //       );
+  //       if (resp.statusCode == 200) {
+  //         final body = json.decode(resp.body);
+  //         final data = (body is Map && body['data'] is Map)
+  //             ? Map<String, dynamic>.from(body['data'])
+  //             : (body is Map ? body : null);
+  //         if (data != null) {
+  //           // Normalize key names potentially used
+  //           final normalized = <String, dynamic>{...data};
+  //           // Heuristic: if address not present but shop_address exists
+  //           if (normalized['address'] == null &&
+  //               normalized['shop_address'] != null) {
+  //             normalized['address'] = normalized['shop_address'];
+  //           }
+  //           _marketCache[order.marketId] = normalized;
+  //           _orders[idx] = order.copyWith(marketLocation: normalized);
+  //           print('✅ Hydrated market location for order $orderId');
+  //           notifyListeners();
+  //           return;
+  //         }
+  //       } else {
+  //         print('⚠️ Failed market detail fetch ($url): ${resp.statusCode}');
+  //       }
+  //     } catch (e) {
+  //       print('⚠️ Market detail fetch error ($url): $e');
+  //     }
+  //   }
+  //   print('⚠️ Could not hydrate market info for order $orderId');
+  // }
 
   // Fixed: Update order status with better error handling
   Future<bool> updateOrderStatus(
@@ -594,6 +688,9 @@ extension OrderCopyWith on Order {
     int? userId,
     int? marketId,
     int? riderId,
+    String? shopName,
+    String? clientName,
+    int? sellPrice,
     String? address,
     String? deliveryType,
     String? paymentMethod,
@@ -605,12 +702,18 @@ extension OrderCopyWith on Order {
     DateTime? createdAt,
     DateTime? updatedAt,
     List<OrderItem>? items,
+    Map<String, dynamic>? marketLocation,
+    Map<String, dynamic>? customerLocation,
+    Map<String, dynamic>? distanceInfo,
+    Map<String, dynamic>? deliverySummary,
   }) {
     return Order(
       orderId: orderId ?? this.orderId,
       userId: userId ?? this.userId,
       marketId: marketId ?? this.marketId,
-      shopName: shopName,
+      shopName: shopName ?? this.shopName,
+      clientName: clientName ?? this.clientName,
+      sellPrice: sellPrice ?? this.sellPrice,
       riderId: riderId ?? this.riderId,
       address: address ?? this.address,
       deliveryType: deliveryType ?? this.deliveryType,
@@ -623,6 +726,10 @@ extension OrderCopyWith on Order {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       items: items ?? this.items,
+      marketLocation: marketLocation ?? this.marketLocation,
+      customerLocation: customerLocation ?? this.customerLocation,
+      distanceInfo: distanceInfo ?? this.distanceInfo,
+      deliverySummary: deliverySummary ?? this.deliverySummary,
     );
   }
 }

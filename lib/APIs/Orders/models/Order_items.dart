@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 double _toDouble(dynamic value) {
   if (value == null) return 0.0;
   if (value is double) return value;
@@ -14,6 +13,7 @@ class Order {
   final int userId;
   final int marketId;
   final String shopName;
+  final String? clientName; // ชื่อผู้สั่ง
   final int? sellPrice;
   final int? riderId;
   final String? foodName;
@@ -38,6 +38,7 @@ class Order {
     required this.userId,
     required this.marketId,
     required this.shopName,
+    this.clientName, // ชื่อผู้สั่ง
     this.sellPrice,
     this.riderId,
     this.foodName,
@@ -56,31 +57,56 @@ class Order {
     this.marketLocation,
     this.customerLocation,
     this.distanceInfo,
-    this.deliverySummary
+    this.deliverySummary,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
+    // รองรับกรณีที่โครงสร้าง API มีฟิลด์ customer_location / market_location
+    final dynamic marketLocRaw = json['market_location'];
+    final dynamic customerLocRaw = json['customer_location'];
+
+    Map<String, dynamic>? marketLoc = (marketLocRaw is Map)
+        ? Map<String, dynamic>.from(marketLocRaw)
+        : null;
+    Map<String, dynamic>? customerLoc = (customerLocRaw is Map)
+        ? Map<String, dynamic>.from(customerLocRaw)
+        : null;
+
+    // ชื่อผู้สั่งอาจอยู่ที่ json['name'] หรือซ่อนอยู่ใน customer_location.name
+    final dynamic rawClientName = json['name'] ?? customerLoc?['name'];
+
     return Order(
       orderId: json['order_id'],
       userId: json['user_id'],
       marketId: json['market_id'],
-      shopName: json['shop_name'],
+      shopName: json['shop_name'] ?? marketLoc?['shop_name'] ?? '',
+      clientName: rawClientName?.toString(),
       sellPrice: json['sell_price'],
       riderId: json['rider_id'],
       foodName: json['food_name'],
-      address: json['address'],
-      deliveryType: json['delivery_type'],
-      paymentMethod: json['payment_method'],
+      address: json['address'] ?? customerLoc?['address'] ?? '',
+      deliveryType: json['delivery_type'] ?? 'delivery',
+      paymentMethod: json['payment_method'] ?? 'cash',
       note: json['note'],
       distanceKm: _toDouble(json['distance_km']),
       deliveryFee: _toDouble(json['delivery_fee']),
       totalPrice: _toDouble(json['total_price']),
-      status: json['status'],
+      status: json['status'] ?? 'waiting',
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
-      items: (json['items'] as List<dynamic>?)
-          ?.map((item) => OrderItem.fromJson(item))
-          .toList() ?? [],
+      items:
+          (json['items'] as List<dynamic>?)
+              ?.map((item) => OrderItem.fromJson(item))
+              .toList() ??
+          [],
+      marketLocation: marketLoc,
+      customerLocation: customerLoc,
+      distanceInfo: json['distance_info'] is Map
+          ? Map<String, dynamic>.from(json['distance_info'])
+          : null,
+      deliverySummary: json['delivery_summary'] is Map
+          ? Map<String, dynamic>.from(json['delivery_summary'])
+          : null,
     );
   }
 
@@ -90,6 +116,8 @@ class Order {
       'user_id': userId,
       'market_id': marketId,
       'shop_name': shopName,
+      'name': clientName, // ชื่อผู้สั่ง
+      'sell_price': sellPrice,
       'rider_id': riderId,
       'address': address,
       'delivery_type': deliveryType,
@@ -102,6 +130,10 @@ class Order {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'items': items.map((item) => item.toJson()).toList(),
+      'market_location': marketLocation,
+      'customer_location': customerLocation,
+      'distance_info': distanceInfo,
+      'delivery_summary': deliverySummary,
     };
   }
 

@@ -105,6 +105,17 @@ class _GoRestaurantState extends State<GoRestaurant> {
     if (order != null) {
       print('GoRestaurant: Order found - ${order.shopName}');
       _orderController!.watchOrder(orderId!);
+      // ถ้ายังไม่มี marketLocation พยายาม hydrate เพิ่ม
+      // if (order.marketLocation == null) {
+      //   final ensuredOrderId = order.orderId; // capture non-null order id
+      //   Future.microtask(() async {
+      //     try {
+      //       await _orderController!.hydrateMarketInfoForOrder(ensuredOrderId);
+      //     } catch (e) {
+      //       print('[GoRestaurant] Hydrate market info failed: $e');
+      //     }
+      //   });
+      // }
     } else {
       print('GoRestaurant: Order still not found after fetch');
     }
@@ -112,18 +123,53 @@ class _GoRestaurantState extends State<GoRestaurant> {
 
   // Getter functions for safe data access
   String get restaurantName => currentOrder?.shopName ?? 'ร้านอาหาร';
-  String get restaurantAddress =>
-      currentOrder?.marketLocation?['address'] ?? 'ไม่ระบุที่อยู่';
-  String get customerName => currentOrder?.customerLocation?['name'] ?? 'สมุย';
+  String get restaurantAddress => currentOrder?.marketLocation?['address'] ?? 'ไม่ระบุที่อยู่ร้าน';
+  // String get restaurantAddress {
+  //   // เดิม fallback ไปใช้ order.address ซึ่งคือที่อยู่ลูกค้า (ปลายทาง) ทำให้โชว์ผิด
+  //   // แก้ให้ดึงเฉพาะค่าที่ยืนยันว่าเป็นที่อยู่ร้านเท่านั้น
+  //   final market = currentOrder?.marketLocation;
+  //   final candidates = <String?>[
+  //     market?['shop_address']?.toString(),
+  //     market?['address']?.toString(),
+  //     market?['shopAddress']?.toString(),
+  //     market?['market_address']?.toString(),
+  //     // บางกรณีอาจซ่อนอยู่ใน object ย่อย เช่น location: { address: "..." }
+  //     (market?['location'] is Map
+  //         ? (market?['location']['address']?.toString())
+  //         : null),
+  //   ].whereType<String>().map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+
+  //   if (candidates.isNotEmpty) return candidates.first;
+
+  //   print(
+  //     '[GoRestaurant] ⚠️ ไม่พบที่อยู่ร้านใน marketLocation=${currentOrder?.marketLocation} orderId=$orderId',
+  //   );
+  //   return 'ไม่ระบุที่อยู่ร้าน';
+  // }
+
+  String get customerName {
+    final nameInLocation = currentOrder?.customerLocation?['name']?.toString();
+    final directClientName = currentOrder?.clientName;
+    if (nameInLocation != null && nameInLocation.isNotEmpty)
+      return nameInLocation;
+    if (directClientName != null && directClientName.isNotEmpty)
+      return directClientName;
+    return 'สมุย'; // fallback placeholder
+  }
+
   String get customerPhone => currentOrder?.customerLocation?['phone'] ?? '';
-  String get customerAddress => currentOrder?.address ?? 'ไม่ระบุที่อยู่';
+  String get customerAddress =>
+      currentOrder?.customerLocation?['address'] ??
+      currentOrder?.address ??
+      'ไม่ระบุที่อยู่';
   String get paymentMethod => currentOrder?.paymentMethod ?? 'เงินสด';
-  String get deliveryType => currentOrder?.deliveryType ?? 'ส่งถึงที่';
   double get totalPrice => currentOrder?.totalPrice ?? 0.0;
   double get deliveryFee => currentOrder?.deliveryFee ?? 0.0;
   int get shopPayAmount => (totalPrice - deliveryFee).toInt();
-  String get note1 => currentOrder?.note ?? 'แขวน/วางไว้จุดที่ระบุ';
-  String get note2 => 'เพิ่มเติม: วางบนหลังคา';
+  String get deliveryType =>
+      currentOrder?.deliveryType ?? 'ไม่ระบุประเภทการจัดส่ง';
+  String get note => currentOrder?.note ?? 'เพิ่มเติม: -';
+  // String get note2 => 'เพิ่มเติม: วางบนหลังคา';
   double get distance => currentOrder?.distanceKm ?? 0.0;
   List<OrderItem> get orderItems => currentOrder?.items ?? [];
   String get orderNumberDisplay => currentOrder?.orderId.toString() ?? '';
@@ -220,6 +266,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                       'หมายเลขออเดอร์: $orderNumberDisplay',
                       style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     ),
+                    const SizedBox(height: 4),
                   ],
                 ),
               ),
@@ -561,8 +608,8 @@ class _GoRestaurantState extends State<GoRestaurant> {
                   'customerName': customerName,
                   'titleCustomerAddress': 'ส่งถึง',
                   'customerAddress': customerAddress,
-                  'note1': note1,
-                  'note2': note2,
+                  'deliveryType': deliveryType,
+                  'note': note,
                   'earn': earn.toDouble(),
                   'payAtShop': shopPayAmount.toDouble(),
                   'bonus': bonus.toDouble(),
@@ -778,7 +825,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                               restaurantName,
                               style: TextStyle(
                                 color: Colors.white70,
-                                fontSize: 12,
+                                fontSize: 14,
                               ),
                             ),
                           ],
@@ -801,7 +848,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                               customerName,
                               style: TextStyle(
                                 color: Colors.white70,
-                                fontSize: 12,
+                                fontSize: 14,
                               ),
                             ),
                           ],
