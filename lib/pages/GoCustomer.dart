@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:provider/provider.dart';
+import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
 
 class GoCustomer extends StatefulWidget {
   const GoCustomer({super.key});
@@ -11,6 +13,41 @@ class GoCustomer extends StatefulWidget {
 class _GoCustomerState extends State<GoCustomer> {
   bool _photoConfirmed =
       false; // becomes true after DeliveryConfirm returns true
+  RiderControllerSocket? _orderController;
+  int? orderId;
+  int? riderId;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeController();
+  }
+
+  void _initializeController() {
+    _orderController = Provider.of<RiderControllerSocket>(
+      context,
+      listen: false,
+    );
+  }
+
+  Future<void> _updateOrderStatus(String status) async {
+    if (orderId == null || _orderController == null) return;
+
+    final success = await _orderController!.updateOrderStatus(orderId!, status);
+
+    if (success) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('อัปเดตสถานะสำเร็จ')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('เกิดข้อผิดพลาด'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   void _showOrderDetailsDialog(
     BuildContext context,
@@ -130,40 +167,64 @@ class _GoCustomerState extends State<GoCustomer> {
                           bottom: BorderSide(color: Colors.grey.shade200),
                         ),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Column(
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item['name'] ?? '-',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['foodName']?.toString() ?? '-',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    if ((item['selectedOptions'] != null &&
+                                        (item['selectedOptions'] as List)
+                                            .isNotEmpty))
+                                      Text(
+                                        (item['selectedOptions'] as List)
+                                            .map(
+                                              (opt) =>
+                                                  opt['label']?.toString() ??
+                                                  '',
+                                            )
+                                            .where((label) => label.isNotEmpty)
+                                            .join(', '),
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                if ((item['option'] ?? '')
-                                    .toString()
-                                    .isNotEmpty)
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
                                   Text(
-                                    item['option'],
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[600],
+                                    'x${item['quantity']?.toString() ?? '1'}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
                                     ),
                                   ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            item['quantity'] ?? 'x1',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
+                                  Text(
+                                    '${(item['subtotal'] ?? 0).toString()} บาท',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.orange,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -179,30 +240,71 @@ class _GoCustomerState extends State<GoCustomer> {
                   horizontal: 20,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.grey[200],
+                  color: Colors.grey[100],
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(16),
                     bottomRight: Radius.circular(16),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
                   children: [
-                    const Text(
-                      'จ่ายให้ร้าน',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'ค่าอาหาร',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        Text(
+                          '${((data['totalPrice']?.toDouble() ?? 0.0) - (data['deliveryFee']?.toDouble() ?? 0.0)).toStringAsFixed(0)} บาท',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      '\$${data['payAtShop'] ?? 0}',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'ค่าส่ง (รายได้)',
+                          style: TextStyle(fontSize: 16, color: Colors.green),
+                        ),
+                        Text(
+                          '${(data['deliveryFee']?.toDouble() ?? 0.0).toStringAsFixed(0)} บาท',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'จ่ายให้ร้าน',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        Text(
+                          '${(data['payAtShop'] ?? 0).toString()} บาท',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -231,7 +333,7 @@ class _GoCustomerState extends State<GoCustomer> {
         content: Padding(
           padding: const EdgeInsets.only(top: 8.0),
           child: Text(
-            'คุณต้องการเดินทางไปยังร้านอาหารใช่หรือไม่?',
+            'คุณถึงจุดจัดส่งแล้ว?',
             style: TextStyle(fontSize: 14),
             textAlign: TextAlign.center,
           ),
@@ -244,7 +346,11 @@ class _GoCustomerState extends State<GoCustomer> {
             textStyle: TextStyle(color: Colors.black),
           ),
           CupertinoDialogAction(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () async {
+              Navigator.of(context).pop(true);
+              // อัพเดทสถานะเป็น arrived_at_customer
+              await _updateOrderStatus('arrived_at_customer');
+            },
             isDefaultAction: true,
             child: const Text('ยืนยัน'),
             textStyle: TextStyle(color: Colors.black),
@@ -294,8 +400,10 @@ class _GoCustomerState extends State<GoCustomer> {
             textStyle: TextStyle(color: Colors.black),
           ),
           CupertinoDialogAction(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context); // close dialog
+              // อัพเดทสถานะเป็น completed
+              await _updateOrderStatus('completed');
               // Navigate to completion screen with order data
               Navigator.pushReplacementNamed(
                 context,
@@ -317,6 +425,10 @@ class _GoCustomerState extends State<GoCustomer> {
     final args =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final data = args ?? {};
+
+    // รับข้อมูล orderId และ riderId
+    orderId = data['orderId'];
+    riderId = data['riderId'];
 
     // final payType = data['payType'] ?? '-';
     final restaurantName = data['restaurantName'] ?? '-';
@@ -787,7 +899,7 @@ class _GoCustomerState extends State<GoCustomer> {
                   ),
                   // แสดงยอดรวมที่คำนวณจากข้อมูลที่ส่งมา
                   Text(
-                    '\$${totalReceived.toStringAsFixed(2)}',
+                    '฿${totalReceived.toStringAsFixed(0)}',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
