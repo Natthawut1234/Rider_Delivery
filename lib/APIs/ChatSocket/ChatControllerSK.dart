@@ -1,4 +1,4 @@
-// controllers/rider_chat_controller.dart (Fixed Version)
+// controllers/rider_chat_controller.dart (Final Fixed Version)
 import 'dart:async';
 import 'dart:convert';
 
@@ -16,9 +16,9 @@ class RiderChatController extends ChangeNotifier {
   bool _isConnected = false;
   int _unreadCount = 0;
 
-  // Rider info
-  int? _riderId;     // rider_id for business logic
-  int? _userId;      // user_id for socket authentication
+  // Rider info - แยก rider_id และ user_id อย่างชัดเจน
+  int? _riderId;     // rider_id จาก rider_profiles table (10)
+  int? _userId;      // user_id จาก users table (31) 
   String? _riderName;
   String? _riderPhoto;
 
@@ -27,8 +27,8 @@ class RiderChatController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isConnected => _isConnected;
   int get unreadCount => _unreadCount;
-  int? get riderId => _riderId;
-  int? get userId => _userId;
+  int? get riderId => _riderId;     // สำหรับ business logic
+  int? get userId => _userId;       // สำหรับ UI และการเปรียบเทียบข้อความ
   String? get riderName => _riderName;
   String? get riderPhoto => _riderPhoto;
 
@@ -64,14 +64,16 @@ class RiderChatController extends ChangeNotifier {
       final userRiderString = prefs.getString('user_rider');
       if (userRiderString != null) {
         final userData = jsonDecode(userRiderString);
-        _riderId = userData['rider_id'];
-        _userId = userData['user_id'];
+        
+        // ✅ แยกชัดเจน: rider_id สำหรับ business, user_id สำหรับ authentication
+        _riderId = userData['rider_id'];     // 10 (rider_profiles.rider_id)
+        _userId = userData['user_id'];       // 31 (users.user_id)
         _riderName = userData['display_name'];
         _riderPhoto = userData['photo_url'];
         
         print("✅ Loaded rider info:");
-        print("   rider_id: $_riderId");
-        print("   user_id: $_userId");
+        print("   rider_id: $_riderId (business logic)");
+        print("   user_id: $_userId (authentication)");
         print("   name: $_riderName");
         print("   photo: $_riderPhoto");
       } else {
@@ -109,8 +111,8 @@ class RiderChatController extends ChangeNotifier {
       // Setup realtime event listeners
       _setupRealtimeListeners();
       
-      // Connect socket using riderId (which maps to userId internally)
-      await _chatService.connectSocket(_riderId!);
+      // ✅ Connect socket โดยส่งทั้ง riderId และ userId
+      await _chatService.connectSocket(_riderId!, _userId!);
       
       // Load initial data
       await loadChatRooms();
@@ -145,7 +147,10 @@ class RiderChatController extends ChangeNotifier {
     // Message stream - update room's last message and unread count
     _messageSubscription = _chatService.messageStream.listen(
       (message) {
-        print('📨 New message received in controller: ${message.messageText}');
+        print('📨 New message received in controller');
+        print('   Message senderId: ${message.senderId}');
+        print('   Message senderType: ${message.senderType}');
+        print('   Current riderId: $_riderId');
         
         final roomIndex = _chatRooms.indexWhere((room) => 
           room.roomId.toString() == message.roomId.toString()
@@ -155,6 +160,8 @@ class RiderChatController extends ChangeNotifier {
           final currentRoom = _chatRooms[roomIndex];
           final isMyMessage = _isMyMessage(message);
 
+          print('   IsMyMessage: $isMyMessage');
+
           // Update room with new message info
           _chatRooms[roomIndex] = currentRoom.copyWith(
             lastMessage: message.messageText ?? 
@@ -162,13 +169,14 @@ class RiderChatController extends ChangeNotifier {
             messageType: message.messageType,
             lastMessageTime: message.createdAt,
             unreadCount: isMyMessage 
-              ? (currentRoom.unreadCount ?? 0)  // Don't increment for own messages
-              : (currentRoom.unreadCount ?? 0) + 1,  // Increment for others' messages
+              ? (currentRoom.unreadCount ?? 0)          // Don't increment for own messages
+              : (currentRoom.unreadCount ?? 0) + 1,     // Increment for others' messages
           );
 
           // Update total unread count
           if (!isMyMessage) {
             _unreadCount += 1;
+            print('   Updated unread count: $_unreadCount');
           }
 
           // Move updated room to top of list
@@ -245,23 +253,30 @@ class RiderChatController extends ChangeNotifier {
     );
   }
 
-  // Helper to check if message is from current rider
+  // ✅ Helper to check if message is from current rider
   bool _isMyMessage(ChatMessage message) {
-    // For rider: check if sender_type is 'rider' and sender_id matches our rider_id
-    return message.senderType == 'rider' && 
-           message.senderId?.toString() == _riderId?.toString();
+    // สำหรับ rider: ตรวจสอบว่า sender_type เป็น 'rider' และ sender_id ตรง rider_id
+    print('🔍 Checking message ownership:');
+    print('   Message: senderType=${message.senderType}, senderId=${message.senderId}');
+    print('   Current: riderId=$_riderId');
+    
+    final result = message.senderType == 'rider' && 
+                   message.senderId?.toString() == _riderId?.toString();
+    print('   Result: $result');
+    
+    return result;
   }
 
   // Connect to chat socket
   Future<void> connectToChat() async {
-    if (_riderId == null) {
-      print('⚠️ Cannot connect - riderId is null');
+    if (_riderId == null || _userId == null) {
+      print('⚠️ Cannot connect - missing IDs');
       return;
     }
 
     try {
-      print('🔌 Connecting to chat socket for rider $_riderId');
-      await _chatService.connectSocket(_riderId!);
+      print('🔌 Connecting to chat socket');
+      await _chatService.connectSocket(_riderId!, _userId!);
     } catch (e) {
       print('❌ Error connecting to chat: $e');
     }
@@ -338,7 +353,7 @@ class RiderChatController extends ChangeNotifier {
       final roomId = await _chatService.createChatRoom(
         orderId,
         customerId,
-        _riderId!,
+        _riderId!, // ส่ง rider_id
       );
 
       // Reload rooms to get the new room
@@ -416,7 +431,7 @@ class RiderChatController extends ChangeNotifier {
     return message.length > 50 ? '${message.substring(0, 50)}...' : message;
   }
 
-  // Open chat with customer
+  // ✅ Open chat with customer - ส่ง userId สำหรับเปรียบเทียบข้อความใน UI
   void openChatWithCustomer({
     required BuildContext context,
     required int roomId,
@@ -428,8 +443,8 @@ class RiderChatController extends ChangeNotifier {
     print('🚀 Opening chat:');
     print('   roomId: $roomId');
     print('   orderId: $orderId');
-    print('   userId: $_userId');
-    print('   riderId: $_riderId');
+    print('   userId: $_userId (for UI comparison)');
+    print('   riderId: $_riderId (for business logic)');
     print('   userType: rider');
 
     // Mark room as entered to reset unread count
@@ -445,8 +460,10 @@ class RiderChatController extends ChangeNotifier {
         'partnerPhoto': customerPhoto,
         'partnerPhone': customerPhone,
         'userType': 'rider',
-        'userId': _userId,           // user_id for socket auth
-        'riderId': _riderId,         // rider_id for business logic
+        
+        // ✅ ส่ง riderId สำหรับเปรียบเทียบข้อความ (เพราะ message.senderId จะเป็น rider_id)
+        'userId': _riderId,           // ส่ง rider_id สำหรับ UI comparison
+        'riderId': _riderId,         // ส่ง rider_id สำหรับ business logic
         'userName': _riderName,
         'userPhoto': _riderPhoto,
       },
