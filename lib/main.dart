@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:get/utils.dart';
 import 'package:provider/provider.dart';
+import 'package:rider_delivery/APIs/ChatSocket/ChatControllerSK.dart';
 import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
 import 'package:rider_delivery/APIs/middleware/authService.dart';
 import 'package:rider_delivery/SplashScreens/SplashScreen.dart';
-import 'package:rider_delivery/pages/Chat.dart';
+import 'package:rider_delivery/pages/Chats/Chat.dart';
 import 'package:rider_delivery/pages/DeliveryCompleted.dart';
 import 'package:rider_delivery/pages/GoCustomer.dart';
 import 'package:rider_delivery/pages/DeliveryConfirm.dart';
@@ -15,6 +18,7 @@ import 'package:rider_delivery/pages/Home/RiderReview.dart';
 import 'package:rider_delivery/pages/JobStart.dart';
 import 'package:rider_delivery/pages/Home/Jobs.dart';
 import 'package:rider_delivery/pages/Home/Trip.dart';
+import 'package:rider_delivery/pages/ProfilePage/ChatLists.dart';
 // import 'package:rider_delivery/pages/Profile.dart';
 import 'package:rider_delivery/pages/ProfilePage/Profile.dart';
 
@@ -27,11 +31,13 @@ import 'package:rider_delivery/APIs/middleware/AuthGuard.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final auth = AuthService();
+  Get.put(RiderChatController(), permanent: true);
   // await auth.loadUser();
    runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => RiderControllerSocket()),
+        ChangeNotifierProvider(create: (_) => RiderChatController()),
         // ...provider อื่นๆ
       ],
       child: const MyApp(),
@@ -52,7 +58,8 @@ class MyApp extends StatelessWidget {
         '/home': (_) => AuthGuard(child: const HomePage()),
         // '/jobStart': (_) => AuthGuard(child: const JobStartPage()),
         '/goRestaurant': (_) => AuthGuard(child: GoRestaurant()),
-        '/chat': (_) => AuthGuard(child: const Chat()),
+        '/chat-lists': (_) => AuthGuard(child: const RiderChatListPage()),
+        '/rider-chat': (_) => AuthGuard(child: const RiderChatPage()),
         '/goCustomer': (_) => AuthGuard(child: const GoCustomer()),
         '/deliveryConfirm': (_) =>
             AuthGuard(child: const DeliveryConfirmPage()),
