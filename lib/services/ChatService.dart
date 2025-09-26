@@ -1,5 +1,6 @@
-// services/rider_chat_service.dart (Complete Fixed Version)
+// services/rider_chat_service.dart (Complete Final Fixed Version)
 import 'dart:async';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rider_delivery/pages/Chats/models/ChatMessage.dart';
@@ -11,26 +12,23 @@ class RiderChatService {
 
   late Dio _dio;
   IO.Socket? _socket;
-  int? _currentRiderId;
+  int? _currentUserId; // ✅ user_id (31) - สำหรับ authentication
+  int? _currentRiderId; // ✅ rider_id (10) - สำหรับ business logic
   int? _currentRoomId;
   String? _authToken;
 
   // Stream controllers for real-time events
   final _messageStreamController = StreamController<ChatMessage>.broadcast();
   final _roomUpdateStreamController = StreamController<ChatRoom>.broadcast();
-  final _typingStreamController =
-      StreamController<Map<String, dynamic>>.broadcast();
-  final _readStatusStreamController =
-      StreamController<Map<String, dynamic>>.broadcast();
+  final _typingStreamController = StreamController<Map<String, dynamic>>.broadcast();
+  final _readStatusStreamController = StreamController<Map<String, dynamic>>.broadcast();
   final _connectionStreamController = StreamController<bool>.broadcast();
 
   // Public streams
   Stream<ChatMessage> get messageStream => _messageStreamController.stream;
   Stream<ChatRoom> get roomUpdateStream => _roomUpdateStreamController.stream;
-  Stream<Map<String, dynamic>> get typingStream =>
-      _typingStreamController.stream;
-  Stream<Map<String, dynamic>> get readStatusStream =>
-      _readStatusStreamController.stream;
+  Stream<Map<String, dynamic>> get typingStream => _typingStreamController.stream;
+  Stream<Map<String, dynamic>> get readStatusStream => _readStatusStreamController.stream;
   Stream<bool> get connectionStream => _connectionStreamController.stream;
 
   RiderChatService() {
@@ -62,9 +60,7 @@ class RiderChatService {
           handler.next(options);
         },
         onResponse: (response, handler) {
-          print(
-            '✅ API Response: ${response.statusCode} ${response.requestOptions.path}',
-          );
+          print('✅ API Response: ${response.statusCode} ${response.requestOptions.path}');
           handler.next(response);
         },
         onError: (error, handler) {
@@ -78,10 +74,8 @@ class RiderChatService {
   Future<void> _loadAuthToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _authToken = prefs.getString('token'); // ✅ ใช้ key "token"
-      print(
-        '🔑 Auth token loaded: ${_authToken != null ? 'Found' : 'Not found'}',
-      );
+      _authToken = prefs.getString('token');
+      print('🔑 Auth token loaded: ${_authToken != null ? 'Found' : 'Not found'}');
     } catch (e) {
       print('❌ Error loading auth token: $e');
     }
@@ -93,7 +87,7 @@ class RiderChatService {
     print('🔑 Auth token set manually');
   }
 
-  // Connect to socket
+  // ✅ แก้ไข connectSocket ให้รับ riderId และหา userId ด้วย
   Future<void> connectSocket(int riderId) async {
     try {
       print('🔌 Connecting socket for rider $riderId');
@@ -104,6 +98,17 @@ class RiderChatService {
       }
 
       _currentRiderId = riderId;
+
+      // ✅ หา user_id ที่ตรงกับ rider_id นี้จาก SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final userRiderString = prefs.getString('user_rider');
+      if (userRiderString != null) {
+        final userData = jsonDecode(userRiderString);
+        _currentUserId = userData['user_id']; // 31
+        print('🔍 Rider mapping loaded: rider_id=$riderId -> user_id=$_currentUserId');
+      } else {
+        print('⚠️ Could not find user_rider in SharedPreferences');
+      }
 
       // Ensure we have auth token
       if (_authToken == null) {
@@ -124,7 +129,7 @@ class RiderChatService {
       _setupSocketListeners();
       _socket!.connect();
 
-      print('🔌 Socket connection initiated for rider $riderId');
+      print('🔌 Socket connection initiated for rider $riderId (user $_currentUserId)');
     } catch (e) {
       print('❌ Error connecting socket: $e');
       _connectionStreamController.add(false);
@@ -133,6 +138,9 @@ class RiderChatService {
 
   void _setupSocketListeners() {
     if (_socket == null) return;
+
+    // Clear existing listeners to prevent duplicates
+    _socket!.clearListeners();
 
     _socket!.on('connect', (data) {
       print('✅ Socket connected successfully');
@@ -157,28 +165,52 @@ class RiderChatService {
       print('🏠 Successfully joined room: ${data['roomId']} ✅');
     });
 
+    // ✅ แก้ไข new_message handler ให้รองรับทั้ง snake_case และ camelCase
     _socket!.on('new_message', (data) {
       try {
         print('📨 New message received: $data');
-        final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
+        
+        // ✅ Parse message ให้รองรับทั้ง format
+        final messageData = Map<String, dynamic>.from(data);
+        
+        // Map ให้เป็น format ที่ ChatMessage.fromJson() คาดหวัง
+        final mappedData = {
+          'message_id': messageData['message_id']?.toString() ?? messageData['messageId']?.toString(),
+          'room_id': messageData['room_id']?.toString() ?? messageData['roomId']?.toString(),
+          'sender_id': messageData['sender_id'] ?? messageData['senderId'],
+          'sender_type': messageData['sender_type'] ?? messageData['senderType'],
+          'sender_name': messageData['sender_name'] ?? messageData['senderName'],
+          'sender_photo': messageData['sender_photo'] ?? messageData['senderPhoto'],
+          'message_text': messageData['message_text'] ?? messageData['messageText'],
+          'message_type': messageData['message_type'] ?? messageData['messageType'] ?? 'text',
+          'image_url': messageData['image_url'] ?? messageData['imageUrl'],
+          'latitude': messageData['latitude']?.toString(),
+          'longitude': messageData['longitude']?.toString(),
+          'is_read': messageData['is_read'] ?? messageData['isRead'] ?? false,
+          'created_at': messageData['created_at'] ?? messageData['createdAt'],
+          'updated_at': messageData['updated_at'] ?? messageData['updatedAt'] ?? messageData['created_at'] ?? messageData['createdAt'],
+        };
+
+        print('📨 Mapped message data: $mappedData');
+        final message = ChatMessage.fromJson(mappedData);
         _messageStreamController.add(message);
-      } catch (e) {
+        
+      } catch (e, stackTrace) {
         print('❌ Error parsing new message: $e');
+        print('❌ Stack trace: $stackTrace');
+        print('❌ Raw data: $data');
       }
     });
 
     _socket!.on('user_typing', (data) {
       print('⌨️ User typing: $data');
-      _typingStreamController.add(Map<String, dynamic>.from(data));
+      final typingData = Map<String, dynamic>.from(data);
+      _typingStreamController.add(typingData);
     });
 
     _socket!.on('messages_read', (data) {
       print('👁️ Messages read: $data');
       _readStatusStreamController.add(Map<String, dynamic>.from(data));
-    });
-
-    _socket!.on('joined_room', (data) {
-      print('🏠 Successfully joined room: ${data['roomId']}');
     });
 
     _socket!.on('user_joined', (data) {
@@ -188,23 +220,33 @@ class RiderChatService {
     _socket!.on('user_left', (data) {
       print('👤 User left room: ${data['userId']}');
     });
+
+    // ✅ เพิ่ม listener สำหรับ message_sent confirmation
+    _socket!.on('message_sent', (data) {
+      print('📤 Message sent confirmation: $data');
+    });
   }
 
-  // Join chat room
+  // ✅ แก้ไข joinRoom ให้ใช้ user_id สำหรับ socket communication
   Future<void> joinRoom(int roomId) async {
-    if (_socket?.connected != true || _currentRiderId == null) {
-      print('❌ Cannot join room - socket not connected or rider not set');
-      throw Exception('Socket not connected or rider not set');
+    if (_socket?.connected != true || _currentUserId == null) {
+      print('❌ Cannot join room - socket not connected or user not set');
+      throw Exception('Socket not connected or user not set');
     }
 
-    print('🏠 Joining room $roomId for rider $_currentRiderId');
+    print('🏠 Joining room $roomId for rider $_currentRiderId (user $_currentUserId)');
     _currentRoomId = roomId;
 
+    // ✅ ส่ง user_id (31) ไปยัง socket แทน rider_id
     _socket!.emit('join_room', {
       'roomId': roomId,
-      'userId': _currentRiderId,
+      'userId': _currentUserId, // ส่ง user_id แทน rider_id
       'userType': 'rider',
     });
+    
+    // รอให้ server confirm
+    await Future.delayed(const Duration(milliseconds: 1000));
+    print('✅ Room join request sent, waiting for confirmation');
   }
 
   // Leave chat room
@@ -216,17 +258,17 @@ class RiderChatService {
     }
   }
 
-  // Send message
-  // 📤 ส่งข้อความ: ถ้า socket พร้อม → emit ด้วย, ถ้าไม่พร้อม → ใช้ HTTP
+  // ✅ แก้ไข sendMessage ให้ทำงานแบบ hybrid (HTTP + Socket)
   Future<void> sendMessage(SendMessageRequest request) async {
-    final payload = request.toJson();
-    print('📤 Sending message: $payload');
-
-    payload['userId'] = _currentRiderId;
-    payload['userType'] = 'rider';
-
-    // ✅ 1) ยิง HTTP เพื่อให้ backend บันทึกลงฐานข้อมูลแน่นอน
     try {
+      final payload = request.toJson();
+      print('📤 Sending message: $payload');
+
+      // ✅ เพิ่ม user_id สำหรับ socket communication
+      payload['userId'] = _currentUserId; // ใช้ user_id (31)
+      payload['userType'] = 'rider';
+
+      // ✅ 1) ส่งผ่าน HTTP API ก่อนเพื่อบันทึกลงฐานข้อมูล
       final response = await _dio.post(
         '/chat/rider/room/message',
         data: payload,
@@ -234,33 +276,41 @@ class RiderChatService {
 
       if (response.statusCode == 200 && response.data['success'] == true) {
         print('✅ Message saved to database');
-
-        // ✅ ดันเข้า Stream ทันทีให้ UI แสดงก่อนที่ socket จะ broadcast กลับมา
-        final messageData = response.data['data'];
-        if (messageData != null) {
-          _messageStreamController.add(
-            ChatMessage.fromJson(Map<String, dynamic>.from(messageData)),
-          );
+        
+        // ✅ 2) หลังจากบันทึกสำเร็จแล้ว ส่ง socket emit
+        if (_socket?.connected == true && _currentRoomId != null) {
+          final socketPayload = {
+            'roomId': request.roomId,
+            'messageText': request.messageText,
+            'messageType': request.messageType ?? 'text',
+            'imageUrl': request.imageUrl,
+            'latitude': request.latitude,
+            'longitude': request.longitude,
+          };
+          
+          print('📡 Emitting message via socket: $socketPayload');
+          _socket!.emit('send_message', socketPayload);
+          print('✅ Message emitted to socket for real-time broadcast');
+        } else {
+          print('⚠️ Socket not connected or not in room, message sent via HTTP only');
         }
+        
       } else {
         throw Exception(response.data['message'] ?? 'ส่งข้อความไม่สำเร็จ');
       }
     } on DioException catch (e) {
       print('❌ HTTP send error: ${e.message}');
       throw Exception('ส่งข้อความไม่สำเร็จ: ${e.message}');
-    }
-
-    // ✅ 2) ถ้า socket พร้อม → emit เพื่อ broadcast real-time
-    if (_socket?.connected == true) {
-      _socket!.emit('send_message', payload);
-    } else {
-      print('⚠️ Socket not connected, sent via HTTP only.');
+    } catch (e) {
+      print('❌ Unexpected error: $e');
+      throw Exception('เกิดข้อผิดพลาดที่ไม่คาดคิด: $e');
     }
   }
 
   // Start typing
   void startTyping() {
     if (_currentRoomId != null && _socket?.connected == true) {
+      print('⌨️ Starting typing in room $_currentRoomId');
       _socket!.emit('typing_start', {'roomId': _currentRoomId});
     }
   }
@@ -268,6 +318,7 @@ class RiderChatService {
   // Stop typing
   void stopTyping() {
     if (_currentRoomId != null && _socket?.connected == true) {
+      print('⌨️ Stopping typing in room $_currentRoomId');
       _socket!.emit('typing_stop', {'roomId': _currentRoomId});
     }
   }
@@ -275,6 +326,7 @@ class RiderChatService {
   // Mark as read
   void markAsRead() {
     if (_currentRoomId != null && _socket?.connected == true) {
+      print('👁️ Marking messages as read in room $_currentRoomId');
       _socket!.emit('mark_as_read', {'roomId': _currentRoomId});
     }
   }
@@ -286,6 +338,7 @@ class RiderChatService {
     _socket?.disconnect();
     _socket?.dispose();
     _socket = null;
+    _currentUserId = null;
     _currentRiderId = null;
     _currentRoomId = null;
     _connectionStreamController.add(false);
@@ -293,7 +346,7 @@ class RiderChatService {
 
   // ===== HTTP API Methods =====
 
-  // Get rider chat rooms
+  // Get rider chat rooms - ใช้ rider_id สำหรับ API calls
   Future<List<ChatRoom>> getChatRooms(int? riderId) async {
     try {
       print('📋 Fetching chat rooms for rider $riderId');
@@ -312,9 +365,7 @@ class RiderChatService {
         throw Exception(message);
       }
     } on DioException catch (e) {
-      print(
-        '❌ DioException getting chat rooms: ${e.response?.statusCode} - ${e.message}',
-      );
+      print('❌ DioException getting chat rooms: ${e.response?.statusCode} - ${e.message}');
       if (e.response?.statusCode == 401) {
         throw Exception('ไม่มีสิทธิ์เข้าถึง กรุณาล็อกอินใหม่');
       }
@@ -351,9 +402,7 @@ class RiderChatService {
         throw Exception(message);
       }
     } on DioException catch (e) {
-      print(
-        '❌ DioException getting messages: ${e.response?.statusCode} - ${e.message}',
-      );
+      print('❌ DioException getting messages: ${e.response?.statusCode} - ${e.message}');
       if (e.response?.statusCode == 403) {
         throw Exception('ไม่มีสิทธิ์เข้าถึงห้องแชทนี้');
       }
@@ -361,7 +410,7 @@ class RiderChatService {
     }
   }
 
-  // Create chat room
+  // Create chat room - ใช้ rider_id
   Future<int> createChatRoom(int orderId, int customerId, int riderId) async {
     try {
       print('🏗️ Creating chat room for order $orderId');
@@ -370,7 +419,7 @@ class RiderChatService {
         data: {
           'orderId': orderId,
           'customerId': customerId,
-          'riderId': riderId,
+          'riderId': riderId, // ใช้ rider_id
         },
       );
 
@@ -411,7 +460,7 @@ class RiderChatService {
     }
   }
 
-  // Mark messages as read (HTTP API)
+  // Mark messages as read (HTTP API) - ใช้ rider_id
   Future<void> markMessagesAsReadAPI(int roomId, int riderId) async {
     try {
       await _dio.put('/chat/rider/room/$roomId/mark-read/$riderId');
@@ -421,7 +470,7 @@ class RiderChatService {
     }
   }
 
-  // Get unread count
+  // Get unread count - ใช้ rider_id
   Future<int> getUnreadCount(int riderId) async {
     try {
       print('🔢 Getting unread count for rider $riderId');
@@ -454,4 +503,9 @@ class RiderChatService {
 
   // Check connection status
   bool get isConnected => _socket?.connected ?? false;
+  
+  // ✅ เพิ่ม helper methods สำหรับ debugging
+  int? get currentUserId => _currentUserId;
+  int? get currentRiderId => _currentRiderId;
+  int? get currentRoomId => _currentRoomId;
 }

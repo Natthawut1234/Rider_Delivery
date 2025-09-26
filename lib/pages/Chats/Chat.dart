@@ -1,12 +1,11 @@
-// pages/rider_chat_page.dart
+// pages/rider_chat_page.dart (Fixed Final Version)
 import 'dart:convert';
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:rider_delivery/APIs/ChatSocket/ChatControllerSK.dart';
 import 'dart:io';
-import 'dart:async';
 import 'package:rider_delivery/pages/Chats/models/ChatMessage.dart';
 import 'package:rider_delivery/pages/Chats/widgets/loading_widget.dart';
 import 'package:rider_delivery/services/ChatService.dart';
@@ -18,13 +17,14 @@ class RiderChatPage extends StatefulWidget {
   State<RiderChatPage> createState() => _RiderChatPageState();
 }
 
-class _RiderChatPageState extends State<RiderChatPage> {
+class _RiderChatPageState extends State<RiderChatPage>
+    with WidgetsBindingObserver {
   final List<ChatMessage> _messages = [];
   final TextEditingController _controller = TextEditingController();
   final ImagePicker _picker = ImagePicker();
   final ScrollController _scrollController = ScrollController();
 
-  // Get arguments from navigation
+  // Navigation arguments
   Map<String, dynamic>? args;
   int? roomId;
   int? orderId;
@@ -32,10 +32,10 @@ class _RiderChatPageState extends State<RiderChatPage> {
   String? partnerPhoto;
   String? partnerPhone;
   String? userType;
-  int? userId;
-  int? riderId;
+  int? userId; // user_id for socket authentication
+  int? riderId; // rider_id for business logic
 
-  // Chat service and controller
+  // Services
   RiderChatController? _chatController;
   RiderChatService? _chatService;
 
@@ -44,19 +44,21 @@ class _RiderChatPageState extends State<RiderChatPage> {
   bool _isLoading = false;
   bool _isConnected = false;
   bool _isPartnerTyping = false;
-  Timer? _typingTimer;
   bool _isUploadingImage = false;
   bool _isInitialized = false;
+  bool _isJoinedRoom = false;
 
-  // Stream subscriptions
+  // Timers and subscriptions
+  Timer? _typingTimer;
   StreamSubscription<ChatMessage>? _messageSubscription;
   StreamSubscription<Map<String, dynamic>>? _typingSubscription;
   StreamSubscription<bool>? _connectionSubscription;
+  StreamSubscription<Map<String, dynamic>>? _readStatusSubscription;
 
   @override
   void initState() {
     super.initState();
-    // Don't initialize arguments here - wait for didChangeDependencies
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
@@ -65,57 +67,135 @@ class _RiderChatPageState extends State<RiderChatPage> {
     if (!_isInitialized) {
       _initializeArguments();
       _initializeServices();
-      _loadInitialMessages();
       _isInitialized = true;
     }
   }
 
   void _initializeArguments() {
-    args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-    roomId = args!['roomId'];
-    orderId = args!['orderId'];
-    partnerName = args!['partnerName'];
-    partnerPhoto = args!['partnerPhoto'];
-    partnerPhone = args!['partnerPhone'];
-    userType = args!['userType'];
-    userId = args!['userId'];
-    riderId = args!['riderId'];
+    try {
+      args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args == null) {
+        print('❌ No arguments provided to RiderChatPage');
+        return;
+      }
 
-    print(
-      '🔍 Current User: ID=$userId and $riderId and $roomId, Type=$userType',
+      roomId = args!['roomId'] as int?;
+      orderId = args!['orderId'] as int?;
+      partnerName = args!['partnerName'] as String?;
+      partnerPhoto = args!['partnerPhoto'] as String?;
+      partnerPhone = args!['partnerPhone'] as String?;
+      userType = args!['userType'] as String? ?? 'rider';
+      userId = args!['userId'] as int?; // user_id for socket auth
+      riderId = args!['riderId'] as int?; // rider_id for business logic
+
+      print('🔍 Chat page initialized with:');
+      print('   roomId: $roomId');
+      print('   orderId: $orderId');
+      print('   userId: $userId');
+      print('   riderId: $riderId');
+      print('   userType: $userType');
+      print('   partnerName: $partnerName');
+    } catch (e) {
+      print('❌ Error initializing arguments: $e');
+    }
+  }
+
+  Future<void> _initializeServices() async {
+    if (roomId == null || userId == null || riderId == null) {
+      print('❌ Missing required parameters for chat initialization');
+      return;
+    }
+
+    try {
+      _chatController = Provider.of<RiderChatController>(
+        context,
+        listen: false,
+      );
+
+      // Ensure controller is initialized
+      await _chatController!.initializeRiderInfoIfNeeded();
+
+      // Create new chat service instance for this chat room
+      _chatService = RiderChatService();
+
+      // Connect socket using riderId
+      print('🔌 Connecting socket for riderId: $riderId');
+      await _chatService!.connectSocket(riderId!);
+
+      // Wait for socket connection with timeout
+      int attempts = 0;
+      const maxAttempts = 15; // 7.5 seconds total
+      while (!_chatService!.isConnected && attempts < maxAttempts) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        attempts++;
+        print(
+          '⏳ Waiting for socket connection... attempt $attempts/$maxAttempts',
+        );
+      }
+
+      if (_chatService!.isConnected) {
+        print('✅ Socket connected, joining room $roomId');
+        await _chatService!.joinRoom(roomId!);
+        _isJoinedRoom = true;
+
+        // Setup event listeners after successful connection
+        _setupRealtimeListeners();
+
+        // Load initial messages
+        await _loadInitialMessages();
+
+        // Mark messages as read
+        _markAsRead();
+      } else {
+        print('⚠️ Socket connection timeout');
+      }
+
+      if (mounted) {
+        setState(() => _isConnected = _chatService!.isConnected);
+      }
+    } catch (e) {
+      print('❌ Error initializing services: $e');
+    }
+  }
+
+  void _setupRealtimeListeners() {
+    // Cancel existing subscriptions
+    _cancelSubscriptions();
+
+    if (_chatService == null) return;
+
+    // Message stream
+    _messageSubscription = _chatService!.messageStream.listen(
+      _onNewMessage,
+      onError: (error) => print('❌ Message stream error: $error'),
+    );
+
+    // Typing stream
+    _typingSubscription = _chatService!.typingStream.listen(
+      _onUserTyping,
+      onError: (error) => print('❌ Typing stream error: $error'),
+    );
+
+    // Connection stream
+    _connectionSubscription = _chatService!.connectionStream.listen(
+      _onConnectionChanged,
+      onError: (error) => print('❌ Connection stream error: $error'),
+    );
+
+    // Read status stream
+    _readStatusSubscription = _chatService!.readStatusStream.listen(
+      _onReadStatusChanged,
+      onError: (error) => print('❌ Read status stream error: $error'),
     );
   }
 
-  void _initializeServices() async {
-    _chatController = Provider.of<RiderChatController>(context, listen: false);
-    _chatService = RiderChatService();
-
-    if (_chatController!.riderId != null) {
-      await _chatService!.connectSocket(_chatController!.riderId!);
-    }
-
-    // ❗️ รอให้ socket connect จริง ๆ ก่อน join
-    Future.delayed(const Duration(milliseconds: 500), () async {
-      if (_chatService!.isConnected) {
-        await _chatService!.joinRoom(roomId!);
-        print('✅ joined room after socket connect');
-      } else {
-        print('⚠️ Socket ยังไม่ connect ภายในเวลา 500ms');
-      }
-    });
-
-    // ✅ ตั้ง stream หลังจาก join
-    _messageSubscription = _chatService!.messageStream.listen(_onNewMessage);
-    _typingSubscription = _chatService!.typingStream.listen(_onUserTyping);
-    _connectionSubscription = _chatService!.connectionStream.listen(
-      _onConnectionChanged,
-    );
-
-    if (mounted) {
-      setState(() => _isConnected = _chatService!.isConnected);
-    }
-
-    _markAsRead();
+  void _cancelSubscriptions() {
+    _messageSubscription?.cancel();
+    _typingSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    _readStatusSubscription?.cancel();
+    _typingTimer?.cancel();
   }
 
   Future<void> _loadInitialMessages() async {
@@ -124,70 +204,108 @@ class _RiderChatPageState extends State<RiderChatPage> {
     setState(() => _isLoading = true);
 
     try {
+      print('📥 Loading messages for room $roomId');
       final response = await _chatService!.getChatMessages(roomId!);
 
-      print('🔍 response type: ${response.runtimeType}');
-      print('🔍 response: $response');
-
       List<ChatMessage> messages = [];
-
-      if (response is Map) {
-        print('✅ success: ${response['success']}');
-        print('📩 messages field type: ${response['messages'].runtimeType}');
-
-        final rawMessages = response['messages'];
-        if (rawMessages is List) {
+      if (response is Map && response['success'] == true) {
+        final rawMessages = response['messages'] as List<dynamic>?;
+        if (rawMessages != null) {
           for (var messageData in rawMessages) {
             try {
               final message = _parseMessage(messageData);
               messages.add(message);
             } catch (e) {
-              print('⚠️ parse error: $e');
-              print('📦 raw message: $messageData');
+              print('⚠️ Failed to parse message: $e');
+              print('Raw data: $messageData');
             }
           }
         }
       }
 
-      print('📊 Loaded messages count: ${messages.length}');
+      // Sort messages by creation time
+      messages.sort((a, b) {
+        if (a.createdAt == null && b.createdAt == null) return 0;
+        if (a.createdAt == null) return -1;
+        if (b.createdAt == null) return 1;
+        return a.createdAt!.compareTo(b.createdAt!);
+      });
 
       if (mounted) {
         setState(() {
-          _messages
-            ..clear()
-            ..addAll(messages);
+          _messages.clear();
+          _messages.addAll(messages);
           _isLoading = false;
         });
-      }
 
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+        print('✅ Loaded ${messages.length} messages');
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
     } catch (e) {
       print('❌ Error loading messages: $e');
       if (mounted) {
         setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ไม่สามารถโหลดข้อความได้: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
-  /// ✅ ฟังก์ชันใหม่: แปลง messageData ทุกแบบให้เป็น Map<String, dynamic>
   ChatMessage _parseMessage(dynamic messageData) {
     try {
+      Map<String, dynamic> data;
+
       if (messageData is Map) {
-        return ChatMessage.fromJson(
-          Map<String, dynamic>.from(
-            messageData.map((k, v) => MapEntry(k.toString(), v)),
-          ),
-        );
+        data = Map<String, dynamic>.from(messageData);
       } else if (messageData is String) {
         final decoded = jsonDecode(messageData);
-        return ChatMessage.fromJson(
-          Map<String, dynamic>.from(
-            decoded.map((k, v) => MapEntry(k.toString(), v)),
-          ),
-        );
+        data = Map<String, dynamic>.from(decoded);
       } else {
         throw Exception('Invalid message format: ${messageData.runtimeType}');
       }
+
+      // Map both snake_case and camelCase to standardized format
+      final mappedData = {
+        'message_id':
+            data['message_id']?.toString() ?? data['messageId']?.toString(),
+        'room_id':
+            data['room_id']?.toString() ??
+            data['roomId']?.toString() ??
+            roomId.toString(),
+        'sender_id': data['sender_id'] ?? data['senderId'],
+        'sender_type':
+            data['sender_type']?.toString() ?? data['senderType']?.toString(),
+        'sender_name':
+            data['sender_name']?.toString() ?? data['senderName']?.toString(),
+        'sender_photo':
+            data['sender_photo']?.toString() ?? data['senderPhoto']?.toString(),
+        'message_text':
+            data['message_text']?.toString() ?? data['messageText']?.toString(),
+        'message_type':
+            data['message_type']?.toString() ??
+            data['messageType']?.toString() ??
+            'text',
+        'image_url':
+            data['image_url']?.toString() ?? data['imageUrl']?.toString(),
+        'latitude': data['latitude']?.toString(),
+        'longitude': data['longitude']?.toString(),
+        'is_read': data['is_read'] ?? data['isRead'] ?? false,
+        'created_at':
+            data['created_at']?.toString() ??
+            data['createdAt']?.toString() ??
+            DateTime.now().toIso8601String(),
+        'updated_at':
+            data['updated_at']?.toString() ??
+            data['updatedAt']?.toString() ??
+            data['created_at']?.toString() ??
+            data['createdAt']?.toString(),
+      };
+
+      return ChatMessage.fromJson(mappedData);
     } catch (e) {
       print('⚠️ Error parsing message: $e');
       rethrow;
@@ -195,28 +313,93 @@ class _RiderChatPageState extends State<RiderChatPage> {
   }
 
   void _onNewMessage(ChatMessage message) {
-    if (mounted) {
+    if (!mounted) return;
+
+    print(
+      '📨 New message received: ${message.messageText?.substring(0, 50) ?? 'No text'}...',
+    );
+    print('📍 Message room: ${message.roomId}, Current room: $roomId');
+    print('👤 Message sender: ${message.senderId} (${message.senderType})');
+
+    // Check if message belongs to current room
+    if (message.roomId?.toString() != roomId.toString()) {
+      print('⚠️ Message not for current room, ignoring');
+      return;
+    }
+
+    // Check for duplicate messages
+    final isDuplicate = _messages.any((existingMessage) {
+      // Check by message ID first
+      if (existingMessage.messageId == message.messageId &&
+          existingMessage.messageId != null &&
+          message.messageId != null) {
+        return true;
+      }
+
+      // If no message ID or they don't match, check content and time
+      return existingMessage.messageText == message.messageText &&
+          existingMessage.senderId == message.senderId &&
+          existingMessage.senderType == message.senderType &&
+          _isMessageTimeSimilar(existingMessage.createdAt, message.createdAt);
+    });
+
+    if (!isDuplicate) {
       setState(() {
         _messages.add(message);
       });
 
       // Scroll to bottom for new messages
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
       // Mark as read if message is not from current user
-      if (!(message.senderId == userId && message.senderType == userType)) {
+      if (!_isMyMessage(message)) {
         _markAsRead();
       }
+
+      print('✅ New message added to UI');
+    } else {
+      print('🔄 Duplicate message ignored');
     }
   }
 
+  bool _isMyMessage(ChatMessage message) {
+    // For rider: check if sender_type is 'rider' and sender_id matches riderId
+    return message.senderType == 'rider' &&
+        message.senderId.toString() == riderId?.toString();
+  }
+
+  bool _isMessageTimeSimilar(DateTime? time1, DateTime? time2) {
+    if (time1 == null || time2 == null) return false;
+    return (time1.difference(time2).abs().inSeconds < 5);
+  }
+
   void _onUserTyping(Map<String, dynamic> data) {
-    if (mounted && data['userId'] != userId) {
+    final roomIdFromEvent = data['roomId']?.toString();
+    final userIdFromEvent = data['userId']?.toString();
+    final isTyping = data['isTyping'] ?? false;
+
+    print(
+      '⌨️ Typing event: room=$roomIdFromEvent, user=$userIdFromEvent, typing=$isTyping',
+    );
+
+    if (mounted &&
+        roomIdFromEvent == roomId.toString() &&
+        userIdFromEvent != userId.toString()) {
+      // Compare with userId for socket auth
       setState(() {
-        _isPartnerTyping = data['isTyping'] ?? false;
+        _isPartnerTyping = isTyping;
       });
+
+      // Auto-stop typing after 3 seconds
+      if (isTyping) {
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && _isPartnerTyping) {
+            setState(() {
+              _isPartnerTyping = false;
+            });
+          }
+        });
+      }
     }
   }
 
@@ -225,7 +408,20 @@ class _RiderChatPageState extends State<RiderChatPage> {
       setState(() {
         _isConnected = connected;
       });
+
+      if (connected && !_isJoinedRoom && roomId != null) {
+        // Reconnected - rejoin room
+        print('🔄 Reconnected, rejoining room $roomId');
+        _chatService!.joinRoom(roomId!).then((_) {
+          _isJoinedRoom = true;
+        });
+      }
     }
+  }
+
+  void _onReadStatusChanged(Map<String, dynamic> data) {
+    print('👁️ Read status changed: $data');
+    // Handle read status changes if needed
   }
 
   void _scrollToBottom() {
@@ -239,10 +435,12 @@ class _RiderChatPageState extends State<RiderChatPage> {
   }
 
   void _markAsRead() {
-    _chatService?.markAsRead();
+    if (_isConnected && _isJoinedRoom) {
+      _chatService?.markAsRead();
+    }
   }
 
-  void _sendMessage() async {
+  Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty && _pendingImage == null) return;
 
@@ -251,9 +449,7 @@ class _RiderChatPageState extends State<RiderChatPage> {
 
       // Upload image if there's one
       if (_pendingImage != null) {
-        setState(() {
-          _isUploadingImage = true;
-        });
+        setState(() => _isUploadingImage = true);
 
         try {
           imageUrl = await _chatService!.uploadImage(_pendingImage!.path);
@@ -266,31 +462,36 @@ class _RiderChatPageState extends State<RiderChatPage> {
               ),
             );
           }
-          setState(() {
-            _isUploadingImage = false;
-          });
+          setState(() => _isUploadingImage = false);
           return;
+        } finally {
+          setState(() => _isUploadingImage = false);
         }
-
-        setState(() {
-          _isUploadingImage = false;
-        });
       }
 
+      // Clear input and stop typing immediately
+      final messageToSend = text;
+      _controller.clear();
+      _chatService?.stopTyping();
+
+      // Create message request
       final request = SendMessageRequest(
         roomId: roomId!,
-        messageText: text.isEmpty ? null : text,
+        messageText: messageToSend.isEmpty ? null : messageToSend,
         messageType: _pendingImage != null ? 'image' : 'text',
         imageUrl: imageUrl,
       );
 
+      // Send message
       await _chatService!.sendMessage(request);
 
-      _controller.clear();
       setState(() {
         _pendingImage = null;
       });
+
+      print('✅ Message sent successfully');
     } catch (e) {
+      print('❌ Error sending message: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -298,29 +499,50 @@ class _RiderChatPageState extends State<RiderChatPage> {
             backgroundColor: Colors.red,
           ),
         );
+
+        // Restore text if sending failed
+        if (text.isNotEmpty && _controller.text.isEmpty) {
+          _controller.text = text;
+        }
       }
     }
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: source,
-      imageQuality: 80,
-      maxWidth: 1024,
-      maxHeight: 1024,
-    );
-    if (pickedFile != null) {
-      setState(() {
-        _pendingImage = File(pickedFile.path);
-      });
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _pendingImage = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      print('❌ Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ไม่สามารถเลือกรูปภาพได้: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   void _onTextChanged(String text) {
-    if (text.isNotEmpty) {
+    if (text.isNotEmpty && _isConnected && _isJoinedRoom) {
       _chatService?.startTyping();
 
+      // Cancel previous timer
       _typingTimer?.cancel();
+
+      // Stop typing after 2 seconds of inactivity
       _typingTimer = Timer(const Duration(seconds: 2), () {
         _chatService?.stopTyping();
       });
@@ -328,22 +550,7 @@ class _RiderChatPageState extends State<RiderChatPage> {
   }
 
   Widget _buildMessage(ChatMessage message) {
-    print(
-      '📨 Message: senderID=${message.senderId}, senderType=${message.senderType}',
-    );
-    print('👤 Current User: ID=$userId, Type=$userType'); // เพิ่มบรรทัดนี้
-
-    // Check if message is from current user
-    // ✅ ใช้ userId ที่ส่งมาจาก arguments เทียบกับ senderId
-    final isOwnMessage =
-        (message.senderId == userId && message.senderType == userType);
-
-    print(
-      '🔍 Comparison: ${message.senderId} == $userId && ${message.senderType} == $userType',
-    );
-
-    print('✅ IsOwnMessage: $isOwnMessage');
-
+    final isOwnMessage = _isMyMessage(message);
     final alignment = isOwnMessage
         ? Alignment.centerRight
         : Alignment.centerLeft;
@@ -470,7 +677,9 @@ class _RiderChatPageState extends State<RiderChatPage> {
     );
   }
 
-  String _formatMessageTime(DateTime dateTime) {
+  String _formatMessageTime(DateTime? dateTime) {
+    if (dateTime == null) return '';
+
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final messageDate = DateTime(dateTime.year, dateTime.month, dateTime.day);
@@ -492,10 +701,10 @@ class _RiderChatPageState extends State<RiderChatPage> {
           CircleAvatar(
             radius: 16,
             backgroundColor: Colors.grey[300],
-            backgroundImage: partnerPhoto != null
+            backgroundImage: partnerPhoto != null && partnerPhoto!.isNotEmpty
                 ? NetworkImage(partnerPhoto!)
                 : null,
-            child: partnerPhoto == null
+            child: (partnerPhoto == null || partnerPhoto!.isEmpty)
                 ? const Icon(Icons.person, size: 16, color: Colors.grey)
                 : null,
           ),
@@ -539,6 +748,135 @@ class _RiderChatPageState extends State<RiderChatPage> {
     );
   }
 
+  Widget _buildImagePreview() {
+    if (_pendingImage == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              _pendingImage!,
+              width: 60,
+              height: 60,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text('รูปภาพที่เลือก', style: TextStyle(fontSize: 14)),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () {
+              setState(() {
+                _pendingImage = null;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputBar() {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey[300]!)),
+      ),
+      child: Column(
+        children: [
+          _buildImagePreview(),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.photo),
+                onPressed: _isUploadingImage
+                    ? null
+                    : () => _showImageSourceDialog(),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  onChanged: _onTextChanged,
+                  decoration: InputDecoration(
+                    hintText: 'พิมพ์ข้อความ...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                  ),
+                  maxLines: null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _isUploadingImage
+                  ? const SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: CircularProgressIndicator(),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.send),
+                      onPressed: _sendMessage,
+                    ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showImageSourceDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('เลือกที่มาของรูปภาพ'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('ถ่าย��ูป'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('เลือกจากแกลเลอรี'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed && _isJoinedRoom) {
+      _markAsRead();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Show loading until initialization is complete
@@ -553,10 +891,10 @@ class _RiderChatPageState extends State<RiderChatPage> {
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.grey[300],
-              backgroundImage: partnerPhoto != null
+              backgroundImage: partnerPhoto != null && partnerPhoto!.isNotEmpty
                   ? NetworkImage(partnerPhoto!)
                   : null,
-              child: partnerPhoto == null
+              child: (partnerPhoto == null || partnerPhoto!.isEmpty)
                   ? const Icon(Icons.person, color: Colors.grey)
                   : null,
             ),
@@ -609,181 +947,42 @@ class _RiderChatPageState extends State<RiderChatPage> {
           if (!_isConnected)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              color: Colors.orange,
+              color: Colors.red,
+              padding: const EdgeInsets.all(8),
               child: const Text(
                 'กำลังเชื่อมต่อ...',
-                style: TextStyle(color: Colors.white),
                 textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white),
               ),
             ),
 
-          // Messages
+          // Messages list
           Expanded(
             child: _isLoading
-                ? const LoadingWidget(message: 'กำลังโหลดข้อความ...')
+                ? const Center(child: CircularProgressIndicator())
+                : _messages.isEmpty
+                ? const Center(
+                    child: Text(
+                      'ยังไม่มีข้อความ\nเริ่มสนทนากับลูกค้าได้เลย',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey, fontSize: 16),
+                    ),
+                  )
                 : ListView.builder(
                     controller: _scrollController,
-                    itemCount: _messages.length + 1,
+                    padding: const EdgeInsets.all(8),
+                    itemCount: _messages.length,
                     itemBuilder: (context, index) {
-                      if (index == _messages.length) {
-                        return _buildTypingIndicator();
-                      }
                       return _buildMessage(_messages[index]);
                     },
                   ),
           ),
 
-          // Input area
-          SafeArea(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              color: Colors.white,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  // Camera buttons
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.photo_camera,
-                            color: Colors.green,
-                          ),
-                          onPressed: _isUploadingImage
-                              ? null
-                              : () => _pickImage(ImageSource.camera),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.photo, color: Colors.green),
-                          onPressed: _isUploadingImage
-                              ? null
-                              : () => _pickImage(ImageSource.gallery),
-                        ),
-                      ],
-                    ),
-                  ),
+          // Typing indicator
+          _buildTypingIndicator(),
 
-                  // Text input with pending image
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_isUploadingImage)
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'กำลังอัพโลดรูปภาพ...',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (_pendingImage != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Center(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.file(
-                                      _pendingImage!,
-                                      width: 90,
-                                      height: 90,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  top: 4,
-                                  right: 4,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        _pendingImage = null;
-                                      });
-                                    },
-                                    child: Container(
-                                      decoration: const BoxDecoration(
-                                        color: Colors.black54,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      padding: const EdgeInsets.all(4),
-                                      child: const Icon(
-                                        Icons.close,
-                                        color: Colors.white,
-                                        size: 18,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        TextField(
-                          controller: _controller,
-                          onChanged: _onTextChanged,
-                          decoration: InputDecoration(
-                            hintText: 'พิมพ์ข้อความ...',
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: const BorderSide(color: Colors.green),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: const BorderSide(
-                                color: Colors.green,
-                                width: 2,
-                              ),
-                            ),
-                            filled: true,
-                            fillColor: Colors.grey[100],
-                            isDense: true,
-                          ),
-                          maxLines: null,
-                          enabled: !_isUploadingImage,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  // Send button
-                  Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      onPressed: _isUploadingImage ? null : _sendMessage,
-                      icon: const Icon(Icons.send, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Input bar
+          _buildInputBar(),
         ],
       ),
     );
@@ -791,13 +990,28 @@ class _RiderChatPageState extends State<RiderChatPage> {
 
   @override
   void dispose() {
+    print('🗑️ Disposing RiderChatPage');
+
+    WidgetsBinding.instance.removeObserver(this);
+
+    // Stop typing
+    _chatService?.stopTyping();
+
+    // Leave room
+    if (_isJoinedRoom && roomId != null) {
+      _chatService?.leaveRoom();
+    }
+
+    // Cancel subscriptions and timers
+    _cancelSubscriptions();
+
+    // Dispose controllers
     _controller.dispose();
     _scrollController.dispose();
-    _typingTimer?.cancel();
-    _messageSubscription?.cancel();
-    _typingSubscription?.cancel();
-    _connectionSubscription?.cancel();
-    _chatService?.leaveRoom();
+
+    // Dispose chat service
+    _chatService?.dispose();
+
     super.dispose();
   }
 }
