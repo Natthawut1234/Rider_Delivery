@@ -11,23 +11,27 @@ class RiderChatService {
 
   late Dio _dio;
   IO.Socket? _socket;
-  int? _currentRiderId;  // rider_id สำหรับ business logic
-  int? _currentUserId;   // user_id สำหรับ authentication  
+  int? _currentRiderId; // rider_id สำหรับ business logic
+  int? _currentUserId; // user_id สำหรับ authentication
   int? _currentRoomId;
   String? _authToken;
 
   // Stream controllers for real-time events
   final _messageStreamController = StreamController<ChatMessage>.broadcast();
   final _roomUpdateStreamController = StreamController<ChatRoom>.broadcast();
-  final _typingStreamController = StreamController<Map<String, dynamic>>.broadcast();
-  final _readStatusStreamController = StreamController<Map<String, dynamic>>.broadcast();
+  final _typingStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _readStatusStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
   final _connectionStreamController = StreamController<bool>.broadcast();
 
   // Public streams
   Stream<ChatMessage> get messageStream => _messageStreamController.stream;
   Stream<ChatRoom> get roomUpdateStream => _roomUpdateStreamController.stream;
-  Stream<Map<String, dynamic>> get typingStream => _typingStreamController.stream;
-  Stream<Map<String, dynamic>> get readStatusStream => _readStatusStreamController.stream;
+  Stream<Map<String, dynamic>> get typingStream =>
+      _typingStreamController.stream;
+  Stream<Map<String, dynamic>> get readStatusStream =>
+      _readStatusStreamController.stream;
   Stream<bool> get connectionStream => _connectionStreamController.stream;
 
   RiderChatService() {
@@ -59,7 +63,9 @@ class RiderChatService {
           handler.next(options);
         },
         onResponse: (response, handler) {
-          print('✅ API Response: ${response.statusCode} ${response.requestOptions.path}');
+          print(
+            '✅ API Response: ${response.statusCode} ${response.requestOptions.path}',
+          );
           handler.next(response);
         },
         onError: (error, handler) {
@@ -74,7 +80,9 @@ class RiderChatService {
     try {
       final prefs = await SharedPreferences.getInstance();
       _authToken = prefs.getString('token');
-      print('🔑 Auth token loaded: ${_authToken != null ? 'Found' : 'Not found'}');
+      print(
+        '🔑 Auth token loaded: ${_authToken != null ? 'Found' : 'Not found'}',
+      );
     } catch (e) {
       print('❌ Error loading auth token: $e');
     }
@@ -128,6 +136,8 @@ class RiderChatService {
   void _setupSocketListeners() {
     if (_socket == null) return;
 
+    _socket!.clearListeners(); // ✅ กันซ้ำ listener
+
     _socket!.on('connect', (data) {
       print('✅ Socket connected successfully');
       _connectionStreamController.add(true);
@@ -154,10 +164,33 @@ class RiderChatService {
     _socket!.on('new_message', (data) {
       try {
         print('📨 New message received: $data');
-        final message = ChatMessage.fromJson(Map<String, dynamic>.from(data));
+        final msg = Map<String, dynamic>.from(data);
+
+        final mapped = {
+          'message_id':
+              msg['message_id']?.toString() ?? msg['messageId']?.toString(),
+          'room_id': msg['room_id']?.toString() ?? msg['roomId']?.toString(),
+          'sender_id': msg['sender_id'] ?? msg['senderId'],
+          'sender_type': msg['sender_type'] ?? msg['senderType'],
+          'sender_name': msg['sender_name'] ?? msg['senderName'],
+          'sender_photo': msg['sender_photo'] ?? msg['senderPhoto'],
+          'message_text': msg['message_text'] ?? msg['messageText'],
+          'message_type': msg['message_type'] ?? msg['messageType'] ?? 'text',
+          'image_url': msg['image_url'] ?? msg['imageUrl'],
+          'latitude': msg['latitude']?.toString(),
+          'longitude': msg['longitude']?.toString(),
+          'is_read': msg['is_read'] ?? msg['isRead'] ?? false,
+          'created_at': msg['created_at'] ?? msg['createdAt'],
+          'updated_at':
+              msg['updated_at'] ?? msg['updatedAt'] ?? msg['created_at'],
+        };
+
+        final message = ChatMessage.fromJson(mapped);
         _messageStreamController.add(message);
-      } catch (e) {
-        print('❌ Error parsing new message: $e');
+        print('✅ Message added to stream');
+      } catch (e, st) {
+        print('❌ Error parsing message: $e');
+        print(st);
       }
     });
 
@@ -176,13 +209,8 @@ class RiderChatService {
     });
 
     _socket!.on('message_sent', (data) {
-      print('✅ Message sent confirmation: $data');
-      // ไม่ต้องเพิ่มเข้า stream เพราะ backend จะไม่ broadcast กลับมาแล้ว
-      // แสดงข้อความของตัวเองทันที
-      if (data['success'] == true && data['message'] != null) {
-        final message = ChatMessage.fromJson(Map<String, dynamic>.from(data['message']));
-        _messageStreamController.add(message);
-      }
+      print('📤 Message sent confirmation: $data');
+      // ❗ ไม่ต้อง add เข้า stream ที่นี่ เพราะ backend จะ broadcast new_message ให้อยู่แล้ว
     });
   }
 
@@ -199,7 +227,7 @@ class RiderChatService {
     // ส่ง riderId ไปให้ backend (backend จะแปลงเป็น user_id เอง)
     _socket!.emit('join_room', {
       'roomId': roomId,
-      'userId': _currentRiderId,  // ส่ง rider_id
+      'userId': _currentRiderId, // ส่ง rider_id
       'userType': 'rider',
     });
   }
@@ -216,41 +244,31 @@ class RiderChatService {
   // Send message - ส่ง riderId สำหรับการบันทึกในฐานข้อมูル
   Future<void> sendMessage(SendMessageRequest request) async {
     final payload = request.toJson();
-    print('📤 Sending message: $payload');
-
-    // ส่ง riderId สำหรับ socket และ HTTP
-    payload['userId'] = _currentRiderId;  // ส่ง rider_id
+    payload['userId'] = _currentRiderId;
     payload['userType'] = 'rider';
 
-    // HTTP request for database persistence
+    if (_socket?.connected == true &&
+        _currentRoomId != null &&
+        _currentRoomId == request.roomId) {
+      print('📡 Emitting message via socket only');
+      _socket!.emit('send_message', payload);
+      return;
+    }
+
+    // 🔁 fallback HTTP ถ้า socket ไม่ต่อ
+    print('⚠️ Socket not connected → using HTTP');
     try {
       final response = await _dio.post(
         '/chat/rider/room/message',
         data: payload,
       );
 
-      if (response.statusCode == 200 && response.data['success'] == true) {
-        print('✅ Message saved to database');
-
-        final messageData = response.data['data'];
-        if (messageData != null) {
-          _messageStreamController.add(
-            ChatMessage.fromJson(Map<String, dynamic>.from(messageData)),
-          );
-        }
-      } else {
+      if (response.statusCode != 200 || response.data['success'] != true) {
         throw Exception(response.data['message'] ?? 'ส่งข้อความไม่สำเร็จ');
       }
     } on DioException catch (e) {
       print('❌ HTTP send error: ${e.message}');
       throw Exception('ส่งข้อความไม่สำเร็จ: ${e.message}');
-    }
-
-    // Socket emit for real-time broadcast
-    if (_socket?.connected == true) {
-      _socket!.emit('send_message', payload);
-    } else {
-      print('⚠️ Socket not connected, sent via HTTP only.');
     }
   }
 
@@ -261,7 +279,7 @@ class RiderChatService {
     }
   }
 
-  // Stop typing  
+  // Stop typing
   void stopTyping() {
     if (_currentRoomId != null && _socket?.connected == true) {
       _socket!.emit('typing_stop', {'roomId': _currentRoomId});
@@ -288,7 +306,7 @@ class RiderChatService {
     _connectionStreamController.add(false);
   }
 
-  // ===== HTTP API Methods ===== 
+  // ===== HTTP API Methods =====
 
   // Get rider chat rooms - ใช้ riderId สำหรับ API
   Future<List<ChatRoom>> getChatRooms(int? riderId) async {
@@ -309,7 +327,9 @@ class RiderChatService {
         throw Exception(message);
       }
     } on DioException catch (e) {
-      print('❌ DioException getting chat rooms: ${e.response?.statusCode} - ${e.message}');
+      print(
+        '❌ DioException getting chat rooms: ${e.response?.statusCode} - ${e.message}',
+      );
       if (e.response?.statusCode == 401) {
         throw Exception('ไม่มีสิทธิ์เข้าถึง กรุณาล็อกอินใหม่');
       }
@@ -345,7 +365,9 @@ class RiderChatService {
         throw Exception(message);
       }
     } on DioException catch (e) {
-      print('❌ DioException getting messages: ${e.response?.statusCode} - ${e.message}');
+      print(
+        '❌ DioException getting messages: ${e.response?.statusCode} - ${e.message}',
+      );
       if (e.response?.statusCode == 403) {
         throw Exception('ไม่มีสิทธิ์เข้าถึงห้องแชทนี้');
       }
@@ -362,7 +384,7 @@ class RiderChatService {
         data: {
           'orderId': orderId,
           'customerId': customerId,
-          'riderId': riderId,  // ส่ง rider_id
+          'riderId': riderId, // ส่ง rider_id
         },
       );
 
