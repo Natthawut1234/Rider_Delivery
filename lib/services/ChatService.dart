@@ -175,8 +175,14 @@ class RiderChatService {
       print('👤 User joined room: ${data['userName']}');
     });
 
-    _socket!.on('user_left', (data) {
-      print('👤 User left room: ${data['userId']}');
+    _socket!.on('message_sent', (data) {
+      print('✅ Message sent confirmation: $data');
+      // ไม่ต้องเพิ่มเข้า stream เพราะ backend จะไม่ broadcast กลับมาแล้ว
+      // แสดงข้อความของตัวเองทันที
+      if (data['success'] == true && data['message'] != null) {
+        final message = ChatMessage.fromJson(Map<String, dynamic>.from(data['message']));
+        _messageStreamController.add(message);
+      }
     });
   }
 

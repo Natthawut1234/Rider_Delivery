@@ -205,18 +205,40 @@ class _RiderChatPageState extends State<RiderChatPage> {
 
   void _onNewMessage(ChatMessage message) {
     if (mounted) {
-      setState(() {
-        _messages.add(message);
+      // ✅ ป้องกัน duplicate messages
+      final isDuplicate = _messages.any((existingMessage) {
+        // ตรวจสอบ message_id ก่อน
+        if (existingMessage.messageId == message.messageId && 
+            existingMessage.messageId != null && 
+            message.messageId != null) {
+          return true;
+        }
+        
+        // ถ้าไม่มี message_id ให้ตรวจสอบเนื้อหาและเวลา
+        return existingMessage.messageText == message.messageText &&
+               existingMessage.senderId == message.senderId &&
+               existingMessage.senderType == message.senderType &&
+               _isMessageTimeSimilar(existingMessage.createdAt, message.createdAt);
       });
 
-      // Scroll to bottom for new messages
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
+      if (!isDuplicate) {
+        setState(() {
+          _messages.add(message);
+        });
 
-      // Mark as read if message is not from current user
-      if (!_isMyMessage(message)) {
-        _markAsRead();
+        // Scroll to bottom for new messages
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+
+        // Mark as read if message is not from current user
+        if (!_isMyMessage(message)) {
+          _markAsRead();
+        }
+
+        print('✅ New message added to UI');
+      } else {
+        print('🔄 Duplicate message ignored');
       }
     }
   }
@@ -249,6 +271,12 @@ class _RiderChatPageState extends State<RiderChatPage> {
 
   void _markAsRead() {
     _chatService?.markAsRead();
+  }
+
+  // ✅ Helper function สำหรับเปรียบเทียบเวลาข้อความ
+  bool _isMessageTimeSimilar(DateTime? time1, DateTime? time2) {
+    if (time1 == null || time2 == null) return false;
+    return (time1.difference(time2).abs().inSeconds < 5);
   }
 
   void _sendMessage() async {
