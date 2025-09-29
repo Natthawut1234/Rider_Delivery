@@ -185,21 +185,51 @@ class _GoCustomerState extends State<GoCustomer> {
                                     ),
                                     if ((item['selectedOptions'] != null &&
                                         (item['selectedOptions'] as List)
-                                            .isNotEmpty))
-                                      Text(
-                                        (item['selectedOptions'] as List)
-                                            .map(
-                                              (opt) =>
-                                                  opt['label']?.toString() ??
-                                                  '',
-                                            )
-                                            .where((label) => label.isNotEmpty)
-                                            .join(', '),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[600],
-                                        ),
+                                            .isNotEmpty)) ...[
+                                      const SizedBox(height: 6),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        children: (item['selectedOptions'] as List)
+                                            .map((opt) {
+                                              final map =
+                                                  opt as Map<String, dynamic>;
+                                              final label =
+                                                  map['label']?.toString() ??
+                                                  '';
+                                              final extraPrice =
+                                                  map['extraPrice']
+                                                      ?.toString() ??
+                                                  '0';
+                                              return Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: Colors.green
+                                                        .withOpacity(0.2),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  '$label (+฿$extraPrice)',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.green[800],
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              );
+                                            })
+                                            .toList(),
                                       ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -280,6 +310,26 @@ class _GoCustomerState extends State<GoCustomer> {
                           style: const TextStyle(
                             fontSize: 16,
                             color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'รวมทั้งหมด',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        Text(
+                          '${(data['totalPrice']?.toDouble() ?? 0.0).toStringAsFixed(0)} บาท',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
                           ),
                         ),
                       ],
@@ -432,25 +482,25 @@ class _GoCustomerState extends State<GoCustomer> {
 
     // final payType = data['payType'] ?? '-';
     final restaurantName = data['restaurantName'] ?? '-';
-    final restaurantAddress = data['restaurantAddress'] ?? '-';
     final customerName = data['customerName'] ?? '-';
     final titleCustomerAddress = data['titleCustomerAddress'] ?? '-';
     final customerAddress = data['customerAddress'] ?? '-';
     final deliveryType = data['deliveryType'] ?? '-';
     final note = data['note'] ?? 'เพิ่มเติม: -';
+    final totalPrice = data['totalPrice']?.toDouble() ?? 0.0;
 
     // เพิ่มการคำนวณยอดที่รับจากลูกค้า: รายรับ (earn) + จ่ายให้ร้าน (payAtShop) + โบนัส (bonus)
-    final double earn = (data['earn'] is num)
-        ? (data['earn'] as num).toDouble()
-        : double.tryParse('${data['earn']}') ?? 0.0;
-    final double payAtShopAmount = (data['payAtShop'] is num)
-        ? (data['payAtShop'] as num).toDouble()
-        : double.tryParse('${data['payAtShop']}') ?? 0.0;
-    final double bonus = (data['bonus'] is num)
-        ? (data['bonus'] as num).toDouble()
-        : double.tryParse('${data['bonus']}') ?? 0.0;
+    // final double earn = (data['earn'] is num)
+    //     ? (data['earn'] as num).toDouble()
+    //     : double.tryParse('${data['earn']}') ?? 0.0;
+    // final double payAtShopAmount = (data['payAtShop'] is num)
+    //     ? (data['payAtShop'] as num).toDouble()
+    //     : double.tryParse('${data['payAtShop']}') ?? 0.0;
+    // final double bonus = (data['bonus'] is num)
+    //     ? (data['bonus'] as num).toDouble()
+    //     : double.tryParse('${data['bonus']}') ?? 0.0;
 
-    final double totalReceived = earn + payAtShopAmount + bonus;
+    // final double totalReceived = earn + payAtShopAmount + bonus;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -902,7 +952,7 @@ class _GoCustomerState extends State<GoCustomer> {
                   ),
                   // แสดงยอดรวมที่คำนวณจากข้อมูลที่ส่งมา
                   Text(
-                    '฿${totalReceived.toStringAsFixed(0)}',
+                    '฿${totalPrice.toStringAsFixed(0)}',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,

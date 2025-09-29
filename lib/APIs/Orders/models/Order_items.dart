@@ -14,6 +14,7 @@ class Order {
   final int marketId;
   final String shopName;
   final String? clientName; // ชื่อผู้สั่ง
+  final int? basePrice;
   final int? sellPrice;
   final int? riderId;
   final String? foodName;
@@ -39,6 +40,7 @@ class Order {
     required this.marketId,
     required this.shopName,
     this.clientName, // ชื่อผู้สั่ง
+    this.basePrice,
     this.sellPrice,
     this.riderId,
     this.foodName,
@@ -81,6 +83,7 @@ class Order {
       marketId: json['market_id'],
       shopName: json['shop_name'] ?? marketLoc?['shop_name'] ?? '',
       clientName: rawClientName?.toString(),
+      basePrice: json['base_price'],
       sellPrice: json['sell_price'],
       riderId: json['rider_id'],
       foodName: json['food_name'],
@@ -117,6 +120,7 @@ class Order {
       'market_id': marketId,
       'shop_name': shopName,
       'name': clientName, // ชื่อผู้สั่ง
+      'base_price': basePrice,
       'sell_price': sellPrice,
       'rider_id': riderId,
       'address': address,
@@ -225,6 +229,7 @@ class OrderItem {
   final int foodId;
   final String foodName;
   final int quantity;
+  final double? basePrice;
   final double sellPrice;
   final double subtotal;
   final List<dynamic> selectedOptions;
@@ -235,6 +240,7 @@ class OrderItem {
     required this.foodId,
     required this.foodName,
     required this.quantity,
+    required this.basePrice,
     required this.sellPrice,
     required this.subtotal,
     required this.selectedOptions,
@@ -247,6 +253,7 @@ class OrderItem {
       foodId: json['food_id'],
       foodName: json['food_name'],
       quantity: json['quantity'],
+      basePrice: _toDouble(json['base_price']),
       sellPrice: _toDouble(json['sell_price']),
       subtotal: _toDouble(json['subtotal']),
       selectedOptions: json['selected_options'] ?? [],
@@ -260,6 +267,7 @@ class OrderItem {
       'food_id': foodId,
       'food_name': foodName,
       'quantity': quantity,
+      'base_price': basePrice,
       'sell_price': sellPrice,
       'subtotal': subtotal,
       'selected_options': selectedOptions,

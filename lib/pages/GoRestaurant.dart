@@ -26,6 +26,39 @@ class _GoRestaurantState extends State<GoRestaurant> {
     return orderItems.fold(0.0, (sum, item) => sum + item.subtotal);
   }
 
+  // Helpers to include selected option prices in totals (match JobStart.dart)
+  double _asDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0.0;
+  }
+
+  double _optionsExtraPerUnit(OrderItem item) {
+    if (item.selectedOptions.isEmpty) return 0.0;
+    return item.selectedOptions
+        .map((o) => _asDouble((o as Map?)?['extraPrice']))
+        .fold(0.0, (a, b) => a + b);
+  }
+
+  double _orderBasePrice() {
+    final order = currentOrder;
+    if (order == null) return 0.0;
+    if (order.basePrice != null) return order.basePrice!.toDouble();
+    return order.items.fold(
+      0.0,
+      (sum, item) => sum + ((item.basePrice ?? item.sellPrice) * item.quantity),
+    );
+  }
+
+  double _orderOptionsExtras() {
+    final order = currentOrder;
+    if (order == null) return 0.0;
+    return order.items.fold(
+      0.0,
+      (sum, item) => sum + (_optionsExtraPerUnit(item) * item.quantity),
+    );
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -123,7 +156,8 @@ class _GoRestaurantState extends State<GoRestaurant> {
 
   // Getter functions for safe data access
   String get restaurantName => currentOrder?.shopName ?? 'ร้านอาหาร';
-  String get restaurantAddress => currentOrder?.marketLocation?['address'] ?? 'ไม่ระบุที่อยู่ร้าน';
+  String get restaurantAddress =>
+      currentOrder?.marketLocation?['address'] ?? 'ไม่ระบุที่อยู่ร้าน';
   // String get restaurantAddress {
   //   // เดิม fallback ไปใช้ order.address ซึ่งคือที่อยู่ลูกค้า (ปลายทาง) ทำให้โชว์ผิด
   //   // แก้ให้ดึงเฉพาะค่าที่ยืนยันว่าเป็นที่อยู่ร้านเท่านั้น
@@ -165,7 +199,8 @@ class _GoRestaurantState extends State<GoRestaurant> {
   String get paymentMethod => currentOrder?.paymentMethod ?? 'เงินสด';
   double get totalPrice => currentOrder?.totalPrice ?? 0.0;
   double get deliveryFee => currentOrder?.deliveryFee ?? 0.0;
-  int get shopPayAmount => (totalPrice - deliveryFee).toInt();
+  // Pay-at-shop = base food price + selected option extras (rounded)
+  int get shopPayAmount => (_orderBasePrice() + _orderOptionsExtras()).round();
   String get deliveryType =>
       currentOrder?.deliveryType ?? 'ไม่ระบุประเภทการจัดส่ง';
   String get note => currentOrder?.note ?? 'เพิ่มเติม: -';
@@ -306,16 +341,49 @@ class _GoRestaurantState extends State<GoRestaurant> {
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    if (item.selectedOptions.isNotEmpty)
-                                      Text(
-                                        item.selectedOptions
-                                            .map((option) => option['label'])
-                                            .join(', '),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[600],
-                                        ),
+                                    if (item.selectedOptions.isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        children: item.selectedOptions.map((
+                                          option,
+                                        ) {
+                                          final label =
+                                              option['label']?.toString() ?? '';
+                                          final extraPrice =
+                                              option['extraPrice']
+                                                  ?.toString() ??
+                                              '0';
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green.withOpacity(
+                                                0.1,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: Colors.green.withOpacity(
+                                                  0.2,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              '$label (+฿$extraPrice)',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.green[800],
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
                                       ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -395,6 +463,26 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         Text(
                           '${deliveryFee.toStringAsFixed(0)} บาท',
                           style: TextStyle(fontSize: 16, color: Colors.green),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'รวมทั้งหมด',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        Text(
+                          '${totalPrice.toStringAsFixed(0)} บาท',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
+                          ),
                         ),
                       ],
                     ),
@@ -1079,16 +1167,63 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         ...orderItems.map(
                           (item) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: OrderItemWidget(
-                              name: item.foodName,
-                              option: item.selectedOptions.isNotEmpty
-                                  ? item.selectedOptions
-                                        .map((opt) => opt['label'])
-                                        .join(', ')
-                                  : '',
-                              description: '',
-                              quantity: 'x${item.quantity}',
-                              price: '${item.subtotal.toStringAsFixed(0)} บาท',
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                OrderItemWidget(
+                                  name: item.foodName,
+                                  option: item.selectedOptions.isNotEmpty
+                                      ? item.selectedOptions
+                                            .map((opt) => opt['label'])
+                                            .join(', ')
+                                      : '',
+                                  description: '',
+                                  quantity: 'x${item.quantity}',
+                                  price:
+                                      '${item.subtotal.toStringAsFixed(0)} บาท',
+                                ),
+                                if (item.selectedOptions.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    children: item.selectedOptions.map((
+                                      option,
+                                    ) {
+                                      final label =
+                                          option['label']?.toString() ?? '';
+                                      final extraPrice =
+                                          option['extraPrice']?.toString() ??
+                                          '0';
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.green.withOpacity(
+                                              0.2,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '$label (+฿$extraPrice)',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.green[800],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ),

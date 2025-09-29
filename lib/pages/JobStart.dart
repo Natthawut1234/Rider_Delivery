@@ -14,6 +14,8 @@ class RiderJobsPage extends StatefulWidget {
   _RiderJobsPageState createState() => _RiderJobsPageState();
 }
 
+// ignore_for_file: unused_field, unused_element
+
 class _RiderJobsPageState extends State<RiderJobsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
@@ -22,6 +24,42 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   late RiderControllerSocket _orderController;
   double _thisSubprice(Order order) {
     return order.items.fold(0.0, (sum, item) => sum + item.subtotal);
+  }
+
+  // Helpers to include selected option prices in per-item total
+  double _asDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0.0;
+  }
+
+  double _optionsExtraPerUnit(OrderItem item) {
+    if (item.selectedOptions.isEmpty) return 0.0;
+    return item.selectedOptions
+        .map((o) => _asDouble((o as Map?)?['extraPrice']))
+        .fold(0.0, (a, b) => a + b);
+  }
+
+  double _itemTotalWithOptions(OrderItem item) {
+    final extrasPerUnit = _optionsExtraPerUnit(item);
+    // Total = (base per unit + extras per unit) * quantity
+    return (item.sellPrice + extrasPerUnit) * item.quantity;
+  }
+
+  // Order-level totals: base price and option extras
+  double _orderBasePrice(Order order) {
+    if (order.basePrice != null) return order.basePrice!.toDouble();
+    return order.items.fold(
+      0.0,
+      (sum, item) => sum + ((item.basePrice ?? item.sellPrice) * item.quantity),
+    );
+  }
+
+  double _orderOptionsExtras(Order order) {
+    return order.items.fold(
+      0.0,
+      (sum, item) => sum + (_optionsExtraPerUnit(item) * item.quantity),
+    );
   }
 
   // Green theme colors
@@ -886,7 +924,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'ค่าอาหาร: ฿${(_thisSubprice(order)).toStringAsFixed(0)}',
+                            'ค่าอาหารจ่ายให้ร้าน: ฿${(_orderBasePrice(order) + _orderOptionsExtras(order)).toStringAsFixed(0)}',
                             style: const TextStyle(fontSize: 12),
                           ),
                           Text(
@@ -1013,7 +1051,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                 style: const TextStyle(fontSize: 13, color: Colors.grey),
               ),
               Text(
-                'รวม: ฿${item.subtotal.toStringAsFixed(0)}',
+                'รวม: ฿${_itemTotalWithOptions(item).toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -1121,7 +1159,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '฿${item.subtotal.toStringAsFixed(0)}',
+                    '฿${_itemTotalWithOptions(item).toStringAsFixed(0)}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
