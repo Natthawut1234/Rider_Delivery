@@ -1288,6 +1288,31 @@ class _HomePageState extends State<HomePage> {
                                         },
                                 ),
                               ),
+
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red[600],
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  icon: Icon(Icons.chat_bubble, size: 18),
+                                  label: Text('แชท'),
+                                  onPressed: () {
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/chat-lists',
+                                    );
+                                  },
+                                ),
+                              ),
+
                             ],
                           ),
                         ),

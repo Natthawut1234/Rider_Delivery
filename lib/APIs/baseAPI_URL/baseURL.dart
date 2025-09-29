@@ -33,4 +33,3 @@ class BaseAPI_URL {
 
   static const String HostSocketURL = 'http://10.173.108.73:4000';
 }
-// 'http://10.0.2.2:4000/rider';
