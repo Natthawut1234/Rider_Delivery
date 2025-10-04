@@ -26,6 +26,7 @@ class Order {
   final double deliveryFee;
   final double totalPrice;
   final String status;
+  final String? shopStatus; // เพิ่ม shop status
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<OrderItem> items;
@@ -52,6 +53,7 @@ class Order {
     required this.deliveryFee,
     required this.totalPrice,
     required this.status,
+    this.shopStatus, // เพิ่ม shop status
     required this.createdAt,
     required this.updatedAt,
     required this.items,
@@ -95,6 +97,7 @@ class Order {
       deliveryFee: _toDouble(json['delivery_fee']),
       totalPrice: _toDouble(json['total_price']),
       status: json['status'] ?? 'waiting',
+      shopStatus: json['shop_status'], // เพิ่มการ parse shop_status
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
       items:
@@ -131,6 +134,7 @@ class Order {
       'delivery_fee': deliveryFee,
       'total_price': totalPrice,
       'status': status,
+      'shop_status': shopStatus, // เพิ่ม shop_status ใน toJson
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'items': items.map((item) => item.toJson()).toList(),
@@ -153,7 +157,7 @@ class Order {
   String get statusText {
     switch (status) {
       case 'waiting':
-        return 'รอการยืนยัน';
+        return 'ออเดอร์ใหม่';
       case 'accepted':
         return 'ร้านรับออเดอร์แล้ว';
       case 'rider_assigned':
@@ -220,6 +224,63 @@ class Order {
       default:
         return Icons.help_outline;
     }
+  }
+
+  // เพิ่ม copyWith method
+  Order copyWith({
+    int? orderId,
+    int? userId,
+    int? marketId,
+    String? shopName,
+    String? clientName,
+    int? basePrice,
+    int? sellPrice,
+    int? riderId,
+    String? foodName,
+    String? address,
+    String? deliveryType,
+    String? paymentMethod,
+    String? note,
+    double? distanceKm,
+    double? deliveryFee,
+    double? totalPrice,
+    String? status,
+    String? shopStatus,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    List<OrderItem>? items,
+    Map<String, dynamic>? marketLocation,
+    Map<String, dynamic>? customerLocation,
+    Map<String, dynamic>? distanceInfo,
+    Map<String, dynamic>? deliverySummary,
+  }) {
+    return Order(
+      orderId: orderId ?? this.orderId,
+      userId: userId ?? this.userId,
+      marketId: marketId ?? this.marketId,
+      shopName: shopName ?? this.shopName,
+      clientName: clientName ?? this.clientName,
+      basePrice: basePrice ?? this.basePrice,
+      sellPrice: sellPrice ?? this.sellPrice,
+      riderId: riderId ?? this.riderId,
+      foodName: foodName ?? this.foodName,
+      address: address ?? this.address,
+      deliveryType: deliveryType ?? this.deliveryType,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      note: note ?? this.note,
+      distanceKm: distanceKm ?? this.distanceKm,
+      deliveryFee: deliveryFee ?? this.deliveryFee,
+      totalPrice: totalPrice ?? this.totalPrice,
+      status: status ?? this.status,
+      shopStatus: shopStatus ?? this.shopStatus,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      items: items ?? this.items,
+      marketLocation: marketLocation ?? this.marketLocation,
+      customerLocation: customerLocation ?? this.customerLocation,
+      distanceInfo: distanceInfo ?? this.distanceInfo,
+      deliverySummary: deliverySummary ?? this.deliverySummary,
+    );
   }
 }
 

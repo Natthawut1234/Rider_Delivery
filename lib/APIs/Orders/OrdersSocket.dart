@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:rider_delivery/APIs/Orders/models/Order_items.dart';
 import 'package:rider_delivery/APIs/baseAPI_URL/baseURL.dart';
@@ -16,6 +17,11 @@ class RiderControllerSocket extends ChangeNotifier {
   int? _currentMarketId;
   int? _currentUserId;
   bool _isDisposed = false; // Track disposal state
+
+  // เพิ่ม debounce timer สำหรับการอัปเดต
+  Timer? _debounceTimer;
+  final Map<int, Map<String, dynamic>> _pendingUpdates = {};
+
   // final Map<int, Map<String, dynamic>> _marketCache = {}; // cache market info
 
   // Getters
@@ -177,7 +183,8 @@ class RiderControllerSocket extends ChangeNotifier {
 
     try {
       // ⭐ เปลี่ยน query เป็นการดึงออเดอร์ของไรเดอร์ + ออเดอร์ที่พร้อมรับ
-      String url = '$baseUrl/orders?rider_id=$riderId';
+      // String url = '$baseUrl/orders?rider_id=$riderId';
+      String url = '$baseUrl/orders';
       print('👤 Fetching orders for rider $riderId from: $url');
 
       final response = await http.get(
@@ -213,20 +220,22 @@ class RiderControllerSocket extends ChangeNotifier {
               // ออเดอร์ที่ยังไม่มีไรเดอร์และพร้อมรับ จะขึ้นก่อน
               if (a.riderId == null &&
                   [
-                    'confirmed',
-                    'accepted',
-                    'preparing',
-                    'ready_for_pickup',
+                    'waiting',
+                    // 'confirmed',
+                    // 'accepted',
+                    // 'preparing',
+                    // 'ready_for_pickup',
                   ].contains(a.status) &&
                   b.riderId == riderId) {
                 return -1;
               }
               if (b.riderId == null &&
                   [
-                    'confirmed',
-                    'accepted',
-                    'preparing',
-                    'ready_for_pickup',
+                    'waiting',
+                    // 'confirmed',
+                    // 'accepted',
+                    // 'preparing',
+                    // 'ready_for_pickup',
                   ].contains(b.status) &&
                   a.riderId == riderId) {
                 return 1;
@@ -243,10 +252,11 @@ class RiderControllerSocket extends ChangeNotifier {
                 (o) =>
                     o.riderId == null &&
                     [
-                      'confirmed',
-                      'accepted',
-                      'preparing',
-                      'ready_for_pickup',
+                      'waiting',
+                      // 'confirmed',
+                      // 'accepted',
+                      // 'preparing',
+                      // 'ready_for_pickup',
                     ].contains(o.status),
               )
               .length;
@@ -367,12 +377,12 @@ class RiderControllerSocket extends ChangeNotifier {
   // }
 
   // Fixed: Update order status with better error handling
-  Future<bool> updateOrderStatus(
+  Future<Map<String, dynamic>> updateOrderStatus(
     int orderId,
     String status, {
     Map<String, dynamic>? additionalData,
   }) async {
-    if (_isDisposed) return false;
+    if (_isDisposed) return {'success': false, 'error': 'Service disposed'};
 
     try {
       print('🔄 Updating order $orderId status to $status');
@@ -394,27 +404,35 @@ class RiderControllerSocket extends ChangeNotifier {
           (order) => order.orderId == orderId,
         );
         if (orderIndex != -1) {
-          _orders[orderIndex] = _orders[orderIndex].copyWith(
+          // ใช้ข้อมูลจาก API response เพื่ออัพเดท
+          final responseData = data['data'] ?? {};
+          final updatedOrder = _orders[orderIndex].copyWith(
             status: status,
+            shopStatus:
+                responseData['shop_status'] ?? responseData['shopStatus'],
             updatedAt: DateTime.now(),
           );
-          print('✅ Local order updated immediately');
+          _orders[orderIndex] = updatedOrder;
+          print(
+            '✅ Local order updated immediately: status=$status, shopStatus=${updatedOrder.shopStatus}',
+          );
         }
 
         print('✅ Order $orderId status updated to $status');
         if (!_isDisposed) notifyListeners();
-        return true;
+        return data;
       } else {
         _error = data['error'] ?? 'Failed to update order status';
         print('❌ Failed to update order status: $_error');
         if (!_isDisposed) notifyListeners();
-        return false;
+        return data;
       }
     } catch (e) {
+      final errorResult = {'success': false, 'error': 'Network error: $e'};
       _error = 'Network error: $e';
       print('❌ Network error: $e');
       if (!_isDisposed) notifyListeners();
-      return false;
+      return errorResult;
     }
   }
 
@@ -543,10 +561,11 @@ class RiderControllerSocket extends ChangeNotifier {
           (order) =>
               order.riderId == null &&
               [
-                'confirmed',
-                'accepted',
-                'preparing',
-                'ready_for_pickup',
+                'waiting',
+                // 'confirmed',
+                // 'accepted',
+                // 'preparing',
+                // 'ready_for_pickup',
               ].contains(order.status),
         )
         .toList();
@@ -575,23 +594,47 @@ class RiderControllerSocket extends ChangeNotifier {
       bool hasChanges = false;
       bool needsRefresh = false;
 
-      // ⭐ ถ้าเป็นออเดอร์ที่เปลี่ยนเป็น confirmed/preparing/ready_for_pickup
+      // ⭐ ถ้าเป็นออเดอร์ที่เปลี่ยนเป็น waiting/confirmed/preparing/ready_for_pickup
       // ต้อง refresh เพื่อแสดงออเดอร์ใหม่ที่พร้อมรับ
-      if (['confirmed', 'preparing', 'ready_for_pickup'].contains(status)) {
+      if ([
+        'waiting',
+        // 'confirmed',
+        // 'preparing',
+        // 'ready_for_pickup',
+      ].contains(status)) {
         print('🆕 New available order detected: $orderId with status: $status');
         needsRefresh = true;
       }
 
-      // Update existing order in list
+      // เก็บการอัปเดตใน pending เพื่อ debounce
+      _pendingUpdates[orderId] = data;
+
+      // Cancel existing timer
+      _debounceTimer?.cancel();
+
+      // Set new timer for debounced update
+      _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+        _processPendingUpdates();
+      });
+
+      // Update existing order in list immediately for UI responsiveness
       final index = _orders.indexWhere((order) => order.orderId == orderId);
       if (index != -1) {
         final oldStatus = _orders[index].status;
+        final oldShopStatus = _orders[index].shopStatus;
         final newStatus = data['status'] ?? _orders[index].status;
+        final newShopStatus =
+            data['shop_status'] ??
+            data['shopStatus'] ??
+            _orders[index].shopStatus;
         final newRiderId = data['rider_id'] ?? _orders[index].riderId;
 
-        if (oldStatus != newStatus || _orders[index].riderId != newRiderId) {
+        if (oldStatus != newStatus ||
+            oldShopStatus != newShopStatus ||
+            _orders[index].riderId != newRiderId) {
           _orders[index] = _orders[index].copyWith(
             status: newStatus,
+            shopStatus: newShopStatus,
             riderId: newRiderId,
             updatedAt: data['timestamp'] != null
                 ? DateTime.parse(data['timestamp'])
@@ -599,7 +642,7 @@ class RiderControllerSocket extends ChangeNotifier {
           );
           hasChanges = true;
           print(
-            '📝 Updated order in list: $orderId ($oldStatus -> $newStatus)',
+            '📝 Updated order in list: $orderId ($oldStatus -> $newStatus), shopStatus: ($oldShopStatus -> $newShopStatus)',
           );
         }
       } else {
@@ -644,6 +687,56 @@ class RiderControllerSocket extends ChangeNotifier {
     }
   }
 
+  // Process pending updates with debounce
+  void _processPendingUpdates() {
+    if (_isDisposed || _pendingUpdates.isEmpty) return;
+
+    print('🔄 Processing ${_pendingUpdates.length} pending updates');
+
+    bool hasChanges = false;
+
+    for (final entry in _pendingUpdates.entries) {
+      final orderId = entry.key;
+      final data = entry.value;
+
+      final index = _orders.indexWhere((order) => order.orderId == orderId);
+      if (index != -1) {
+        final currentOrder = _orders[index];
+        final newStatus = data['status'] ?? currentOrder.status;
+        final newShopStatus =
+            data['shop_status'] ??
+            data['shopStatus'] ??
+            currentOrder.shopStatus;
+        final newRiderId = data['rider_id'] ?? currentOrder.riderId;
+
+        // เฉพาะอัปเดตเมื่อมีการเปลี่ยนแปลงจริง
+        if (currentOrder.status != newStatus ||
+            currentOrder.shopStatus != newShopStatus ||
+            currentOrder.riderId != newRiderId) {
+          _orders[index] = currentOrder.copyWith(
+            status: newStatus,
+            shopStatus: newShopStatus,
+            riderId: newRiderId,
+            updatedAt: data['timestamp'] != null
+                ? DateTime.parse(data['timestamp'])
+                : DateTime.now(),
+          );
+          hasChanges = true;
+
+          print(
+            '✅ Processed pending update for order $orderId: status=$newStatus, shopStatus=$newShopStatus',
+          );
+        }
+      }
+    }
+
+    _pendingUpdates.clear();
+
+    if (hasChanges && !_isDisposed) {
+      notifyListeners();
+    }
+  }
+
   // Get orders by different statuses
   List<Order> get pendingOrders => getOrdersByStatus('waiting');
   List<Order> get acceptedOrders => getOrdersByStatus('accepted');
@@ -669,6 +762,10 @@ class RiderControllerSocket extends ChangeNotifier {
 
     print('🗑️ Disposing RiderControllerSocket...');
     _isDisposed = true;
+
+    // Cancel debounce timer
+    _debounceTimer?.cancel();
+    _pendingUpdates.clear();
 
     try {
       _socketService.disconnect();
@@ -699,6 +796,7 @@ extension OrderCopyWith on Order {
     double? deliveryFee,
     double? totalPrice,
     String? status,
+    String? shopStatus, // เพิ่ม shopStatus parameter
     DateTime? createdAt,
     DateTime? updatedAt,
     List<OrderItem>? items,
@@ -723,6 +821,7 @@ extension OrderCopyWith on Order {
       deliveryFee: deliveryFee ?? this.deliveryFee,
       totalPrice: totalPrice ?? this.totalPrice,
       status: status ?? this.status,
+      shopStatus: shopStatus ?? this.shopStatus, // เพิ่ม shopStatus
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       items: items ?? this.items,

@@ -33,16 +33,37 @@ class _GoCustomerState extends State<GoCustomer> {
   Future<void> _updateOrderStatus(String status) async {
     if (orderId == null || _orderController == null) return;
 
-    final success = await _orderController!.updateOrderStatus(orderId!, status);
+    try {
+      final result = await _orderController!.updateOrderStatus(
+        orderId!,
+        status,
+      );
 
-    if (success) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('อัปเดตสถานะสำเร็จ')));
-    } else {
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('อัปเดตสถานะสำเร็จ')));
+      } else {
+        final errorMessage = result['error'] ?? 'เกิดข้อผิดพลาด';
+        final hint = result['hint'] ?? '';
+
+        String displayMessage = errorMessage;
+        if (hint.isNotEmpty) {
+          displayMessage = hint;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(displayMessage),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('เกิดข้อผิดพลาด'),
+        SnackBar(
+          content: Text('เกิดข้อผิดพลาด: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -470,6 +491,50 @@ class _GoCustomerState extends State<GoCustomer> {
     );
   }
 
+  String _getStatusText(String status) {
+    switch (status) {
+      // Order Status
+      case 'waiting':
+        return 'รอไรเดอร์รับ';
+      case 'rider_assigned':
+        return 'รับงานแล้ว(รอร้านยืนยัน)';
+      case 'confirmed':
+        return 'ร้านยืนยันออเดอร์';
+      case 'going_to_shop':
+        return 'ไรเดอร์กำลังไปร้าน';
+      case 'arrived_at_shop':
+        return 'ไรเดอร์มาถึงร้านแล้ว';
+      case 'picked_up':
+        return 'ไรเดอร์รับแล้ว';
+      case 'delivering':
+        return 'กำลังจัดส่ง';
+      case 'arrived_at_customer':
+        return 'ไรเดอร์มาถึงลูกค้าแล้ว';
+      case 'completed':
+        return 'จัดส่งเสร็จสิ้น';
+      case 'cancelled':
+        return 'ยกเลิกแล้ว';
+      default:
+        return status;
+    }
+  }
+
+  String _getShopStatusText(String? shopStatus) {
+    if (shopStatus == null || shopStatus.isEmpty) return '';
+    switch (shopStatus) {
+      case 'preparing':
+        return 'ร้านกำลังเตรียมอาหาร';
+      case 'ready_for_pickup':
+        return 'ร้านเตรียมเสร็จแล้ว';
+      // case 'confirmed':
+      //   return 'ร้านยืนยันออเดอร์';
+      // case 'pending':
+      //   return 'รอร้านยืนยัน';
+      default:
+        return shopStatus;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final args =
@@ -502,390 +567,391 @@ class _GoCustomerState extends State<GoCustomer> {
 
     // final double totalReceived = earn + payAtShopAmount + bonus;
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: const Color(0xFF4CAF50),
-        elevation: 0,
-        leadingWidth: 140,
-        toolbarHeight: 40,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 20, right: 8),
-          child: TextButton(
-            onPressed: () {},
-            style: TextButton.styleFrom(
-              backgroundColor: const Color(0xFFE0E0E0),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+    return WillPopScope(
+      onWillPop: () async {
+        // รีเฟรชข้อมูลก่อนกลับ
+        if (_orderController != null && orderId != null) {
+          await _orderController!.fetchOrdersByRider(riderId: riderId!);
+        }
+        // ส่ง result กลับไปยัง JobStart เพื่อเปลี่ยน tab
+        Navigator.pop(context, {
+          'switchToTab': 1, // เปลี่ยนไป tab "งานของฉัน" (My Orders)
+          'refreshData': true,
+        });
+        return false; // ป้องกันการ pop ปกติ
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: const Color(0xFF4CAF50),
+          elevation: 0,
+          leadingWidth: 140,
+          toolbarHeight: 40,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 20, right: 8),
+            child: TextButton(
+              onPressed: () {},
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(0xFFE0E0E0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: const Text(
-              'ยกเลิกออเดอร์',
-              style: TextStyle(
-                color: Colors.black87,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+              child: const Text(
+                'ยกเลิกออเดอร์',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
-        ),
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(12),
-          child: SizedBox(height: 12),
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Status Section
-            Container(
-              color: const Color(0xFF4CAF50),
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          '1. ไปร้าน',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          restaurantName,
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(height: 40, width: 2, color: Colors.white30),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          '2. ส่งให้ลูกค้า',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          customerName,
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+          // actions: [
+          //   Container(
+          //     margin: const EdgeInsets.only(right: 16),
+          //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          //     decoration: BoxDecoration(
+          //       color: Colors.white.withOpacity(0.2),
+          //       borderRadius: BorderRadius.circular(12),
+          //       border: Border.all(color: Colors.white),
+          //     ),
+          //     child: Consumer<RiderControllerSocket>(
+          //       builder: (context, controller, _) {
+          //         final currentOrder = controller.orders
+          //             .where((o) => o.orderId == orderId)
+          //             .firstOrNull;
 
-            // Contact Section
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.restaurant, color: Colors.grey[600], size: 20),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+          //         String statusText = _getStatusText(
+          //           currentOrder?.status ?? '',
+          //         );
+          //         String shopStatusText = _getShopStatusText(
+          //           currentOrder?.shopStatus,
+          //         );
+
+          //         if (shopStatusText.isNotEmpty) {
+          //           statusText = '$statusText • $shopStatusText';
+          //         }
+
+          //         return Text(
+          //           statusText,
+          //           style: const TextStyle(
+          //             color: Colors.white,
+          //             fontSize: 12,
+          //             fontWeight: FontWeight.bold,
+          //           ),
+          //         );
+          //       },
+          //     ),
+          //   ),
+          // ],
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(12),
+            child: SizedBox(height: 12),
+          ),
+        ),
+        body: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Status Section
+              Container(
+                color: const Color(0xFF4CAF50),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
                         children: [
-                          const Text(
-                            'ร้านอาหาร',
-                            style: TextStyle(fontSize: 14, color: Colors.grey),
+                          Text(
+                            '1. ไปร้าน',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
+                          SizedBox(height: 4),
                           Text(
                             restaurantName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
                             ),
                           ),
                         ],
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.facebook,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.phone,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Icon(Icons.person, color: Colors.grey[600], size: 20),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'ลูกค้า',
-                            style: TextStyle(fontSize: 14, color: Colors.grey),
-                          ),
-                          Text(
-                            customerName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.phone,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () => Navigator.pushNamed(context, '/chat'),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.green[300],
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.message,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-            // รายละเอียดปุ่ม
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => _showOrderDetailsDialog(context, data),
-                style: TextButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  side: BorderSide(color: Colors.grey.shade300),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.receipt_long, color: Colors.grey[700]),
-                    const SizedBox(width: 8),
-                    Text(
-                      'ดูรายละเอียด',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    Icon(Icons.chevron_right, color: Colors.grey[700]),
+                    Container(height: 40, width: 2, color: Colors.white30),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text(
+                            '2. ส่งให้ลูกค้า',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            customerName,
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
 
-            const SizedBox(height: 16),
-            // Go to customer section
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'เดินทางไปที่จุดจัดส่ง',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green[700],
+              const SizedBox(height: 16),
+              // Status display section ที่ด้านล่าง
+              Container(
+                margin: EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.all(6),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.info_outline,
+                        color: Colors.green[700],
+                        size: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Consumer<RiderControllerSocket>(
+                        builder: (context, controller, _) {
+                          final currentOrder = controller.orders
+                              .where((o) => o.orderId == orderId)
+                              .firstOrNull;
+
+                          String statusText = _getStatusText(
+                            currentOrder?.status ?? '',
+                          );
+                          String shopStatusText = _getShopStatusText(
+                            currentOrder?.shopStatus,
+                          );
+
+                          if (shopStatusText.isNotEmpty) {
+                            statusText = '$statusText • $shopStatusText';
+                          }
+
+                          return Text(
+                            statusText,
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    customerName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+              const SizedBox(height: 16),
+
+              // Contact Section
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      spreadRadius: 1,
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        size: 16,
-                        color: Colors.green,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.restaurant,
+                          color: Colors.grey[600],
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              titleCustomerAddress,
+                            const Text(
+                              'ร้านอาหาร',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Colors.grey[700],
+                                color: Colors.grey,
                               ),
                             ),
-                            const SizedBox(height: 4),
                             Text(
-                              customerAddress,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[700],
+                              restaurantName,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.facebook,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.phone,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(Icons.person, color: Colors.grey[600], size: 20),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'ลูกค้า',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            Text(
+                              customerName,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.phone,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => Navigator.pushNamed(context, '/chat'),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.green[300],
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.message,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              // รายละเอียดปุ่ม
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => _showOrderDetailsDialog(context, data),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: Colors.grey.shade300),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.receipt_long, color: Colors.grey[700]),
+                      const SizedBox(width: 8),
+                      Text(
+                        'ดูรายละเอียด',
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
+                      Icon(Icons.chevron_right, color: Colors.grey[700]),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.shopping_bag_outlined,
-                          color: Colors.green,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            deliveryType,
-                            style: TextStyle(color: Colors.green[700]),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.chat_bubble_outline,
-                          color: Colors.green,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'เพิ่มเติม: ' +
-                                (note.isNotEmpty
-                                    ? note
-                                    : 'ไม่มีหมายเหตุเพิ่มเติม'),
-                            style: TextStyle(color: Colors.green[700]),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Map is only shown before the delivery photo is confirmed
-                  if (!_photoConfirmed)
-                    Container(
-                      height: 160,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Center(child: Text('Map Placeholder')),
-                    ),
-                ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 16),
-            if (!_photoConfirmed)
+              const SizedBox(height: 16),
+              // Go to customer section
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'เดินทางไปที่จุดจัดส่ง',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green[700],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 padding: const EdgeInsets.all(16),
@@ -903,99 +969,236 @@ class _GoCustomerState extends State<GoCustomer> {
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
+                  children: [
                     Text(
-                      'คำแนะนำ',
-                      style: TextStyle(
+                      customerName,
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 4),
-                    Text(
-                      'คุณจะไปถึงลูกค้าประมาณ 5 นาที',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    const SizedBox(height: 4),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.location_on,
+                          size: 16,
+                          color: Colors.green,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                titleCustomerAddress,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                customerAddress,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.shopping_bag_outlined,
+                            color: Colors.green,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              deliveryType,
+                              style: TextStyle(color: Colors.green[700]),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.chat_bubble_outline,
+                            color: Colors.green,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'เพิ่มเติม: ' +
+                                  (note.isNotEmpty
+                                      ? note
+                                      : 'ไม่มีหมายเหตุเพิ่มเติม'),
+                              style: TextStyle(color: Colors.green[700]),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Map is only shown before the delivery photo is confirmed
+                    if (!_photoConfirmed)
+                      Container(
+                        height: 160,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Center(child: Text('Map Placeholder')),
+                      ),
                   ],
                 ),
               ),
-            const SizedBox(height: 90), // space for bottom button
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 8,
-                offset: Offset(0, -2),
-              ),
+
+              const SizedBox(height: 16),
+              if (!_photoConfirmed)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        spreadRadius: 1,
+                        blurRadius: 5,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'คำแนะนำ',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'คุณจะไปถึงลูกค้าประมาณ 5 นาที',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 90), // space for bottom button
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'รับเงินจากลูกค้า',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 8,
+                  offset: Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'รับเงินจากลูกค้า',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
                     ),
-                  ),
-                  // แสดงยอดรวมที่คำนวณจากข้อมูลที่ส่งมา
-                  Text(
-                    '฿${totalPrice.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
+                    // แสดงยอดรวมที่คำนวณจากข้อมูลที่ส่งมา
+                    Text(
+                      '฿${totalPrice.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (!_photoConfirmed) {
-                      await _openDeliveryConfirm();
-                    } else {
-                      _confirmDeliveryFinal(data);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (!_photoConfirmed) {
+                        await _openDeliveryConfirm();
+                      } else {
+                        _confirmDeliveryFinal(data);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4CAF50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      elevation: 2,
                     ),
-                    elevation: 2,
-                  ),
-                  child: Text(
-                    !_photoConfirmed
-                        ? 'ยืนยันถึงจุดจัดส่ง'
-                        : 'ยืนยันการจัดส่งและรับเงิน',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                    child: Text(
+                      !_photoConfirmed
+                          ? 'ยืนยันถึงจุดจัดส่ง'
+                          : 'ยืนยันการจัดส่งและรับเงิน',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
+      ), // ปิด WillPopScope
     );
+  }
+}
+
+// Extension for firstOrNull (if not available in your Dart version)
+extension IterableExtension<T> on Iterable<T> {
+  T? get firstOrNull {
+    if (isEmpty) return null;
+    return first;
   }
 }

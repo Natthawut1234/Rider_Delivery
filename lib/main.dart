@@ -27,13 +27,14 @@ import 'package:rider_delivery/pages/auth/Register.dart';
 import 'package:rider_delivery/pages/auth/Rider_identity.dart';
 import 'package:rider_delivery/pages/auth/Wellcome.dart';
 import 'package:rider_delivery/APIs/middleware/AuthGuard.dart';
+import 'package:rider_delivery/services/RiderStatusService.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final auth = AuthService();
   Get.put(RiderChatController(), permanent: true);
   // await auth.loadUser();
-   runApp(
+  runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => RiderControllerSocket()),
@@ -56,7 +57,21 @@ class MyApp extends StatelessWidget {
         '/': (_) => const SplashScreen(),
         '/wellcome': (_) => wellcomePage(),
         '/home': (_) => AuthGuard(child: const HomePage()),
-        // '/jobStart': (_) => AuthGuard(child: const JobStartPage()),
+        '/jobStart': (context) {
+          final args =
+              ModalRoute.of(context)?.settings.arguments
+                  as Map<String, dynamic>?;
+          final riderId = args?['riderId'] as int?;
+          final initialTabIndex = args?['initialTabIndex'] as int? ?? 0;
+          return AuthGuard(
+            child: riderId != null
+                ? RiderJobsPage(
+                    riderId: riderId,
+                    initialTabIndex: initialTabIndex,
+                  )
+                : RiderJobsPage(riderId: 0, initialTabIndex: initialTabIndex),
+          );
+        },
         '/goRestaurant': (_) => AuthGuard(child: GoRestaurant()),
         '/chat-lists': (_) => AuthGuard(child: const RiderChatListPage()),
         '/rider-chat': (_) => AuthGuard(child: const RiderChatPage()),

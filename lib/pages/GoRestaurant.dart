@@ -75,6 +75,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
         print('GoRestaurant: No arguments received');
         setState(() => _isLoading = false);
       }
+    } else {
+      // ถ้ามี orderId แล้ว แสดงว่ากลับมาจากหน้าอื่น ให้รีเฟรชข้อมูล
+      _loadOrderData();
     }
   }
 
@@ -519,6 +522,24 @@ class _GoRestaurantState extends State<GoRestaurant> {
   }
 
   void _showConfirmationDialog(BuildContext context) {
+    // ตรวจสอบเงื่อนไขก่อนแสดง dialog
+    if (!_canGoToShop()) {
+      final marketLocation = currentOrder!.marketLocation;
+      final isAdminShop = marketLocation?['owner_id'] == null;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isAdminShop
+                ? 'ไม่สามารถเดินทางได้ในขณะนี้'
+                : 'รอร้านยืนยันออเดอร์ก่อน',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
@@ -548,9 +569,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
           CupertinoDialogAction(
             onPressed: () {
               Navigator.pop(context);
-              setState(() {
-                arrivedAtRestaurant = true;
-              });
               _updateOrderStatus('going_to_shop');
             },
             isDefaultAction: true,
@@ -683,8 +701,8 @@ class _GoRestaurantState extends State<GoRestaurant> {
             onPressed: () {
               Navigator.pop(context);
               _updateOrderStatus('delivering');
-              // ส่งข้อมูลครบถ้วนไป GoCustomer
-              Navigator.pushNamed(
+              // ส่งข้อมูลครบถ้วนไป GoCustomer และใช้ pushReplacement เพื่อไม่ให้กลับมาหน้านี้
+              Navigator.pushReplacementNamed(
                 context,
                 '/goCustomer',
                 arguments: {
@@ -732,22 +750,159 @@ class _GoRestaurantState extends State<GoRestaurant> {
   Future<void> _updateOrderStatus(String status) async {
     if (currentOrder == null || _orderController == null) return;
 
-    final success = await _orderController!.updateOrderStatus(
-      currentOrder!.orderId,
-      status,
-    );
+    try {
+      final result = await _orderController!.updateOrderStatus(
+        currentOrder!.orderId,
+        status,
+      );
 
-    if (success) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('อัปเดตสถานะสำเร็จ')));
-    } else {
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('อัปเดตสถานะสำเร็จ')));
+        // รีเฟรชข้อมูลออเดอร์
+        _loadOrderData();
+      } else {
+        final errorMessage = result['error'] ?? 'เกิดข้อผิดพลาด';
+        final hint = result['hint'] ?? '';
+
+        String displayMessage = errorMessage;
+        if (hint.isNotEmpty) {
+          displayMessage = hint;
+        } else if (errorMessage ==
+            'Shop must confirm order before rider can go to shop') {
+          displayMessage = 'รอร้านยืนยันออเดอร์ก่อน';
+        } else if (errorMessage == 'Shop is not ready for pickup yet') {
+          displayMessage = 'รอร้านเตรียมอาหารเสร็จก่อน';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(displayMessage),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('เกิดข้อผิดพลาด'),
+        SnackBar(
+          content: Text('เกิดข้อผิดพลาด: $e'),
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      // Order Status
+      case 'waiting':
+        return 'รอไรเดอร์รับ';
+      case 'rider_assigned':
+        return 'รับงานแล้ว(รอร้านยืนยัน)';
+      case 'confirmed':
+        return 'ร้านยืนยันออเดอร์';
+      case 'going_to_shop':
+        return 'ไรเดอร์กำลังไปร้าน';
+      case 'arrived_at_shop':
+        return 'ไรเดอร์มาถึงร้านแล้ว';
+      case 'picked_up':
+        return 'ไรเดอร์ของรับแล้ว';
+      case 'delivering':
+        return 'กำลังจัดส่ง';
+      case 'arrived_at_customer':
+        return 'ไรเดอร์มาถึงลูกค้าแล้ว';
+      case 'completed':
+        return 'จัดส่งเสร็จสิ้น';
+      case 'cancelled':
+        return 'ยกเลิกแล้ว';
+      default:
+        return status;
+    }
+  }
+
+  String _getShopStatusText(String? shopStatus) {
+    if (shopStatus == null || shopStatus.isEmpty) return '';
+    switch (shopStatus) {
+      case 'preparing':
+        return 'ร้านกำลังเตรียมอาหาร';
+      case 'ready_for_pickup':
+        return 'ร้านเตรียมเสร็จแล้ว';
+      // case 'confirmed':
+      //   return 'ร้านยืนยันออเดอร์';
+      // case 'pending':
+      //   return 'รอร้านยืนยัน';
+      default:
+        return shopStatus;
+    }
+  }
+
+  String _getCombinedStatusText() {
+    if (currentOrder == null) return '';
+
+    final orderStatusText = _getStatusText(currentOrder!.status);
+    final shopStatusText = _getShopStatusText(currentOrder!.shopStatus);
+
+    if (shopStatusText.isNotEmpty) {
+      return '$orderStatusText • $shopStatusText';
+    }
+    return orderStatusText;
+  }
+
+  bool _canGoToShop() {
+    if (currentOrder == null) return false;
+
+    // ถ้าสถานะไม่ใช่ rider_assigned แสดงว่าผ่านขั้นตอนนี้ไปแล้ว
+    if (currentOrder!.status != 'rider_assigned') {
+      return [
+        'confirmed',
+        'going_to_shop',
+        'arrived_at_shop',
+        'picked_up',
+      ].contains(currentOrder!.status);
+    }
+
+    // ถ้าเป็นร้านแอดมิน (owner_id = null) สามารถไปได้เลย
+    final marketLocation = currentOrder!.marketLocation;
+    final isAdminShop = marketLocation?['owner_id'] == null;
+
+    if (isAdminShop) return true;
+
+    // ร้านทั่วไปต้องรอให้ร้านยืนยันก่อน
+    return currentOrder!.status == 'confirmed';
+  }
+
+  bool _canPickupFood() {
+    if (currentOrder == null) return false;
+
+    // ถ้าเป็นร้านแอดมิน สามารถรับได้เลยเมื่อถึงร้าน
+    final marketLocation = currentOrder!.marketLocation;
+    final isAdminShop = marketLocation?['owner_id'] == null;
+
+    if (isAdminShop && currentOrder!.status == 'arrived_at_shop') {
+      return true;
+    }
+
+    // ร้านทั่วไปต้องรอให้ shop_status เป็น ready_for_pickup
+    return currentOrder!.status == 'arrived_at_shop' &&
+        currentOrder!.shopStatus == 'ready_for_pickup';
+  }
+
+  String _getButtonText() {
+    final status = currentOrder?.status ?? '';
+    switch (status) {
+      case 'rider_assigned':
+      case 'confirmed':
+        return 'เดินทางไปร้านอาหาร';
+      case 'going_to_shop':
+        return 'ยืนยันถึงร้านอาหาร';
+      case 'arrived_at_shop':
+        return 'ยืนยันรับอาหาร';
+      case 'picked_up':
+        return 'เดินทางไปที่จุดจัดส่ง';
+      default:
+        return 'ดำเนินการต่อ';
     }
   }
 
@@ -812,876 +967,974 @@ class _GoRestaurantState extends State<GoRestaurant> {
           currentOrder = updatedOrder;
         }
 
-        return Scaffold(
-          backgroundColor: Colors.grey[50],
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            backgroundColor: Color(0xFF4CAF50),
-            elevation: 0,
-            leadingWidth: 140,
-            toolbarHeight: 40,
-            leading: Padding(
-              padding: const EdgeInsets.only(left: 20, right: 8),
-              child: TextButton(
-                onPressed: () => Navigator.pop(context),
-                style: TextButton.styleFrom(
-                  backgroundColor: Color(0xFFE0E0E0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-                child: Text(
-                  'ยกเลิกออเดอร์',
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
+        return WillPopScope(
+          onWillPop: () async {
+            // รีเฟรชข้อมูลก่อนกลับ
+            _loadOrderData();
+            // ส่ง result กลับไปยัง JobStart เพื่อให้รีเฟรชข้อมูล
+            Navigator.pop(context, {'refreshData': true});
+            return false; // ป้องกันการ pop ปกติ
+          },
+          child: Scaffold(
+            backgroundColor: Colors.grey[50],
+            appBar: AppBar(
+              automaticallyImplyLeading: false,
+              backgroundColor: Color(0xFF4CAF50),
+              elevation: 0,
+              leadingWidth: 140,
+              toolbarHeight: 40,
+              leading: Padding(
+                padding: const EdgeInsets.only(left: 20, right: 8),
                 child: TextButton(
-                  onPressed: () async {
-                    final success = await _orderController!.updateOrderStatus(
-                      currentOrder!.orderId,
-                      'shop_closed',
-                    );
-                    if (success) {
-                      Navigator.pop(context);
-                    }
-                  },
+                  onPressed: () => Navigator.pop(context),
                   style: TextButton.styleFrom(
-                    side: BorderSide(color: Colors.red, width: 1.5),
+                    backgroundColor: Color(0xFFE0E0E0),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    minimumSize: Size(0, 36),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   child: Text(
-                    'แจ้งร้านปิด',
+                    'ยกเลิกออเดอร์',
                     style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 14,
+                      color: Colors.black87,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
               ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: Size.fromHeight(12),
-              child: SizedBox(height: 12),
-            ),
-          ),
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                // Status Section
-                Container(
-                  color: Color(0xFF4CAF50),
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              arrivedAtRestaurant
-                                  ? (foodReceived
-                                        ? '1. รับอาหารแล้ว ✓'
-                                        : (confirmedArrival
-                                              ? '1. รับอาหาร'
-                                              : '1. ถึงร้านอาหาร'))
-                                  : '1. ไปร้าน',
-                              style: TextStyle(
-                                color: arrivedAtRestaurant
-                                    ? (foodReceived
-                                          ? Colors.white
-                                          : Colors.green[900])
-                                    : Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              restaurantName,
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
+              actions: [
+                // Container(
+                //   margin: const EdgeInsets.only(right: 8),
+                //   padding: const EdgeInsets.symmetric(
+                //     horizontal: 8,
+                //     vertical: 4,
+                //   ),
+                //   decoration: BoxDecoration(
+                //     color: Colors.white.withOpacity(0.2),
+                //     borderRadius: BorderRadius.circular(12),
+                //     border: Border.all(color: Colors.white),
+                //   ),
+                //   child: Text(
+                //     _getCombinedStatusText(),
+                //     style: const TextStyle(
+                //       color: Colors.white,
+                //       fontSize: 12,
+                //       fontWeight: FontWeight.bold,
+                //     ),
+                //   ),
+                // ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: TextButton(
+                    onPressed: () async {
+                      final result = await _orderController!.updateOrderStatus(
+                        currentOrder!.orderId,
+                        'shop_closed',
+                      );
+                      if (result['success'] == true) {
+                        Navigator.pop(context);
+                      }
+                    },
+                    style: TextButton.styleFrom(
+                      side: BorderSide(color: Colors.red, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      Container(height: 40, width: 2, color: Colors.white30),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              '2. ส่งให้ลูกค้า',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              customerName,
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
                       ),
-                    ],
+                      minimumSize: Size(0, 36),
+                    ),
+                    child: Text(
+                      'แจ้งร้านปิด',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
-                SizedBox(height: 16),
-
-                // Contact Section
-                Container(
-                  margin: EdgeInsets.symmetric(horizontal: 16),
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        spreadRadius: 1,
-                        blurRadius: 5,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.restaurant,
-                            color: Colors.grey[600],
-                            size: 20,
-                          ),
-                          SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+              ],
+              bottom: PreferredSize(
+                preferredSize: Size.fromHeight(12),
+                child: SizedBox(height: 12),
+              ),
+            ),
+            body: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Status Section
+                  Container(
+                    color: Color(0xFF4CAF50),
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
                             children: [
                               Text(
-                                'ร้านอาหาร',
+                                arrivedAtRestaurant
+                                    ? (foodReceived
+                                          ? '1. รับอาหารแล้ว ✓'
+                                          : (confirmedArrival
+                                                ? '1. รับอาหาร'
+                                                : '1. ถึงร้านอาหาร'))
+                                    : '1. ไปร้าน',
                                 style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
+                                  color: arrivedAtRestaurant
+                                      ? (foodReceived
+                                            ? Colors.white
+                                            : Colors.green[900])
+                                      : Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
+                              SizedBox(height: 4),
                               Text(
                                 restaurantName,
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white70,
+                                  fontSize: 14,
                                 ),
                               ),
                             ],
                           ),
-                          Spacer(),
-                          Container(
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.blue,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.facebook,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Container(
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.phone,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Icon(Icons.person, color: Colors.grey[600], size: 20),
-                          SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        ),
+                        Container(height: 40, width: 2, color: Colors.white30),
+
+                        Expanded(
+                          child: Column(
                             children: [
                               Text(
-                                'ลูกค้า',
+                                '2. ส่งให้ลูกค้า',
                                 style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
+                              SizedBox(height: 4),
                               Text(
                                 customerName,
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white70,
+                                  fontSize: 14,
                                 ),
                               ),
                             ],
                           ),
-                          Spacer(),
-                          Container(
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.phone,
-                              color: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Status display section ที่ด้านล่าง
+                  const SizedBox(height: 16),
+                  Container(
+                    margin: EdgeInsets.symmetric(horizontal: 16),
+                    padding: EdgeInsets.all(6),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.info_outline,
+                            color: Colors.green[700],
+                            size: 14,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Text(
+                              //   'สถานะปัจจุบัน',
+                              //   style: TextStyle(
+                              //     fontSize: 12,
+                              //     color: Colors.grey[600],
+                              //     fontWeight: FontWeight.w500,
+                              //   ),
+                              // ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _getCombinedStatusText(),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+
+                  // Contact Section
+                  Container(
+                    margin: EdgeInsets.symmetric(horizontal: 16),
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          spreadRadius: 1,
+                          blurRadius: 5,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.restaurant,
+                              color: Colors.grey[600],
                               size: 20,
                             ),
-                          ),
-                          SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.pushNamed(context, '/chat');
-                            },
-                            child: Container(
+                            SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'ร้านอาหาร',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  restaurantName,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Spacer(),
+                            Container(
                               padding: EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.green[300],
+                                color: Colors.blue,
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                Icons.message,
+                                Icons.facebook,
                                 color: Colors.white,
                                 size: 20,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                SizedBox(height: 16),
-
-                // Order Details Button when arrived but not confirmed
-                if (arrivedAtRestaurant && !confirmedArrival)
-                  Container(
-                    margin: EdgeInsets.symmetric(horizontal: 16),
-                    width: double.infinity,
-                    child: TextButton(
-                      onPressed: () => _showOrderDetailsDialog(context),
-                      style: TextButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.receipt_long, color: Colors.grey[700]),
-                          SizedBox(width: 8),
-                          Text(
-                            'ดูรายละเอียด',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          Icon(Icons.chevron_right, color: Colors.grey[700]),
-                        ],
-                      ),
-                    ),
-                  ),
-                SizedBox(height: 16),
-
-                // Order Items Display
-                if (!(arrivedAtRestaurant && !confirmedArrival))
-                  Container(
-                    margin: EdgeInsets.symmetric(horizontal: 16),
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          spreadRadius: 1,
-                          blurRadius: 5,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'หมายเลขออเดอร์: $orderNumberDisplay',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'รายการอาหาร',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                            SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                shape: BoxShape.circle,
                               ),
-                            ),
-                            Text(
-                              '${orderItems.length} รายการ',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
+                              child: Icon(
+                                Icons.phone,
+                                color: Colors.white,
+                                size: 20,
                               ),
                             ),
                           ],
                         ),
-                        SizedBox(height: 12),
-                        ...orderItems.map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Column(
+                        SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.person,
+                              color: Colors.grey[600],
+                              size: 20,
+                            ),
+                            SizedBox(width: 12),
+                            Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                OrderItemWidget(
-                                  name: item.foodName,
-                                  option: item.selectedOptions.isNotEmpty
-                                      ? item.selectedOptions
-                                            .map((opt) => opt['label'])
-                                            .join(', ')
-                                      : '',
-                                  description: '',
-                                  quantity: 'x${item.quantity}',
-                                  price:
-                                      '${item.subtotal.toStringAsFixed(0)} บาท',
+                                Text(
+                                  'ลูกค้า',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
                                 ),
-                                if (item.selectedOptions.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    spacing: 6,
-                                    runSpacing: 4,
-                                    children: item.selectedOptions.map((
-                                      option,
-                                    ) {
-                                      final label =
-                                          option['label']?.toString() ?? '';
-                                      final extraPrice =
-                                          option['extraPrice']?.toString() ??
-                                          '0';
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(
+                                Text(
+                                  customerName,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Spacer(),
+                            Container(
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.phone,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.pushNamed(context, '/chat');
+                              },
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.green[300],
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.message,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(height: 16),
+
+                  // Order Details Button when arrived but not confirmed
+                  if (arrivedAtRestaurant && !confirmedArrival)
+                    Container(
+                      margin: EdgeInsets.symmetric(horizontal: 16),
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => _showOrderDetailsDialog(context),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.receipt_long, color: Colors.grey[700]),
+                            SizedBox(width: 8),
+                            Text(
+                              'ดูรายละเอียด',
+                              style: TextStyle(
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Icon(Icons.chevron_right, color: Colors.grey[700]),
+                          ],
+                        ),
+                      ),
+                    ),
+                  SizedBox(height: 16),
+
+                  // Order Items Display
+                  if (!(arrivedAtRestaurant && !confirmedArrival))
+                    Container(
+                      margin: EdgeInsets.symmetric(horizontal: 16),
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            spreadRadius: 1,
+                            blurRadius: 5,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'หมายเลขออเดอร์: $orderNumberDisplay',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'รายการอาหาร',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '${orderItems.length} รายการ',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 12),
+                          ...orderItems.map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  OrderItemWidget(
+                                    name: item.foodName,
+                                    option: item.selectedOptions.isNotEmpty
+                                        ? item.selectedOptions
+                                              .map((opt) => opt['label'])
+                                              .join(', ')
+                                        : '',
+                                    description: '',
+                                    quantity: 'x${item.quantity}',
+                                    price:
+                                        '${item.subtotal.toStringAsFixed(0)} บาท',
+                                  ),
+                                  if (item.selectedOptions.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      children: item.selectedOptions.map((
+                                        option,
+                                      ) {
+                                        final label =
+                                            option['label']?.toString() ?? '';
+                                        final extraPrice =
+                                            option['extraPrice']?.toString() ??
+                                            '0';
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.withOpacity(
+                                              0.1,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.green.withOpacity(
+                                                0.2,
+                                              ),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '$label (+฿$extraPrice)',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.green[800],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Divider(),
+                          SizedBox(height: 8),
+                          // Summary section
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'ค่าอาหาร',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              Text(
+                                '${(totalPrice - deliveryFee).toStringAsFixed(0)} บาท',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'ค่าส่ง (รายได้)',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.green[600],
+                                ),
+                              ),
+                              Text(
+                                '${deliveryFee.toStringAsFixed(0)} บาท',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.green[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'รวมทั้งหมด',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '${totalPrice.toStringAsFixed(0)} บาท',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Restaurant Direction Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
+                  if (!foodReceived)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 24),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            confirmedArrival
+                                ? 'รอรับอาหารจากร้าน'
+                                : 'ไปร้านอาหาร',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: confirmedArrival
+                                  ? Colors.orange
+                                  : Colors.green,
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        Container(
+                          margin: EdgeInsets.symmetric(horizontal: 16),
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.1),
+                                spreadRadius: 1,
+                                blurRadius: 5,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                restaurantName,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                restaurantAddress,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              SizedBox(height: 12),
+                              // Map placeholder
+                              Container(
+                                height: 120,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.green[100]!,
+                                            Colors.blue[50]!,
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      left: 50,
+                                      top: 40,
+                                      child: Container(
+                                        padding: EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.location_on,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: 30,
+                                      top: 20,
+                                      child: Container(
+                                        padding: EdgeInsets.symmetric(
                                           horizontal: 8,
                                           vertical: 4,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.green.withOpacity(0.1),
+                                          color: Colors.purple,
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
-                                          border: Border.all(
-                                            color: Colors.green.withOpacity(
-                                              0.2,
-                                            ),
-                                          ),
                                         ),
                                         child: Text(
-                                          '$label (+฿$extraPrice)',
+                                          'ระยะทาง ${distance.toStringAsFixed(1)} กม.',
                                           style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.green[800],
-                                            fontWeight: FontWeight.w500,
+                                            color: Colors.white,
+                                            fontSize: 8,
                                           ),
                                         ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ],
-                              ],
-                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        SizedBox(height: 8),
-                        Divider(),
-                        SizedBox(height: 8),
-                        // Summary section
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'ค่าอาหาร',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            Text(
-                              '${(totalPrice - deliveryFee).toStringAsFixed(0)} บาท',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'ค่าส่ง (รายได้)',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.green[600],
-                              ),
-                            ),
-                            Text(
-                              '${deliveryFee.toStringAsFixed(0)} บาท',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.green[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'รวมทั้งหมด',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '${totalPrice.toStringAsFixed(0)} บาท',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
-                              ),
-                            ),
-                          ],
-                        ),
+                        SizedBox(height: 16),
                       ],
                     ),
-                  ),
 
-                // Restaurant Direction Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
-                if (!foodReceived)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: 24),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          confirmedArrival
-                              ? 'รอรับอาหารจากร้าน'
-                              : 'ไปร้านอาหาร',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: confirmedArrival
-                                ? Colors.orange
-                                : Colors.green,
+                  // Recommendation Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
+                  if (!foodReceived)
+                    Container(
+                      alignment: Alignment.centerLeft,
+                      margin: EdgeInsets.symmetric(horizontal: 16),
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            spreadRadius: 1,
+                            blurRadius: 5,
+                            offset: Offset(0, 2),
                           ),
-                        ),
+                        ],
                       ),
-                      SizedBox(height: 12),
-                      Container(
-                        margin: EdgeInsets.symmetric(horizontal: 16),
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withOpacity(0.1),
-                              spreadRadius: 1,
-                              blurRadius: 5,
-                              offset: Offset(0, 2),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'คำแนะนำ',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                             ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              restaurantName,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'ระยะทาง ${distance.toStringAsFixed(1)} กม.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
                             ),
-                            SizedBox(height: 4),
-                            Text(
-                              restaurantAddress,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            confirmedArrival
+                                ? 'รอร้านเตรียมอาหาร คุณอยู่ที่ร้านแล้ว'
+                                : (arrivedAtRestaurant
+                                      ? 'คุณถึงร้านอาหารแล้ว'
+                                      : 'คุณจะไปถึงร้านประมาณ 7 นาที'),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
                             ),
-                            SizedBox(height: 12),
-                            // Map placeholder
-                            Container(
-                              height: 120,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Stack(
-                                children: [
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.green[100]!,
-                                          Colors.blue[50]!,
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  Positioned(
-                                    left: 50,
-                                    top: 40,
-                                    child: Container(
-                                      padding: EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        Icons.location_on,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                                  Positioned(
-                                    right: 30,
-                                    top: 20,
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.purple,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        'ระยะทาง ${distance.toStringAsFixed(1)} กม.',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 8,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 16),
-                    ],
-                  ),
-
-                // Recommendation Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
-                if (!foodReceived)
-                  Container(
-                    alignment: Alignment.centerLeft,
-                    margin: EdgeInsets.symmetric(horizontal: 16),
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          spreadRadius: 1,
-                          blurRadius: 5,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
                     ),
-                    child: Column(
+
+                  SizedBox(height: 16),
+
+                  // Customer Direction Section - แสดงเฉพาะเมื่อรับอาหารแล้ว
+                  if (foodReceived)
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'คำแนะนำ',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        SizedBox(height: 8),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            'ไปส่งให้ลูกค้า',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                            ),
                           ),
                         ),
-                        SizedBox(height: 4),
-                        Text(
-                          'ระยะทาง ${distance.toStringAsFixed(1)} กม.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
+                        SizedBox(height: 12),
+                        Container(
+                          margin: EdgeInsets.symmetric(horizontal: 16),
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.1),
+                                spreadRadius: 1,
+                                blurRadius: 5,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
                           ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          confirmedArrival
-                              ? 'รอร้านเตรียมอาหาร คุณอยู่ที่ร้านแล้ว'
-                              : (arrivedAtRestaurant
-                                    ? 'คุณถึงร้านอาหารแล้ว'
-                                    : 'คุณจะไปถึงร้านประมาณ 7 นาที'),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                customerName,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                customerAddress,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              SizedBox(height: 12),
+                              // Map placeholder for customer
+                              Container(
+                                height: 120,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.blue[100]!,
+                                            Colors.blue[50]!,
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    Center(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.location_on,
+                                            size: 32,
+                                            color: Colors.blue,
+                                          ),
+                                          Text(
+                                            'จุดจัดส่ง',
+                                            style: TextStyle(
+                                              color: Colors.blue,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: 8,
+                                      top: 8,
+                                      child: Container(
+                                        padding: EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orange,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.directions,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  ),
 
-                SizedBox(height: 16),
+                  SizedBox(height: 16),
+                  SizedBox(height: 80), // Space for bottom navigation
+                ],
+              ),
+            ),
 
-                // Customer Direction Section - แสดงเฉพาะเมื่อรับอาหารแล้ว
-                if (foodReceived)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: 8),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          'ไปส่งให้ลูกค้า',
+            // Bottom Navigation Bar
+            bottomNavigationBar: SafeArea(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 8,
+                      offset: Offset(0, -2),
+                    ),
+                  ],
+                  border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'จ่ายให้ร้าน',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Colors.orange,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        Text(
+                          '${shopPayAmount.toString()} บาท',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final status = currentOrder?.status ?? '';
+                          switch (status) {
+                            case 'rider_assigned':
+                            case 'confirmed':
+                              _showConfirmationDialog(context);
+                              break;
+                            case 'going_to_shop':
+                              _showConfirmArrivalDialog(context);
+                              break;
+                            case 'arrived_at_shop':
+                              _showConfirmPickupDialog(context);
+                              break;
+                            case 'picked_up':
+                              _showConfirmDeliveryDialog(context);
+                              break;
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4CAF50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          elevation: 2,
+                        ),
+                        child: Text(
+                          _getButtonText(),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
                       ),
-                      SizedBox(height: 12),
-                      Container(
-                        margin: EdgeInsets.symmetric(horizontal: 16),
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withOpacity(0.1),
-                              spreadRadius: 1,
-                              blurRadius: 5,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              customerName,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              customerAddress,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            SizedBox(height: 12),
-                            // Map placeholder for customer
-                            Container(
-                              height: 120,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Stack(
-                                children: [
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.blue[100]!,
-                                          Colors.blue[50]!,
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.location_on,
-                                          size: 32,
-                                          color: Colors.blue,
-                                        ),
-                                        Text(
-                                          'จุดจัดส่ง',
-                                          style: TextStyle(
-                                            color: Colors.blue,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Positioned(
-                                    right: 8,
-                                    top: 8,
-                                    child: Container(
-                                      padding: EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.orange,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Icon(
-                                        Icons.directions,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                SizedBox(height: 16),
-                SizedBox(height: 80), // Space for bottom navigation
-              ],
-            ),
-          ),
-
-          // Bottom Navigation Bar
-          bottomNavigationBar: SafeArea(
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, -2),
-                  ),
-                ],
-                border: Border(top: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'จ่ายให้ร้าน',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
-                      Text(
-                        '${shopPayAmount.toString()} บาท',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (!arrivedAtRestaurant) {
-                          _showConfirmationDialog(context);
-                        } else if (!confirmedArrival) {
-                          _showConfirmArrivalDialog(context);
-                        } else if (!foodReceived) {
-                          _showConfirmPickupDialog(context);
-                        } else {
-                          _showConfirmDeliveryDialog(context);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                        elevation: 2,
-                      ),
-                      child: Text(
-                        foodReceived
-                            ? 'เดินทางไปที่จุดจัดส่ง'
-                            : (confirmedArrival
-                                  ? 'ยืนยันรับอาหาร'
-                                  : (arrivedAtRestaurant
-                                        ? 'ยืนยันถึงร้านอาหาร'
-                                        : 'เดินทางไปร้านอาหาร')),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+          ), // ปิด WillPopScope
         );
       },
     );

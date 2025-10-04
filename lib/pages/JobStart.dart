@@ -7,8 +7,13 @@ import 'package:provider/provider.dart';
 
 class RiderJobsPage extends StatefulWidget {
   final int riderId;
+  final int initialTabIndex;
 
-  const RiderJobsPage({Key? key, required this.riderId}) : super(key: key);
+  const RiderJobsPage({
+    Key? key,
+    required this.riderId,
+    this.initialTabIndex = 0,
+  }) : super(key: key);
 
   @override
   _RiderJobsPageState createState() => _RiderJobsPageState();
@@ -71,7 +76,11 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTabIndex,
+    );
     _orderController = RiderControllerSocket();
     _initializeRider();
   }
@@ -146,13 +155,13 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   Future<void> _updateOrderStatus(Order order, String status) async {
     _showLoadingDialog();
     try {
-      final success = await _orderController.updateOrderStatus(
+      final result = await _orderController.updateOrderStatus(
         order.orderId,
         status,
       );
       Navigator.pop(context);
 
-      if (success) {
+      if (result['success'] == true) {
         _showSuccessSnackBar('อัปเดตสำเร็จ!');
         await _fetchOrders();
       } else {
@@ -315,10 +324,11 @@ class _RiderJobsPageState extends State<RiderJobsPage>
           (order) =>
               order.riderId == null &&
               [
-                'confirmed',
-                'accepted',
-                'preparing',
-                'ready_for_pickup',
+                'waiting',
+                // 'confirmed',
+                // 'accepted',
+                // 'preparing',
+                // 'ready_for_pickup',
               ].contains(order.status),
         )
         .toList();
@@ -344,7 +354,17 @@ class _RiderJobsPageState extends State<RiderJobsPage>
         .where(
           (order) =>
               order.riderId == widget.riderId &&
-              order.status == 'rider_assigned',
+              [
+                'rider_assigned',
+                'confirmed',
+                'preparing',
+                'ready_for_pickup',
+                'going_to_shop',
+                'arrived_at_shop',
+                'picked_up',
+                'delivering',
+                'arrived_at_customer',
+              ].contains(order.status),
         )
         .toList();
 
@@ -447,7 +467,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                     border: Border.all(color: lightGreen),
                   ),
                   child: Text(
-                    _getStatusText(order.status),
+                    _getCombinedStatusText(order),
                     style: const TextStyle(
                       color: primaryGreen,
                       fontSize: 12,
@@ -603,6 +623,26 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                     ],
                   ),
                 ),
+                // Container(
+                //   padding: const EdgeInsets.symmetric(
+                //     horizontal: 8,
+                //     vertical: 4,
+                //   ),
+                //   decoration: BoxDecoration(
+                //     color: lightGreen.withOpacity(0.2),
+                //     borderRadius: BorderRadius.circular(12),
+                //     border: Border.all(color: lightGreen),
+                //   ),
+                //   child: Text(
+                //     _getCombinedStatusText(order),
+                //     style: const TextStyle(
+                //       color: primaryGreen,
+                //       fontSize: 12,
+                //       fontWeight: FontWeight.bold,
+                //     ),
+                //   ),
+                // ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -620,6 +660,24 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                   ),
                 ),
               ],
+            ),
+
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: lightGreen.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: lightGreen),
+              ),
+              child: Text(
+                _getCombinedStatusText(order),
+                style: const TextStyle(
+                  color: primaryGreen,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             const SizedBox(height: 12),
 
@@ -1232,24 +1290,24 @@ class _RiderJobsPageState extends State<RiderJobsPage>
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(order.status).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _getStatusText(order.status),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: _getStatusColor(order.status),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                // Container(
+                //   padding: const EdgeInsets.symmetric(
+                //     horizontal: 6,
+                //     vertical: 2,
+                //   ),
+                //   decoration: BoxDecoration(
+                //     color: _getStatusColor(order.status).withOpacity(0.2),
+                //     borderRadius: BorderRadius.circular(8),
+                //   ),
+                //   child: Text(
+                //     _getCombinedStatusText(order),
+                //     style: TextStyle(
+                //       fontSize: 10,
+                //       color: _getStatusColor(order.status),
+                //       fontWeight: FontWeight.bold,
+                //     ),
+                //   ),
+                // ),
                 if (isCompleted) ...[
                   const SizedBox(height: 4),
                   Text(
@@ -1272,13 +1330,83 @@ class _RiderJobsPageState extends State<RiderJobsPage>
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: () {
-          // ส่งแค่ orderId และ riderId
-          Navigator.pushNamed(
-            context,
-            '/goRestaurant',
-            arguments: {'orderId': order.orderId, 'riderId': widget.riderId},
-          );
+        onPressed: () async {
+          // ตรวจสอบสถานะ ถ้าอยู่ในขั้นตอนจัดส่งแล้ว ให้ไปหน้า GoCustomer โดยตรง
+          if (['delivering', 'arrived_at_customer'].contains(order.status)) {
+            final result = await Navigator.pushNamed(
+              context,
+              '/goCustomer',
+              arguments: {
+                'orderId': order.orderId,
+                'riderId': widget.riderId,
+                'orderNumber': order.orderId.toString(),
+                'restaurantName': order.shopName,
+                'customerName':
+                    order.customerLocation?['name'] ??
+                    order.clientName ??
+                    'ลูกค้า',
+                'titleCustomerAddress': 'ส่งถึง',
+                'customerAddress':
+                    order.customerLocation?['address'] ??
+                    order.address ??
+                    'ไม่ระบุที่อยู่',
+                'deliveryType': order.deliveryType,
+                'note': order.note ?? 'เพิ่มเติม: -',
+                'earn': order.deliveryFee,
+                'payAtShop':
+                    (_orderBasePrice(order) + _orderOptionsExtras(order)),
+                'bonus': 0.0,
+                'totalReceived':
+                    order.deliveryFee +
+                    (_orderBasePrice(order) + _orderOptionsExtras(order)),
+                'payType': order.paymentMethod,
+                'distance':
+                    '${order.distanceKm?.toStringAsFixed(1) ?? '0.0'} กม.',
+                'totalPrice': order.totalPrice,
+                'deliveryFee': order.deliveryFee,
+                'orderItems': order.items
+                    .map(
+                      (item) => {
+                        'orderNumber': order.orderId.toString(),
+                        'foodName': item.foodName,
+                        'quantity': item.quantity,
+                        'selectedOptions': item.selectedOptions,
+                        'subtotal': item.subtotal,
+                      },
+                    )
+                    .toList(),
+              },
+            );
+            // จัดการ result จาก GoCustomer
+            if (result != null && result is Map<String, dynamic>) {
+              if (result['switchToTab'] != null) {
+                _tabController.animateTo(result['switchToTab']);
+              }
+              if (result['refreshData'] == true) {
+                await _orderController.fetchOrdersByRider(
+                  riderId: widget.riderId,
+                );
+              }
+            }
+          } else {
+            // ส่งไปหน้า GoRestaurant สำหรับสถานะอื่นๆ
+            final result = await Navigator.pushNamed(
+              context,
+              '/goRestaurant',
+              arguments: {'orderId': order.orderId, 'riderId': widget.riderId},
+            );
+            // จัดการ result จาก GoRestaurant
+            if (result != null && result is Map<String, dynamic>) {
+              if (result['switchToTab'] != null) {
+                _tabController.animateTo(result['switchToTab']);
+              }
+              if (result['refreshData'] == true) {
+                await _orderController.fetchOrdersByRider(
+                  riderId: widget.riderId,
+                );
+              }
+            }
+          }
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: lightGreen,
@@ -1364,17 +1492,29 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   String _getStatusText(String status) {
     switch (status) {
       case 'waiting':
-        return 'รอยืนยัน';
+        return 'ออเดอร์ใหม่';
       case 'confirmed':
         return 'ยืนยันแล้ว';
       case 'accepted':
         return 'รับออเดอร์';
       case 'rider_assigned':
-        return 'มีไรเดอร์';
+        return 'รอยืนยัน';
+      // case 'rider_assigned':
+      //   return 'มีไรเดอร์';
       case 'preparing':
         return 'กำลังทำ';
       case 'ready_for_pickup':
         return 'พร้อมรับ';
+      case 'going_to_shop':
+        return 'กำลังไปที่ร้าน';
+      case 'arrived_at_shop':
+        return 'ถึงร้านแล้ว';
+      case 'picked_up':
+        return 'รับอาหารแล้ว';
+      case 'delivering':
+        return 'กำลังส่ง';
+      case 'arrived_at_customer':
+        return 'ถึงลูกค้าแล้ว';
       case 'completed':
         return 'เสร็จสิ้น';
       case 'cancelled':
@@ -1382,5 +1522,31 @@ class _RiderJobsPageState extends State<RiderJobsPage>
       default:
         return status;
     }
+  }
+
+  String _getShopStatusText(String? shopStatus) {
+    if (shopStatus == null || shopStatus.isEmpty) return '';
+    switch (shopStatus) {
+      case 'preparing':
+        return 'ร้านกำลังเตรียมอาหาร';
+      case 'ready_for_pickup':
+        return 'ร้านเตรียมเสร็จแล้ว';
+      // case 'confirmed':
+      //   return 'ร้านยืนยันออเดอร์';
+      // case 'pending':
+      //   return 'รอร้านยืนยัน';
+      default:
+        return shopStatus;
+    }
+  }
+
+  String _getCombinedStatusText(Order order) {
+    final orderStatusText = _getStatusText(order.status);
+    final shopStatusText = _getShopStatusText(order.shopStatus);
+
+    if (shopStatusText.isNotEmpty) {
+      return '$orderStatusText • $shopStatusText';
+    }
+    return orderStatusText;
   }
 }
