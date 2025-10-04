@@ -94,7 +94,7 @@ class _HomePageState extends State<HomePage> {
           _gender = userData['gender'];
           _promptpay = userData['promptpay'];
           // เก็บ rider_id
-          _riderId = userData['rider_id']  ?? 0;
+          _riderId = userData['rider_id'] ?? 0;
           print('🏍️ Rider ID loaded: $_riderId');
 
           print(
@@ -1067,44 +1067,44 @@ class _HomePageState extends State<HomePage> {
                                         MainAxisAlignment.spaceAround,
                                     children: [
                                       // Today's tips
-                                      Column(
-                                        children: [
-                                          InkWell(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            onTap: () {
-                                              Navigator.pushNamed(
-                                                context,
-                                                '/trip',
-                                              );
-                                            },
-                                            child: Column(
-                                              children: [
-                                                Icon(
-                                                  Icons.monetization_on,
-                                                  color: Colors.amber,
-                                                  size: 24,
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  '\$50',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  'ทิปวันนี้',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                      // Column(
+                                      //   children: [
+                                      //     InkWell(
+                                      //       borderRadius: BorderRadius.circular(
+                                      //         12,
+                                      //       ),
+                                      //       onTap: () {
+                                      //         Navigator.pushNamed(
+                                      //           context,
+                                      //           '/trip',
+                                      //         );
+                                      //       },
+                                      //       child: Column(
+                                      //         children: [
+                                      //           Icon(
+                                      //             Icons.monetization_on,
+                                      //             color: Colors.amber,
+                                      //             size: 24,
+                                      //           ),
+                                      //           const SizedBox(height: 4),
+                                      //           Text(
+                                      //             '\$50',
+                                      //             style: TextStyle(
+                                      //               fontWeight: FontWeight.bold,
+                                      //             ),
+                                      //           ),
+                                      //           Text(
+                                      //             'ทิปวันนี้',
+                                      //             style: TextStyle(
+                                      //               fontSize: 12,
+                                      //               color: Colors.grey,
+                                      //             ),
+                                      //           ),
+                                      //         ],
+                                      //       ),
+                                      //     ),
+                                      //   ],
+                                      // ),
                                       // Today's jobs
                                       Column(
                                         children: [
@@ -1305,14 +1305,10 @@ class _HomePageState extends State<HomePage> {
                                   icon: Icon(Icons.chat_bubble, size: 18),
                                   label: Text('แชท'),
                                   onPressed: () {
-                                    Navigator.pushNamed(
-                                      context,
-                                      '/chat-lists',
-                                    );
+                                    Navigator.pushNamed(context, '/chat-lists');
                                   },
                                 ),
                               ),
-
                             ],
                           ),
                         ),
@@ -1355,8 +1351,9 @@ class _HomePageState extends State<HomePage> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) =>
-                                        RiderJobsPage(riderId: _riderId  ?? 0), //รับงาน
+                                      builder: (context) => RiderJobsPage(
+                                        riderId: _riderId ?? 0,
+                                      ), //รับงาน
                                     ),
                                   );
                                 }

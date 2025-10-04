@@ -80,10 +80,14 @@ class _MyCreditPageState extends State<MyCreditPage> {
 
       if (result['success']) {
         final topupHistory = result['data']['topup_history'] as List<dynamic>;
+        final jobDeductions = result['data']['job_deductions'] as List<dynamic>;
 
-        setState(() {
-          // เอาแค่ 5 รายการล่าสุด
-          recentTransactions = topupHistory.take(5).map((item) {
+        // รวมข้อมูลทั้งหมดและเรียงตามวันที่ล่าสุด
+        List<Map<String, dynamic>> allTransactions = [];
+
+        // เพิ่มข้อมูลการเติมเงิน
+        allTransactions.addAll(
+          topupHistory.map((item) {
             return {
               'icon': Icons.add_circle,
               'title': 'เติมเครดิต PromptPay',
@@ -92,8 +96,35 @@ class _MyCreditPageState extends State<MyCreditPage> {
               'date': _formatDate(item['created_at']),
               'isDebit': false,
               'status': item['status'],
+              'created_at': item['created_at'], // เพื่อใช้ในการเรียงลำดับ
             };
-          }).toList();
+          }).toList(),
+        );
+
+        // เพิ่มข้อมูลการหักค่าบริการ
+        allTransactions.addAll(
+          jobDeductions.map((item) {
+            return {
+              'icon': Icons.remove_circle,
+              'title':
+                  'หักค่ารับงาน #${item['order_id']} - ${item['shop_name']}',
+              'amount':
+                  '- ฿ ${double.parse(item['rider_required_gp'].toString()).toStringAsFixed(2)}',
+              'date': _formatDate(item['created_at']),
+              'isDebit': true,
+              'status': item['status'],
+              'created_at': item['created_at'], // เพื่อใช้ในการเรียงลำดับ
+            };
+          }).toList(),
+        );
+
+        // เรียงตามวันที่ล่าสุดและเอาแค่ 5 รายการ
+        allTransactions.sort(
+          (a, b) => b['created_at'].compareTo(a['created_at']),
+        );
+
+        setState(() {
+          recentTransactions = allTransactions.take(5).toList();
           isLoadingTransactions = false;
         });
       }
@@ -203,7 +234,10 @@ class _MyCreditPageState extends State<MyCreditPage> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _loadGPBalance,
+        onRefresh: () async {
+          await _loadGPBalance();
+          await _loadRecentTransactions();
+        },
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
@@ -258,7 +292,10 @@ class _MyCreditPageState extends State<MyCreditPage> {
                               ),
                             if (!isLoading && !hasError)
                               GestureDetector(
-                                onTap: _loadGPBalance,
+                                onTap: () {
+                                  _loadGPBalance();
+                                  _loadRecentTransactions();
+                                },
                                 child: Icon(
                                   Icons.refresh,
                                   color: Colors.white70,
@@ -583,6 +620,11 @@ class _MyCreditPageState extends State<MyCreditPage> {
       itemColor = Colors.red[600]!;
     }
 
+    // สำหรับรายการหักค่ารับงานที่ยกเลิก
+    if (status == 'cancelled') {
+      itemColor = Colors.red[600]!;
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
@@ -624,23 +666,33 @@ class _MyCreditPageState extends State<MyCreditPage> {
                         ),
                       ),
                     ),
-                    if (status != null &&
-                        status != 'approved' &&
-                        status != 'completed')
+                    if (status != null && status != 'approved')
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: itemColor.withOpacity(0.1),
+                          color: status == 'completed'
+                              ? Colors.green[600]!.withOpacity(0.1)
+                              : itemColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          status == 'pending' ? 'รออนุมัติ' : 'ปฏิเสธ',
+                          status == 'pending'
+                              ? 'รออนุมัติ'
+                              : status == 'rejected'
+                              ? 'ปฏิเสธ'
+                              : status == 'cancelled'
+                              ? 'ยกเลิก'
+                              : status == 'completed'
+                              ? 'สำเร็จ'
+                              : status,
                           style: TextStyle(
                             fontSize: 10,
-                            color: itemColor,
+                            color: status == 'completed'
+                                ? Colors.green[600]!
+                                : itemColor,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -686,14 +738,6 @@ class _MyCreditPageState extends State<MyCreditPage> {
       Future.delayed(const Duration(seconds: 1), () {
         _loadGPBalance();
         _loadRecentTransactions(); // เพิ่มการรีเฟรชประวัติล่าสุด
-      });
-    });
-  }
-
-  void _showWithdrawDialog() {
-    CreditDialogs.showWithdrawDialog(context, currentCredit, (amount) {
-      setState(() {
-        currentCredit -= amount;
       });
     });
   }

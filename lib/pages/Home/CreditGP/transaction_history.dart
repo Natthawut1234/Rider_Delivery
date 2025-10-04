@@ -12,6 +12,7 @@ class TransactionHistoryPage extends StatefulWidget {
 class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
   String selectedFilter = 'ทั้งหมด';
   String selectedTopupSubFilter = ''; // สำหรับกรองย่อยในการเติมเงิน
+  String selectedJobSubFilter = ''; // สำหรับกรองย่อยในการหักค่ารับงาน
 
   // ข้อมูลจาก API
   List<TransactionItem> allTransactions = [];
@@ -39,10 +40,8 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
 
       if (result['success']) {
         final topupHistory = result['data']['topup_history'] as List<dynamic>;
+        final jobDeductions = result['data']['job_deductions'] as List<dynamic>;
         final stats = result['data']['statistics'] as Map<String, dynamic>;
-
-        // Mock data สำหรับค่าบริการรับงาน
-        final mockJobData = _generateMockJobData();
 
         setState(() {
           // รวมข้อมูลการเติมเงินและค่าบริการ
@@ -63,23 +62,27 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                 approvedAt: item['approved_at'],
               );
             }).toList(),
-            // ข้อมูล Mock ค่าบริการ
-            ...mockJobData,
+            // ข้อมูลการหักค่าบริการจาก API
+            ...jobDeductions.map((item) {
+              return TransactionItem(
+                id: 'job_${item['order_id']}',
+                type: 'service_fee',
+                icon: Icons.remove_circle,
+                title:
+                    'หักค่ารับงาน #${item['order_id']} - ${item['shop_name']}',
+                amount: double.parse(item['rider_required_gp'].toString()),
+                date: _formatDate(item['created_at']),
+                isDebit: true,
+                status: item['status'],
+              );
+            }).toList(),
           ];
 
           // เรียงตามวันที่ล่าสุด
           allTransactions.sort((a, b) => b.date.compareTo(a.date));
 
-          // สถิติรวม
-          statistics = {
-            ...stats,
-            // เพิ่มสถิติค่าบริการ (Mock)
-            'total_jobs_taken': mockJobData.length, // จำนวนงานที่รับทั้งหมด
-            'total_service_fees': mockJobData.fold(
-              0.0,
-              (sum, job) => sum + job.amount,
-            ),
-          };
+          // สถิติจาก API
+          statistics = stats;
 
           isLoading = false;
         });
@@ -97,74 +100,6 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
         isLoading = false;
       });
     }
-  }
-
-  // สร้าง Mock data สำหรับค่าบริการรับงาน
-  List<TransactionItem> _generateMockJobData() {
-    final now = DateTime.now();
-    return [
-      // ค่าบริการรับงาน
-      TransactionItem(
-        id: 'fee_001',
-        type: 'service_fee',
-        icon: Icons.remove_circle,
-        title: 'หักค่ารับงาน #001',
-        amount: 10.0,
-        date: _formatDate(
-          now.subtract(const Duration(hours: 2, minutes: 5)).toIso8601String(),
-        ),
-        isDebit: true,
-        status: 'completed',
-      ),
-      TransactionItem(
-        id: 'fee_002',
-        type: 'service_fee',
-        icon: Icons.remove_circle,
-        title: 'หักค่ารับงาน #002',
-        amount: 10.0,
-        date: _formatDate(
-          now.subtract(const Duration(hours: 5, minutes: 5)).toIso8601String(),
-        ),
-        isDebit: true,
-        status: 'completed',
-      ),
-      TransactionItem(
-        id: 'fee_003',
-        type: 'service_fee',
-        icon: Icons.remove_circle,
-        title: 'หักค่ารับงาน #003',
-        amount: 10.0,
-        date: _formatDate(
-          now.subtract(const Duration(days: 1, minutes: 5)).toIso8601String(),
-        ),
-        isDebit: true,
-        status: 'completed',
-      ),
-      TransactionItem(
-        id: 'fee_004',
-        type: 'service_fee',
-        icon: Icons.remove_circle,
-        title: 'หักค่ารับงาน #004',
-        amount: 10.0,
-        date: _formatDate(
-          now.subtract(const Duration(days: 2)).toIso8601String(),
-        ),
-        isDebit: true,
-        status: 'completed',
-      ),
-      TransactionItem(
-        id: 'fee_005',
-        type: 'service_fee',
-        icon: Icons.remove_circle,
-        title: 'หักค่ารับงาน #005',
-        amount: 10.0,
-        date: _formatDate(
-          now.subtract(const Duration(days: 3)).toIso8601String(),
-        ),
-        isDebit: true,
-        status: 'completed',
-      ),
-    ];
   }
 
   // ฟังก์ชันแปลงวันที่
@@ -224,6 +159,21 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
         filtered = allTransactions
             .where((item) => item.type == 'service_fee')
             .toList();
+        // กรองย่อยตามสถานะ
+        if (selectedJobSubFilter.isNotEmpty) {
+          switch (selectedJobSubFilter) {
+            case 'สำเร็จ':
+              filtered = filtered
+                  .where((item) => item.status == 'completed')
+                  .toList();
+              break;
+            case 'ยกเลิก':
+              filtered = filtered
+                  .where((item) => item.status == 'cancelled')
+                  .toList();
+              break;
+          }
+        }
         break;
     }
 
@@ -380,88 +330,170 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
 
   // Statistics สำหรับ "หักค่ารับงาน"
   Widget _buildServiceFeeStatistics() {
-    final jobCount = statistics['total_jobs_taken'] ?? 0;
-    final totalFees = statistics['total_service_fees'] ?? 0.0;
+    final jobCount = int.parse(
+      statistics['total_jobs_with_deduction']?.toString() ?? '0',
+    );
+    final totalFees = double.parse(
+      statistics['total_gp_deducted']?.toString() ?? '0.0',
+    );
+    final jobCountCompleted = int.parse(
+      statistics['completed_jobs_with_deduction']?.toString() ?? '0',
+    );
+    final jobCountCancelled = int.parse(
+      statistics['cancelled_jobs_with_deduction']?.toString() ?? '0',
+    );
 
     return Container(
       margin: const EdgeInsets.all(16),
-      child: Row(
+      child: Column(
         children: [
-          // จำนวนที่รับ
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+          // บรรทัดแรก: จำนวนงานและเครดิตที่หัก
+          Row(
+            children: [
+              // จำนวนที่รับ
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                ],
+                  child: Column(
+                    children: [
+                      Text(
+                        jobCount.toString(),
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'จำนวนที่รับ',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              child: Column(
-                children: [
-                  Text(
-                    jobCount.toString(),
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
-                    ),
+              const SizedBox(width: 16),
+              // จำนวนเครดิตที่ถูกหัก
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'จำนวนที่รับ',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Column(
+                    children: [
+                      Text(
+                        '฿${totalFees.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'เครดิตที่หัก',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 16),
-          // จำนวนเครดิตที่ถูกหัก
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+          const SizedBox(height: 8),
+          // บรรทัดที่สอง: สถานะต่างๆ
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        jobCountCompleted.toString(),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'สำเร็จ',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    '฿${totalFees.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
+                ),
+                Container(height: 35, width: 1, color: Colors.grey[300]),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        jobCountCancelled.toString(),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'ยกเลิก',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'เครดิตที่หัก',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -714,7 +746,8 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                 children: [
                   // Filter Display Bar
                   if (selectedFilter != 'ทั้งหมด' ||
-                      selectedTopupSubFilter.isNotEmpty)
+                      selectedTopupSubFilter.isNotEmpty ||
+                      selectedJobSubFilter.isNotEmpty)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
@@ -821,6 +854,9 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
     if (selectedFilter == 'รายการเติม' && selectedTopupSubFilter.isNotEmpty) {
       return 'กรอง: $selectedFilter - $selectedTopupSubFilter';
     }
+    if (selectedFilter == 'หักค่ารับงาน' && selectedJobSubFilter.isNotEmpty) {
+      return 'กรอง: $selectedFilter - $selectedJobSubFilter';
+    }
     return 'กรอง: $selectedFilter';
   }
 
@@ -829,10 +865,12 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
       context,
       selectedFilter: selectedFilter,
       selectedTopupSubFilter: selectedTopupSubFilter,
-      onFilterChanged: (filter, subFilter) {
+      selectedJobSubFilter: selectedJobSubFilter,
+      onFilterChanged: (filter, topupSubFilter, jobSubFilter) {
         setState(() {
           selectedFilter = filter;
-          selectedTopupSubFilter = subFilter;
+          selectedTopupSubFilter = topupSubFilter;
+          selectedJobSubFilter = jobSubFilter;
         });
       },
     );
@@ -883,6 +921,26 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                       ),
                     ),
                     if (transaction.type == 'topup' &&
+                        transaction.status != 'approved')
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(transaction.status),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _getStatusText(transaction.status),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    if (transaction.type == 'service_fee' &&
                         transaction.status != 'approved')
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -970,6 +1028,10 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
         return Colors.amber[600]!;
       case 'rejected':
         return Colors.red[600]!;
+      case 'completed':
+        return Colors.green[600]!;
+      case 'cancelled':
+        return Colors.orange[600]!;
       default:
         return Colors.grey[600]!;
     }
@@ -983,6 +1045,10 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
         return 'รออนุมัติ';
       case 'rejected':
         return 'ปฏิเสธ';
+      case 'completed':
+        return 'สำเร็จ';
+      case 'cancelled':
+        return 'ยกเลิก';
       default:
         return 'สำเร็จ';
     }

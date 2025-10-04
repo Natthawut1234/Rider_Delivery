@@ -5,10 +5,13 @@ class TransactionFilterDialog {
     BuildContext context, {
     required String selectedFilter,
     required String selectedTopupSubFilter,
-    required Function(String filter, String subFilter) onFilterChanged,
+    required String selectedJobSubFilter,
+    required Function(String filter, String topupSubFilter, String jobSubFilter)
+    onFilterChanged,
   }) {
     String tempSelectedFilter = selectedFilter;
     String tempSelectedTopupSubFilter = selectedTopupSubFilter;
+    String tempSelectedJobSubFilter = selectedJobSubFilter;
 
     showDialog(
       context: context,
@@ -70,8 +73,10 @@ class TransactionFilterDialog {
                         setState(() {
                           tempSelectedFilter = 'หักค่ารับงาน';
                           tempSelectedTopupSubFilter = '';
+                          // Keep existing sub-filter if switching to job deductions
                         });
                       },
+                      hasSubOptions: true,
                     ),
 
                     _buildFilterOption(
@@ -88,6 +93,82 @@ class TransactionFilterDialog {
                       },
                       hasSubOptions: true,
                     ),
+
+                    // Sub-filter options for Job Deductions (แสดงเมื่อเลือก "หักค่ารับงาน")
+                    if (tempSelectedFilter == 'หักค่ารับงาน') ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red[200]!),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 14,
+                                  color: Colors.red[600],
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'สถานะการรับงาน',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 14,
+                                    color: Colors.red[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+
+                            _buildSubFilterOption(
+                              title: 'ทั้งหมด',
+                              subtitle: 'รายการหักเครดิตทุกสถานะ',
+                              icon: Icons.all_inclusive,
+                              iconColor: Colors.red[600]!,
+                              isSelected: tempSelectedJobSubFilter.isEmpty,
+                              onTap: () {
+                                setState(() {
+                                  tempSelectedJobSubFilter = '';
+                                });
+                              },
+                            ),
+
+                            _buildSubFilterOption(
+                              title: 'สำเร็จ',
+                              subtitle: 'งานที่ส่งมอบสำเร็จแล้ว',
+                              icon: Icons.check_circle,
+                              iconColor: Colors.green[600]!,
+                              isSelected: tempSelectedJobSubFilter == 'สำเร็จ',
+                              onTap: () {
+                                setState(() {
+                                  tempSelectedJobSubFilter = 'สำเร็จ';
+                                });
+                              },
+                            ),
+
+                            _buildSubFilterOption(
+                              title: 'ยกเลิก',
+                              subtitle: 'งานที่ถูกยกเลิกแล้ว',
+                              icon: Icons.cancel,
+                              iconColor: Colors.orange[600]!,
+                              isSelected: tempSelectedJobSubFilter == 'ยกเลิก',
+                              onTap: () {
+                                setState(() {
+                                  tempSelectedJobSubFilter = 'ยกเลิก';
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
 
                     // Sub-filter options for Topup (แสดงเมื่อเลือก "รายการเติม")
                     if (tempSelectedFilter == 'รายการเติม') ...[
@@ -215,6 +296,7 @@ class TransactionFilterDialog {
                       onFilterChanged(
                         tempSelectedFilter,
                         tempSelectedTopupSubFilter,
+                        tempSelectedJobSubFilter,
                       );
                     },
                     style: ElevatedButton.styleFrom(
