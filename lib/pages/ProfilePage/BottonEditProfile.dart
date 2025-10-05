@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'ProfileModel.dart';
+import 'package:rider_delivery/pages/ProfilePage/ProfileModel.dart';
 import 'styles.dart';
 import 'package:promptpay_qrcode_generate/promptpay_qrcode_generate.dart';
 

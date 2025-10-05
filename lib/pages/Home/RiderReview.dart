@@ -1,60 +1,70 @@
 import 'package:flutter/material.dart';
+import '../../services/ReviewsService.dart';
+import '../../APIs/Models/Reviews_model.dart';
 
-class RiderReviewPage extends StatelessWidget {
+class RiderReviewPage extends StatefulWidget {
   const RiderReviewPage({Key? key}) : super(key: key);
 
-  // ตัวอย่างข้อมูลรีวิวสมมุติ
-  final List<Map<String, dynamic>> reviews = const [
-    {
-      'customerName': 'Adisak',
-      'rating': 5,
-      'reviewText': 'บริการดีมากครับ ส่งของรวดเร็วทันใจ!',
-      'date': '2024-08-15',
-    },
-    {
-      'customerName': 'Boonchoo',
-      'rating': 4,
-      'reviewText': 'สภาพกล่องสินค้าดีมากครับ ไรเดอร์พูดจาสุภาพ',
-      'date': '2024-08-14',
-    },
-    {
-      'customerName': 'Chanon',
-      'rating': 1,
-      'reviewText': 'หาที่อยู่ไม่เจอ โทรศัพท์ไปก็ไม่รับสายเลยครับ',
-      'date': '2024-08-13',
-    },
-    {
-      'customerName': 'Darika',
-      'rating': 5,
-      'reviewText': 'ประทับใจมาก ส่งเร็วและของสดใหม่',
-      'date': '2024-08-12',
-    },
-    {
-      'customerName': 'Ekachai',
-      'rating': 2,
-      'reviewText': 'ดีครับ แต่อยากให้แจ้งก่อนถึงหน้าบ้าน',
-      'date': '2024-08-11',
-    },
-  ];
+  @override
+  State<RiderReviewPage> createState() => _RiderReviewPageState();
+}
 
-  // คำนวณค่าเฉลี่ยคะแนน
-  double get averageRating {
-    if (reviews.isEmpty) return 0.0;
-    double total = 0;
-    for (var review in reviews) {
-      total += review['rating'] as int;
-    }
-    return total / reviews.length;
+class _RiderReviewPageState extends State<RiderReviewPage> {
+  // Real data from API
+  RiderSummary? _riderSummary;
+  List<ReviewsModel> _reviews = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReviews();
   }
 
-  // คำนวณจำนวนรีวิวแต่ละดาว
-  Map<int, int> get ratingDistribution {
-    Map<int, int> distribution = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0};
-    for (var review in reviews) {
-      int rating = review['rating'] as int;
-      distribution[rating] = distribution[rating]! + 1;
+  Future<void> _loadReviews() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await ReviewsService().fetchRiderReviews(limit: 100);
+
+      if (result['success']) {
+        final data = result['data'];
+
+        setState(() {
+          // Parse rider summary
+          if (data['rider_summary'] != null) {
+            _riderSummary = RiderSummary.fromJson(data['rider_summary']);
+          }
+
+          // Parse reviews list
+          _reviews =
+              (data['items'] as List?)
+                  ?.map((json) => ReviewsModel.fromJson(json))
+                  .toList() ??
+              [];
+
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = result['message'] ?? 'ไม่สามารถโหลดรีวิวได้';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'เกิดข้อผิดพลาด: $e';
+        _isLoading = false;
+      });
     }
-    return distribution;
+  }
+
+  Future<void> _refreshReviews() async {
+    await _loadReviews();
   }
 
   @override
@@ -68,31 +78,122 @@ class RiderReviewPage extends StatelessWidget {
         ),
         backgroundColor: Colors.green[600],
         elevation: 0,
-      ),
-      body: Column(
-        children: [
-          // ส่วนแสดงสรุปคะแนน
-          _buildRatingSummary(),
-
-          // ส่วนแสดงรายการรีวิว
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              itemCount: reviews.length,
-              itemBuilder: (context, index) {
-                final review = reviews[index];
-                return _buildReviewCard(review);
-              },
-            ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _refreshReviews,
           ),
         ],
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.green))
+          : _errorMessage != null
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    _errorMessage!,
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _refreshReviews,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[600],
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('ลองใหม่'),
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _refreshReviews,
+              child: Column(
+                children: [
+                  // ส่วนแสดงสรุปคะแนน
+                  _buildRatingSummary(),
+
+                  // ส่วนแสดงรายการรีวิว
+                  Expanded(
+                    child: _reviews.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.star_border,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'ยังไม่มีรีวิวจากลูกค้า',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            itemCount: _reviews.length,
+                            itemBuilder: (context, index) {
+                              final review = _reviews[index];
+                              return _buildReviewCard(review);
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
   // Widget สำหรับแสดงสรุปคะแนน
   Widget _buildRatingSummary() {
-    final distribution = ratingDistribution;
+    if (_riderSummary == null) {
+      return Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 2,
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Text(
+            'ยังไม่มีข้อมูลรีวิว',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    // คำนวณการกระจายคะแนนจาก _riderSummary
+    final Map<int, int> distribution = {
+      5: _riderSummary!.rating5,
+      4: _riderSummary!.rating4,
+      3: _riderSummary!.rating3,
+      2: _riderSummary!.rating2,
+      1: _riderSummary!.rating1,
+    };
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -117,7 +218,7 @@ class RiderReviewPage extends StatelessWidget {
               Column(
                 children: [
                   Text(
-                    averageRating.toStringAsFixed(1),
+                    _riderSummary!.ratingAvg.toStringAsFixed(1),
                     style: const TextStyle(
                       fontSize: 36,
                       fontWeight: FontWeight.bold,
@@ -129,7 +230,8 @@ class RiderReviewPage extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: () {
                       final double rounded =
-                          (averageRating * 2).round() / 2.0; // ปัดเป็น 0.5
+                          (_riderSummary!.ratingAvg * 2).round() /
+                          2.0; // ปัดเป็น 0.5
                       return List.generate(5, (index) {
                         final pos = index + 1;
                         IconData icon;
@@ -146,7 +248,7 @@ class RiderReviewPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${reviews.length} รีวิว',
+                    '${_riderSummary!.reviewsCount} รีวิว',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                 ],
@@ -159,9 +261,9 @@ class RiderReviewPage extends StatelessWidget {
                 child: Column(
                   children: [5, 4, 3, 2, 1].map((star) {
                     int count = distribution[star]!;
-                    double percentage = reviews.isEmpty
+                    double percentage = _riderSummary!.reviewsCount == 0
                         ? 0
-                        : count / reviews.length;
+                        : count / _riderSummary!.reviewsCount;
 
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -213,8 +315,12 @@ class RiderReviewPage extends StatelessWidget {
   }
 
   // Widget สำหรับแสดงรีวิวแต่ละรายการ
-  Widget _buildReviewCard(Map<String, dynamic> review) {
-    Color ratingColor = _getRatingColor(review['rating'] as int);
+  Widget _buildReviewCard(ReviewsModel review) {
+    Color ratingColor = _getRatingColor(review.rating);
+
+    // Format date
+    final formattedDate =
+        '${review.createdAt.day}/${review.createdAt.month}/${review.createdAt.year}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -232,13 +338,20 @@ class RiderReviewPage extends StatelessWidget {
                 CircleAvatar(
                   backgroundColor: Colors.blue[100],
                   radius: 20,
-                  child: Text(
-                    (review['customerName'] as String)[0].toUpperCase(),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue[800],
-                    ),
-                  ),
+                  backgroundImage: review.reviewerPhoto.isNotEmpty
+                      ? NetworkImage(review.reviewerPhoto)
+                      : null,
+                  child: review.reviewerPhoto.isEmpty
+                      ? Text(
+                          review.reviewerName.isNotEmpty
+                              ? review.reviewerName[0].toUpperCase()
+                              : 'U',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[800],
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(width: 12),
 
@@ -248,14 +361,16 @@ class RiderReviewPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        review['customerName'] as String,
+                        review.reviewerName.isNotEmpty
+                            ? review.reviewerName
+                            : 'ลูกค้า',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
                       ),
                       Text(
-                        review['date'] as String,
+                        formattedDate,
                         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                     ],
@@ -278,7 +393,7 @@ class RiderReviewPage extends StatelessWidget {
                       Icon(Icons.star, color: ratingColor, size: 16),
                       const SizedBox(width: 4),
                       Text(
-                        '${review['rating']}',
+                        '${review.rating}',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: ratingColor,
@@ -301,7 +416,7 @@ class RiderReviewPage extends StatelessWidget {
                 border: Border.all(color: Colors.grey[200]!, width: 1),
               ),
               child: Text(
-                review['reviewText'] as String,
+                review.comment.isNotEmpty ? review.comment : 'ไม่มีความคิดเห็น',
                 style: const TextStyle(fontSize: 14, height: 1.4),
               ),
             ),

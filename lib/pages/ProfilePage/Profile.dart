@@ -179,70 +179,73 @@ class _ProfileViewState extends State<_ProfileView>
       children: [
         Stack(
           children: [
-            CircleAvatar(
-              radius: 46,
-              backgroundColor: Colors.grey[300],
-              child: profile.profileImage != null
-                  ? ClipOval(
-                      child: Image.file(
-                        profile.profileImage!,
-                        width: 92,
-                        height: 92,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Image.asset(
-                            'assets/avatars/avatar-4.png',
-                            width: 92,
-                            height: 92,
-                            fit: BoxFit.cover,
-                          );
-                        },
-                      ),
-                    )
-                  : (profile.photoUrl?.isNotEmpty == true &&
-                        profile.photoUrl!.startsWith('http'))
-                  ? ClipOval(
-                      child: Image.network(
-                        profile.photoUrl!,
-                        width: 92,
-                        height: 92,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Image.asset(
-                            'assets/avatars/avatar-4.png',
-                            width: 92,
-                            height: 92,
-                            fit: BoxFit.cover,
-                          );
-                        },
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return SizedBox(
-                            width: 92,
-                            height: 92,
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                value:
-                                    loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                    : null,
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Theme.of(context).primaryColor,
+            GestureDetector(
+              onTap: () => _showProfileImageViewer(profile),
+              child: CircleAvatar(
+                radius: 46,
+                backgroundColor: Colors.grey[300],
+                child: profile.profileImage != null
+                    ? ClipOval(
+                        child: Image.file(
+                          profile.profileImage!,
+                          width: 92,
+                          height: 92,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Image.asset(
+                              'assets/avatars/avatar-4.png',
+                              width: 92,
+                              height: 92,
+                              fit: BoxFit.cover,
+                            );
+                          },
+                        ),
+                      )
+                    : (profile.photoUrl?.isNotEmpty == true &&
+                          profile.photoUrl!.startsWith('http'))
+                    ? ClipOval(
+                        child: Image.network(
+                          profile.photoUrl!,
+                          width: 92,
+                          height: 92,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Image.asset(
+                              'assets/avatars/avatar-4.png',
+                              width: 92,
+                              height: 92,
+                              fit: BoxFit.cover,
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return SizedBox(
+                              width: 92,
+                              height: 92,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  value:
+                                      loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Theme.of(context).primaryColor,
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
+                      )
+                    : Image.asset(
+                        'assets/avatars/avatar-4.png',
+                        width: 92,
+                        height: 92,
+                        fit: BoxFit.cover,
                       ),
-                    )
-                  : Image.asset(
-                      'assets/avatars/avatar-4.png',
-                      width: 92,
-                      height: 92,
-                      fit: BoxFit.cover,
-                    ),
+              ),
             ),
             Positioned(
               bottom: 0,
@@ -680,6 +683,145 @@ class _ProfileViewState extends State<_ProfileView>
           ),
         ],
       ),
+    );
+  }
+
+  // ---------------- Profile Image Viewer ----------------
+  void _showProfileImageViewer(ProfileModel profile) {
+    // ตรวจสอบว่ามีรูปภาพหรือไม่
+    Widget imageWidget;
+
+    if (profile.profileImage != null) {
+      // รูปภาพจากไฟล์ local
+      imageWidget = Image.file(
+        profile.profileImage!,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildDefaultImageViewer();
+        },
+      );
+    } else if (profile.photoUrl?.isNotEmpty == true &&
+        profile.photoUrl!.startsWith('http')) {
+      // รูปภาพจาก network
+      imageWidget = Image.network(
+        profile.photoUrl!,
+        fit: BoxFit.contain,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 3,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return _buildDefaultImageViewer();
+        },
+      );
+    } else {
+      // รูปภาพ default
+      imageWidget = _buildDefaultImageViewer();
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            children: [
+              // Background สีดำ
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  color: Colors.black87,
+                ),
+              ),
+
+              // รูปภาพตรงกลาง
+              Center(
+                child: GestureDetector(
+                  onTap: () {}, // ป้องกันการปิดเมื่อกดที่รูป
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.9,
+                      maxHeight: MediaQuery.of(context).size.height * 0.8,
+                    ),
+                    child: imageWidget,
+                  ),
+                ),
+              ),
+
+              // ปุ่มปิด
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 10,
+                right: 20,
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+
+              // ข้อความแนะนำด้านล่าง
+              Positioned(
+                bottom: MediaQuery.of(context).padding.bottom + 20,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'กดที่ไหนก็ได้เพื่อปิด',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDefaultImageViewer() {
+    return Container(
+      width: 200,
+      height: 200,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Image.asset('assets/avatars/avatar-4.png', fit: BoxFit.cover),
     );
   }
 

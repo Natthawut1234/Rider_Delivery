@@ -5,6 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rider_delivery/services/RiderStatusService.dart';
 import 'package:rider_delivery/APIs/middleware/authService.dart';
 import '../../APIs/middleware/topupGP.dart';
+import '../../services/Income_and_JobHistoryService.dart';
+import '../../APIs/Models/Income_and_JobHistory_model.dart';
+import '../../services/ReviewsService.dart';
+import 'package:intl/intl.dart';
 import '../JobStart.dart';
 
 class HomePage extends StatefulWidget {
@@ -27,6 +31,17 @@ class _HomePageState extends State<HomePage> {
   // ข้อมูลเครดิต
   double _currentCredit = 0.0;
   bool _isCreditLoading = true;
+
+  // ข้อมูลรายได้และงานวันนี้
+  double _todayIncome = 0.0;
+  int _todayJobCount = 0;
+  bool _isIncomeLoading = true;
+  bool _isJobCountLoading = true;
+
+  // ข้อมูลรีวิวและคะแนน
+  double _averageRating = 0.0;
+  int _reviewsCount = 0;
+  bool _isRatingLoading = true;
 
   // ฟิลด์ที่ต้องตรวจสอบความสมบูรณ์
   String? _phone;
@@ -70,6 +85,9 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _loadUserData();
     _loadGPBalance(); // โหลดยอดเครดิต
+    _loadTodayIncome(); // โหลดรายได้วันนี้
+    _loadTodayJobCount(); // โหลดจำนวนงานวันนี้
+    _loadRatingData(); // โหลดคะแนนรีวิว
     _checkRiderStatus();
   }
 
@@ -180,6 +198,136 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // ฟังก์ชันดึงรายได้วันนี้จาก API
+  Future<void> _loadTodayIncome() async {
+    setState(() {
+      _isIncomeLoading = true;
+    });
+
+    try {
+      // ใช้ JobHistoryService เหมือนใน Income.dart
+      final service = JobHistoryService();
+      final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final result = await service.fetchJobHistoryByDate(dateStr);
+
+      if (result['success']) {
+        final jobHistoryResponse = JobHistoryResponse.fromJson(result['data']);
+        final jobs = jobHistoryResponse.data.jobHistory;
+
+        // คำนวณรายได้จากงานที่สำเร็จ (เหมือน Income.dart)
+        final completedJobs = jobs.where((job) => job.isCompleted).toList();
+        final todayIncome = completedJobs.fold(
+          0.0,
+          (sum, job) => sum + job.totalEarnings,
+        );
+
+        setState(() {
+          _todayIncome = todayIncome;
+          _isIncomeLoading = false;
+        });
+        print('✅ Home: Today income loaded: ฿$_todayIncome');
+      } else {
+        setState(() {
+          _isIncomeLoading = false;
+        });
+        print('❌ Home: Failed to load today income: ${result['message']}');
+      }
+    } catch (e) {
+      setState(() {
+        _isIncomeLoading = false;
+      });
+      print('❌ Home: Error loading today income: $e');
+    }
+  }
+
+  // ฟังก์ชันดึงจำนวนงานวันนี้จาก API
+  Future<void> _loadTodayJobCount() async {
+    setState(() {
+      _isJobCountLoading = true;
+    });
+
+    try {
+      // ใช้ JobHistoryService เหมือนใน Jobs.dart
+      final service = JobHistoryService();
+      final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final result = await service.fetchJobHistoryByDate(dateStr);
+
+      if (result['success']) {
+        final jobHistoryResponse = JobHistoryResponse.fromJson(result['data']);
+        final jobs = jobHistoryResponse.data.jobHistory;
+
+        setState(() {
+          _todayJobCount = jobs.length; // นับงานทั้งหมด (เหมือน Jobs.dart)
+          _isJobCountLoading = false;
+        });
+        print('✅ Home: Today job count loaded: $_todayJobCount jobs');
+      } else {
+        setState(() {
+          _isJobCountLoading = false;
+        });
+        print('❌ Home: Failed to load today job count: ${result['message']}');
+      }
+    } catch (e) {
+      setState(() {
+        _isJobCountLoading = false;
+      });
+      print('❌ Home: Error loading today job count: $e');
+    }
+  }
+
+  // โหลดข้อมูลคะแนนรีวิว
+  Future<void> _loadRatingData() async {
+    setState(() {
+      _isRatingLoading = true;
+    });
+
+    try {
+      print('📊 Home: Loading rating data...');
+      final result = await ReviewsService().fetchRiderReviews(limit: 100);
+
+      if (result['success']) {
+        final data = result['data'];
+        final riderSummary = data['rider_summary'];
+
+        if (riderSummary != null) {
+          setState(() {
+            _averageRating =
+                double.tryParse(
+                  riderSummary['rating_avg']?.toString() ?? '0',
+                ) ??
+                0.0;
+            _reviewsCount = riderSummary['reviews_count'] ?? 0;
+            _isRatingLoading = false;
+          });
+          print(
+            '✅ Home: Rating data loaded: $_averageRating ($_reviewsCount reviews)',
+          );
+        } else {
+          setState(() {
+            _averageRating = 0.0;
+            _reviewsCount = 0;
+            _isRatingLoading = false;
+          });
+          print('ℹ️ Home: No rating data available');
+        }
+      } else {
+        setState(() {
+          _averageRating = 0.0;
+          _reviewsCount = 0;
+          _isRatingLoading = false;
+        });
+        print('❌ Home: Failed to load rating data: ${result['message']}');
+      }
+    } catch (e) {
+      setState(() {
+        _averageRating = 0.0;
+        _reviewsCount = 0;
+        _isRatingLoading = false;
+      });
+      print('❌ Home: Error loading rating data: $e');
+    }
+  }
+
   // Method สำหรับ refresh ข้อมูล user
   Future<void> _refreshUserData() async {
     print('🔄 Home: Starting user data refresh...');
@@ -187,8 +335,14 @@ class _HomePageState extends State<HomePage> {
       _isUserDataLoading = true;
     });
 
-    // รีเฟรชทั้งข้อมูลโปรไฟล์และเครดิต
-    await Future.wait([_refreshProfileData(), _loadGPBalance()]);
+    // รีเฟรชทั้งข้อมูลโปรไฟล์, เครดิต, รายได้วันนี้, จำนวนงานวันนี้ และคะแนนรีวิว
+    await Future.wait([
+      _refreshProfileData(),
+      _loadGPBalance(),
+      _loadTodayIncome(),
+      _loadTodayJobCount(),
+      _loadRatingData(),
+    ]);
   }
 
   // แยก method สำหรับรีเฟรชข้อมูลโปรไฟล์
@@ -664,42 +818,43 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     // เลื่อนลงเพื่อรีเฟรชข้อมูล
-    return RefreshIndicator(
-      onRefresh: _refreshUserData,
-      child: WillPopScope(
-        onWillPop: () async {
-          final shouldExit = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('ออกจากแอพ'),
-              content: const Text('คุณต้องการออกจากแอพใช่หรือไม่?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('ยกเลิก'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('ออก'),
-                ),
-              ],
-            ),
-          );
+    return WillPopScope(
+      onWillPop: () async {
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('ออกจากแอพ'),
+            content: const Text('คุณต้องการออกจากแอพใช่หรือไม่?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('ยกเลิก'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('ออก'),
+              ),
+            ],
+          ),
+        );
 
-          if (shouldExit == true) {
-            SystemNavigator.pop();
-          }
+        if (shouldExit == true) {
+          SystemNavigator.pop();
+        }
 
-          return false;
-        },
-        child: Scaffold(
-          backgroundColor: Colors.white,
-          body: SafeArea(
-            child: Column(
-              children: [
-                // Make main content scrollable to avoid bottom overflow
-                Expanded(
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Make main content scrollable to avoid bottom overflow
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _refreshUserData,
                   child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Column(
                       children: [
@@ -920,15 +1075,47 @@ class _HomePageState extends State<HomePage> {
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.start,
                                                 children: [
-                                                  Text(
-                                                    '\$852',
-                                                    style: TextStyle(
-                                                      color: Colors.green[800],
-                                                      fontSize: 20,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
+                                                  _isIncomeLoading
+                                                      ? Container(
+                                                          height: 20,
+                                                          width: 80,
+                                                          decoration: BoxDecoration(
+                                                            color: Colors
+                                                                .grey[300],
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  4,
+                                                                ),
+                                                          ),
+                                                        )
+                                                      : Row(
+                                                          children: [
+                                                            Text(
+                                                              '฿${_todayIncome.toStringAsFixed(2)}',
+                                                              style: TextStyle(
+                                                                color: Colors
+                                                                    .green[800],
+                                                                fontSize: 20,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                              width: 8,
+                                                            ),
+                                                            GestureDetector(
+                                                              onTap:
+                                                                  _loadTodayIncome,
+                                                              child: Icon(
+                                                                Icons.refresh,
+                                                                color: Colors
+                                                                    .green[600],
+                                                                size: 18,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
                                                   const SizedBox(height: 4),
                                                   Text(
                                                     'รายได้วันนี้',
@@ -1126,12 +1313,45 @@ class _HomePageState extends State<HomePage> {
                                                   size: 24,
                                                 ),
                                                 const SizedBox(height: 4),
-                                                Text(
-                                                  '25 งาน',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
+                                                _isJobCountLoading
+                                                    ? SizedBox(
+                                                        width: 16,
+                                                        height: 16,
+                                                        child: CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          valueColor:
+                                                              AlwaysStoppedAnimation<
+                                                                Color
+                                                              >(Colors.red),
+                                                        ),
+                                                      )
+                                                    : Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Text(
+                                                            '$_todayJobCount งาน',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 4,
+                                                          ),
+                                                          GestureDetector(
+                                                            onTap:
+                                                                _loadTodayJobCount,
+                                                            child: Icon(
+                                                              Icons.refresh,
+                                                              color: Colors
+                                                                  .red[600],
+                                                              size: 14,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
                                                 Text(
                                                   'งานวันนี้',
                                                   style: TextStyle(
@@ -1166,14 +1386,54 @@ class _HomePageState extends State<HomePage> {
                                                   size: 24,
                                                 ),
                                                 const SizedBox(height: 4),
+                                                _isRatingLoading
+                                                    ? SizedBox(
+                                                        width: 16,
+                                                        height: 16,
+                                                        child: CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          valueColor:
+                                                              AlwaysStoppedAnimation<
+                                                                Color
+                                                              >(Colors.orange),
+                                                        ),
+                                                      )
+                                                    : Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Text(
+                                                            _averageRating > 0
+                                                                ? _averageRating
+                                                                      .toStringAsFixed(
+                                                                        1,
+                                                                      )
+                                                                : 'ไม่มี',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 4,
+                                                          ),
+                                                          GestureDetector(
+                                                            onTap:
+                                                                _loadRatingData,
+                                                            child: Icon(
+                                                              Icons.refresh,
+                                                              color: Colors
+                                                                  .orange[600],
+                                                              size: 14,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
                                                 Text(
-                                                  '4.5',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  'ดูรีวิวทั้งหมด',
+                                                  _reviewsCount > 0
+                                                      ? 'ดูรีวิว $_reviewsCount รายการ'
+                                                      : 'ยังไม่มีรีวิว',
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     color: Colors.grey,
@@ -1313,94 +1573,93 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                      ],
+                      ], // children
+                    ), // Column
+                  ), // SingleChildScrollView
+                ), // RefreshIndicator
+              ), // Expanded
+              // Bottom button area pinned and safe (prevents overflow)
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _riderStatus == RiderStatus.approved
+                            ? Colors.green
+                            : _riderStatus == RiderStatus.incomplete
+                            ? Colors.blue
+                            : _riderStatus == RiderStatus.rejected
+                            ? Colors.red
+                            : Colors.grey,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _riderStatus == RiderStatus.approved
+                          ? () {
+                              // ตรวจสอบข้อมูลโปรไฟล์ก่อนเริ่มงาน
+                              if (_isProfileInfoMissing()) {
+                                _showIncompleteProfileDialog();
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => RiderJobsPage(
+                                      riderId: _riderId ?? 0,
+                                    ), //รับงาน
+                                  ),
+                                );
+                              }
+                            }
+                          : _riderStatus == RiderStatus.incomplete
+                          ? () {
+                              Navigator.pushNamed(context, '/riderIdentity');
+                            }
+                          : _riderStatus == RiderStatus.rejected
+                          ? () {
+                              Navigator.pushNamed(context, '/riderIdentity');
+                            }
+                          : () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(_getDisabledMessage()),
+                                  backgroundColor: Colors.orange,
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            },
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              _getButtonText(),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
                 ),
-
-                // Bottom button area pinned and safe (prevents overflow)
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _riderStatus == RiderStatus.approved
-                              ? Colors.green
-                              : _riderStatus == RiderStatus.incomplete
-                              ? Colors.blue
-                              : _riderStatus == RiderStatus.rejected
-                              ? Colors.red
-                              : Colors.grey,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: _riderStatus == RiderStatus.approved
-                            ? () {
-                                // ตรวจสอบข้อมูลโปรไฟล์ก่อนเริ่มงาน
-                                if (_isProfileInfoMissing()) {
-                                  _showIncompleteProfileDialog();
-                                } else {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => RiderJobsPage(
-                                        riderId: _riderId ?? 0,
-                                      ), //รับงาน
-                                    ),
-                                  );
-                                }
-                              }
-                            : _riderStatus == RiderStatus.incomplete
-                            ? () {
-                                Navigator.pushNamed(context, '/riderIdentity');
-                              }
-                            : _riderStatus == RiderStatus.rejected
-                            ? () {
-                                Navigator.pushNamed(context, '/riderIdentity');
-                              }
-                            : () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(_getDisabledMessage()),
-                                    backgroundColor: Colors.orange,
-                                    duration: const Duration(seconds: 3),
-                                  ),
-                                );
-                              },
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(
-                                _getButtonText(),
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                      ), // ElevatedButton
-                    ), // SizedBox
-                  ), // SafeArea
-                ), // Padding
-              ], // children
-            ), // Column
-          ), // SafeArea
-        ), // Scaffold
-      ), // WillPopScope
-    );
+              ),
+            ], // children
+          ), // Column
+        ), // SafeArea
+      ), // Scaffold
+    ); // WillPopScope
   }
 }
