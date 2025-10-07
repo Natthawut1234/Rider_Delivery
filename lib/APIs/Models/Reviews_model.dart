@@ -24,16 +24,38 @@ class RiderSummary {
 
   factory RiderSummary.fromJson(Map<String, dynamic> json) {
     return RiderSummary(
-      riderId: json['rider_id'],
-      riderName: json['rider_name'],
-      ratingAvg: double.parse(json['rating_avg'].toString()),
-      reviewsCount: json['reviews_count'],
-      rating5: int.parse(json['rating_5']?.toString() ?? '0'),
-      rating4: int.parse(json['rating_4']?.toString() ?? '0'),
-      rating3: int.parse(json['rating_3']?.toString() ?? '0'),
-      rating2: int.parse(json['rating_2']?.toString() ?? '0'),
-      rating1: int.parse(json['rating_1']?.toString() ?? '0'),
+      riderId: json['rider_id'] ?? 0,
+      riderName: json['rider_name'] ?? '',
+      ratingAvg: _parseDouble(json['rating_avg']),
+      reviewsCount: _parseInt(json['reviews_count']),
+      rating5: _parseInt(json['rating_5']),
+      rating4: _parseInt(json['rating_4']),
+      rating3: _parseInt(json['rating_3']),
+      rating2: _parseInt(json['rating_2']),
+      rating1: _parseInt(json['rating_1']),
     );
+  }
+
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      if (value.isEmpty) return 0.0;
+      return double.tryParse(value) ?? 0.0;
+    }
+    return 0.0;
+  }
+
+  static int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      if (value.isEmpty) return 0;
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
   }
 }
 
@@ -58,13 +80,15 @@ class ReviewsModel {
 
   factory ReviewsModel.fromJson(Map<String, dynamic> json) {
     return ReviewsModel(
-      reviewId: json['review_id'],
-      rating: json['rating'],
-      comment: json['comment'],
-      createdAt: DateTime.parse(json['created_at']),
-      reviewerName: json['reviewer_name'],
-      reviewerPhoto: json['reviewer_photo'],
-      userId: json['user_id'],
+      reviewId: json['review_id'] ?? 0,
+      rating: json['rating'] ?? 0,
+      comment: json['comment'] ?? '',
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at']) ?? DateTime.now()
+          : DateTime.now(),
+      reviewerName: json['reviewer_name'] ?? '',
+      reviewerPhoto: json['reviewer_photo'] ?? '',
+      userId: json['user_id'] ?? 0,
     );
   }
 }

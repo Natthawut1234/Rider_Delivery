@@ -84,13 +84,10 @@ class RiderControllerSocket extends ChangeNotifier {
       notifyListeners();
     });
 
-    _socketService.on('disconnect', (data) async {
+    _socketService.on('disconnect', (data) {
       if (_isDisposed) return;
-      print('❌ Socket disconnected. Attempting reconnect in 3s...');
-      await Future.delayed(const Duration(seconds: 3));
-      if (!_isDisposed) {
-        await initializeSocket(riderId: _currentUserId ?? 0);
-      }
+      print('❌ Socket disconnected');
+      notifyListeners();
     });
 
     // Main order update listener
@@ -155,22 +152,39 @@ class RiderControllerSocket extends ChangeNotifier {
   // Assign rider to order
   Future<bool> assignRider(int orderId, int riderId) async {
     try {
+      print('🚀 Assigning rider $riderId to order $orderId');
       final response = await http.post(
         Uri.parse('$baseUrl/assign_rider'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'order_id': orderId, 'rider_id': riderId}),
       );
 
+      print('📡 Response status: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
+
       final data = json.decode(response.body);
       if (response.statusCode == 200 && data['success'] == true) {
+        print('✅ Rider assigned successfully');
         return true;
       } else {
-        _error = data['error'] ?? 'Failed to assign rider';
+        final errorMsg = data['error'] ?? 'Failed to assign rider';
+        print('❌ Assignment failed: $errorMsg');
+
+        // ตรวจสอบว่าเป็น error เกี่ยวกับเครดิตหรือไม่
+        if (errorMsg.toLowerCase().contains('insufficient') ||
+            errorMsg.toLowerCase().contains('credit')) {
+          _error = 'เครดิตไม่เพียงพอสำหรับรับงานนี้';
+        } else {
+          _error = errorMsg;
+        }
+
         notifyListeners();
         return false;
       }
     } catch (e) {
-      _error = 'Network error: $e';
+      final errorMsg = 'Network error: $e';
+      print('❌ Network error: $e');
+      _error = errorMsg;
       notifyListeners();
       return false;
     }
@@ -495,13 +509,6 @@ class RiderControllerSocket extends ChangeNotifier {
     print("👁️ [RiderSocket] Watching order $orderId");
   }
 
-  void leaveAllOrders() {
-    for (final order in _orders) {
-      _socketService.emit("rider:leaveOrder", order.orderId);
-    }
-    print('🚪 Left all order rooms');
-  }
-
   // Send heartbeat to check connection
   void sendHeartbeat() {
     if (_isDisposed) return;
@@ -773,15 +780,11 @@ class RiderControllerSocket extends ChangeNotifier {
     print('🗑️ Disposing RiderControllerSocket...');
     _isDisposed = true;
 
+    // Cancel debounce timer
     _debounceTimer?.cancel();
     _pendingUpdates.clear();
 
     try {
-      leaveAllOrders();
-      if (_currentUserId != null) {
-        _socketService.emit("leave_room", {"room": "rider:$_currentUserId"});
-        print('🚪 [Socket] Left room: rider:$_currentUserId');
-      }
       _socketService.disconnect();
     } catch (e) {
       print('⚠️ Error disconnecting socket during disposal: $e');
@@ -808,9 +811,6 @@ extension OrderCopyWith on Order {
     String? note,
     double? distanceKm,
     double? deliveryFee,
-    double? bonus,
-    double? riderRequiredGp,
-    double? originalTotalPrice,
     double? totalPrice,
     String? status,
     String? shopStatus, // เพิ่ม shopStatus parameter
@@ -821,6 +821,9 @@ extension OrderCopyWith on Order {
     Map<String, dynamic>? customerLocation,
     Map<String, dynamic>? distanceInfo,
     Map<String, dynamic>? deliverySummary,
+    double? bonus,
+    double? originalTotalPrice,
+    double? riderRequiredGp,
   }) {
     return Order(
       orderId: orderId ?? this.orderId,
@@ -836,10 +839,7 @@ extension OrderCopyWith on Order {
       note: note ?? this.note,
       distanceKm: distanceKm ?? this.distanceKm,
       deliveryFee: deliveryFee ?? this.deliveryFee,
-      bonus: bonus ?? this.bonus,
       totalPrice: totalPrice ?? this.totalPrice,
-      originalTotalPrice: originalTotalPrice ?? this.originalTotalPrice,
-      riderRequiredGp: riderRequiredGp ?? this.riderRequiredGp,
       status: status ?? this.status,
       shopStatus: shopStatus ?? this.shopStatus, // เพิ่ม shopStatus
       createdAt: createdAt ?? this.createdAt,
@@ -849,6 +849,9 @@ extension OrderCopyWith on Order {
       customerLocation: customerLocation ?? this.customerLocation,
       distanceInfo: distanceInfo ?? this.distanceInfo,
       deliverySummary: deliverySummary ?? this.deliverySummary,
+      bonus: bonus ?? this.bonus,
+      originalTotalPrice: originalTotalPrice ?? this.originalTotalPrice,
+      riderRequiredGp: riderRequiredGp ?? this.riderRequiredGp,
     );
   }
 }

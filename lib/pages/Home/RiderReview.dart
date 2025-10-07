@@ -35,17 +35,42 @@ class _RiderReviewPageState extends State<RiderReviewPage> {
         final data = result['data'];
 
         setState(() {
-          // Parse rider summary
+          // Parse rider summary with null safety
           if (data['rider_summary'] != null) {
-            _riderSummary = RiderSummary.fromJson(data['rider_summary']);
+            try {
+              _riderSummary = RiderSummary.fromJson(data['rider_summary']);
+            } catch (e) {
+              print('Error parsing rider summary: $e');
+              // สร้าง RiderSummary เริ่มต้นถ้าไม่สามารถ parse ได้
+              _riderSummary = RiderSummary(
+                riderId: 0,
+                riderName: '',
+                ratingAvg: 0.0,
+                reviewsCount: 0,
+              );
+            }
           }
 
-          // Parse reviews list
-          _reviews =
-              (data['items'] as List?)
-                  ?.map((json) => ReviewsModel.fromJson(json))
-                  .toList() ??
-              [];
+          // Parse reviews list with error handling
+          try {
+            _reviews =
+                (data['items'] as List?)
+                    ?.map((json) {
+                      try {
+                        return ReviewsModel.fromJson(json);
+                      } catch (e) {
+                        print('Error parsing review item: $e');
+                        return null;
+                      }
+                    })
+                    .where((review) => review != null)
+                    .cast<ReviewsModel>()
+                    .toList() ??
+                [];
+          } catch (e) {
+            print('Error parsing reviews list: $e');
+            _reviews = [];
+          }
 
           _isLoading = false;
         });
@@ -56,8 +81,9 @@ class _RiderReviewPageState extends State<RiderReviewPage> {
         });
       }
     } catch (e) {
+      print('Error in _loadReviews: $e');
       setState(() {
-        _errorMessage = 'เกิดข้อผิดพลาด: $e';
+        _errorMessage = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
         _isLoading = false;
       });
     }
@@ -186,7 +212,7 @@ class _RiderReviewPageState extends State<RiderReviewPage> {
       );
     }
 
-    // คำนวณการกระจายคะแนนจาก _riderSummary
+    // คำนวณการกระจายคะแนนจาก _riderSummary (with null safety)
     final Map<int, int> distribution = {
       5: _riderSummary!.rating5,
       4: _riderSummary!.rating4,
@@ -194,6 +220,13 @@ class _RiderReviewPageState extends State<RiderReviewPage> {
       2: _riderSummary!.rating2,
       1: _riderSummary!.rating1,
     };
+
+    // ปกป้องการหารด้วยศูนย์
+    final totalReviews = _riderSummary!.reviewsCount;
+    final avgRating =
+        _riderSummary!.ratingAvg.isFinite && !_riderSummary!.ratingAvg.isNaN
+        ? _riderSummary!.ratingAvg
+        : 0.0;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -218,7 +251,7 @@ class _RiderReviewPageState extends State<RiderReviewPage> {
               Column(
                 children: [
                   Text(
-                    _riderSummary!.ratingAvg.toStringAsFixed(1),
+                    avgRating.toStringAsFixed(1),
                     style: const TextStyle(
                       fontSize: 36,
                       fontWeight: FontWeight.bold,
@@ -230,8 +263,7 @@ class _RiderReviewPageState extends State<RiderReviewPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: () {
                       final double rounded =
-                          (_riderSummary!.ratingAvg * 2).round() /
-                          2.0; // ปัดเป็น 0.5
+                          (avgRating * 2).round() / 2.0; // ปัดเป็น 0.5
                       return List.generate(5, (index) {
                         final pos = index + 1;
                         IconData icon;
@@ -248,7 +280,7 @@ class _RiderReviewPageState extends State<RiderReviewPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${_riderSummary!.reviewsCount} รีวิว',
+                    '$totalReviews รีวิว',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                 ],
@@ -261,9 +293,9 @@ class _RiderReviewPageState extends State<RiderReviewPage> {
                 child: Column(
                   children: [5, 4, 3, 2, 1].map((star) {
                     int count = distribution[star]!;
-                    double percentage = _riderSummary!.reviewsCount == 0
+                    double percentage = totalReviews == 0
                         ? 0
-                        : count / _riderSummary!.reviewsCount;
+                        : count / totalReviews;
 
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),

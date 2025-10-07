@@ -33,6 +33,14 @@ class AuthService {
         await prefs.setString('token', data['token']);
         await prefs.setString('user_rider', jsonEncode(data['user']));
 
+        // บันทึก rider_id แยกต่างหาก เพื่อป้องกันการสูญหาย
+        if (data['user'] != null && data['user']['rider_id'] != null) {
+          await prefs.setInt('cached_rider_id', data['user']['rider_id']);
+          print(
+            '🔐 Manual Login: Cached rider_id = ${data['user']['rider_id']}',
+          );
+        }
+
         // บันทึก refresh token ถ้ามี
         if (data['refresh_token'] != null) {
           await prefs.setString('refresh_token', data['refresh_token']);
@@ -89,6 +97,14 @@ class AuthService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', data['token']);
         await prefs.setString('user_rider', jsonEncode(data['user']));
+
+        // บันทึก rider_id แยกต่างหาก เพื่อป้องกันการสูญหาย
+        if (data['user'] != null && data['user']['rider_id'] != null) {
+          await prefs.setInt('cached_rider_id', data['user']['rider_id']);
+          print(
+            '🔐 Google Login: Cached rider_id = ${data['user']['rider_id']}',
+          );
+        }
 
         // บันทึก refresh token ถ้ามี
         if (data['refresh_token'] != null) {

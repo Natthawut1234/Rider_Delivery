@@ -1604,19 +1604,149 @@ class _RiderJobsPageState extends State<RiderJobsPage>
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              final success = await _orderController.assignRider(
-                order.orderId,
-                widget.riderId,
-              );
-              if (success) {
-                _showSuccessSnackBar('รับงานสำเร็จ!');
-                await _fetchOrders();
-              } else {
-                _showErrorSnackBar('ไม่สามารถรับงานได้');
-              }
+              await _handleAcceptOrder(order);
             },
             style: ElevatedButton.styleFrom(backgroundColor: lightGreen),
             child: const Text('ยืนยัน', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleAcceptOrder(Order order) async {
+    try {
+      final success = await _orderController.assignRider(
+        order.orderId,
+        widget.riderId,
+      );
+
+      if (success) {
+        _showSuccessSnackBar('รับงานสำเร็จ!');
+        await _fetchOrders();
+      } else {
+        // ตรวจสอบว่าเป็นปัญหาเครดิตไม่พอหรือไม่
+        final error = _orderController.error;
+        print('🔍 Error from API: $error');
+
+        if (error != null &&
+            (error.contains('เครดิต') ||
+                error.contains('credit') ||
+                error.contains('Insufficient') ||
+                error.contains('insufficient') ||
+                error.toLowerCase().contains('credit') ||
+                error.contains('ไม่เพียงพอ'))) {
+          print('💳 Detected insufficient credit error');
+          _showInsufficientCreditDialog(order);
+        } else {
+          print('❌ Other error occurred: $error');
+          _showErrorSnackBar(error ?? 'ไม่สามารถรับงานได้');
+        }
+      }
+    } catch (e) {
+      _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
+    }
+  }
+
+  void _showInsufficientCreditDialog(Order order) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // ป้องกันไม่ให้ปิด dialog เมื่อแตะข้างนอก
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange, size: 28),
+            const SizedBox(width: 8),
+            const Text(
+              'เครดิตไม่เพียงพอ',
+              style: TextStyle(
+                color: Colors.orange,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.orange.shade700,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'เครดิตในบัญชีของคุณไม่เพียงพอสำหรับรับงานนี้',
+                          style: TextStyle(
+                            color: Colors.orange.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text('ร้าน: ${order.shopName}'),
+                  Text(
+                    'เครดิตที่ต้องใช้: ${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'กรุณาเติมเครดิตก่อนรับงาน',
+                      style: TextStyle(
+                        color: Colors.orange.shade800,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              // ปิดป๊อปอัพและกลับไปหน้า Home
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
+            child: const Text('ตกลง', style: TextStyle(color: Colors.orange)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // ปิดป๊อปอัพทั้งหมดและไปหน้า MyCredit
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              Navigator.pushNamed(context, '/myCredit');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text(
+              'เติมเครดิต',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
