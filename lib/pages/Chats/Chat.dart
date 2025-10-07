@@ -32,10 +32,10 @@ class _RiderChatPageState extends State<RiderChatPage> {
   String? partnerPhoto;
   String? partnerPhone;
   String? userType;
-  
+
   // ✅ แยก ID ให้ชัดเจน
-  int? userId;      // สำหรับเปรียบเทียบข้อความ (rider_id สำหรับ rider)
-  int? riderId;     // สำหรับ business logic (rider_id เดียวกับ userId สำหรับ rider)
+  int? userId; // สำหรับเปรียบเทียบข้อความ (rider_id สำหรับ rider)
+  int? riderId; // สำหรับ business logic (rider_id เดียวกับ userId สำหรับ rider)
 
   // Chat service and controller
   RiderChatController? _chatController;
@@ -80,10 +80,10 @@ class _RiderChatPageState extends State<RiderChatPage> {
     partnerPhoto = args!['partnerPhoto'];
     partnerPhone = args!['partnerPhone'];
     userType = args!['userType'];
-    
+
     // ✅ สำหรับ rider: userId และ riderId จะเป็นค่าเดียวกัน (rider_id)
-    userId = args!['userId'];     // rider_id สำหรับเปรียบเทียบข้อความ
-    riderId = args!['riderId'];   // rider_id สำหรับ business logic
+    userId = args!['userId']; // rider_id สำหรับเปรียบเทียบข้อความ
+    riderId = args!['riderId']; // rider_id สำหรับ business logic
 
     print('🔍 Chat Page Arguments:');
     print('   roomId: $roomId');
@@ -100,8 +100,9 @@ class _RiderChatPageState extends State<RiderChatPage> {
     // ✅ เชื่อมต่อ socket ด้วย riderId และ userId ที่ถูกต้อง
     if (_chatController!.riderId != null && _chatController!.userId != null) {
       await _chatService!.connectSocket(
-        _chatController!.riderId!,  // rider_id สำหรับ business logic
-        _chatController!.userId!,   // user_id สำหรับ authentication (จาก users table)
+        _chatController!.riderId!, // rider_id สำหรับ business logic
+        _chatController!
+            .userId!, // user_id สำหรับ authentication (จาก users table)
       );
     }
 
@@ -118,7 +119,9 @@ class _RiderChatPageState extends State<RiderChatPage> {
     // Setup stream listeners
     _messageSubscription = _chatService!.messageStream.listen(_onNewMessage);
     _typingSubscription = _chatService!.typingStream.listen(_onUserTyping);
-    _connectionSubscription = _chatService!.connectionStream.listen(_onConnectionChanged);
+    _connectionSubscription = _chatService!.connectionStream.listen(
+      _onConnectionChanged,
+    );
 
     if (mounted) {
       setState(() => _isConnected = _chatService!.isConnected);
@@ -208,17 +211,17 @@ class _RiderChatPageState extends State<RiderChatPage> {
       // ✅ ป้องกัน duplicate messages
       final isDuplicate = _messages.any((existingMessage) {
         // ตรวจสอบ message_id ก่อน
-        if (existingMessage.messageId == message.messageId && 
-            existingMessage.messageId != null && 
+        if (existingMessage.messageId == message.messageId &&
+            existingMessage.messageId != null &&
             message.messageId != null) {
           return true;
         }
-        
+
         // ถ้าไม่มี message_id ให้ตรวจสอบเนื้อหาและเวลา
         return existingMessage.messageText == message.messageText &&
-               existingMessage.senderId == message.senderId &&
-               existingMessage.senderType == message.senderType &&
-               _isMessageTimeSimilar(existingMessage.createdAt, message.createdAt);
+            existingMessage.senderId == message.senderId &&
+            existingMessage.senderType == message.senderType &&
+            _isMessageTimeSimilar(existingMessage.createdAt, message.createdAt);
       });
 
       if (!isDuplicate) {
@@ -251,11 +254,36 @@ class _RiderChatPageState extends State<RiderChatPage> {
     }
   }
 
-  void _onConnectionChanged(bool connected) {
+  void _onConnectionChanged(bool connected) async {
     if (mounted) {
       setState(() {
         _isConnected = connected;
       });
+    }
+
+    if (!connected) {
+      print('⚠️ Socket disconnected. Retrying in 3 seconds...');
+      Future.delayed(const Duration(seconds: 3), () async {
+        if (!_isConnected) {
+          print('🔌 Attempting to reconnect socket...');
+          await _chatService?.connectSocket(riderId!, userId!);
+
+          if (roomId != null) {
+            await _chatService?.joinRoom(roomId!);
+            print('✅ Re-joined room after reconnect');
+            await _loadInitialMessages();
+          }
+        }
+      });
+    }
+
+    if (connected) {
+      print('🔌 Socket reconnected! Re-joining room...');
+      if (roomId != null) {
+        await _chatService?.joinRoom(roomId!);
+        print('✅ Re-joined room $roomId');
+      }
+      await _loadInitialMessages();
     }
   }
 
@@ -367,13 +395,16 @@ class _RiderChatPageState extends State<RiderChatPage> {
   // ✅ ปรับปรุงการตรวจสอบข้อความของตัวเอง
   bool _isMyMessage(ChatMessage message) {
     print('🔍 Message ownership check:');
-    print('   Message: senderType=${message.senderType}, senderId=${message.senderId}');
+    print(
+      '   Message: senderType=${message.senderType}, senderId=${message.senderId}',
+    );
     print('   Current: userType=$userType, userId=$userId');
-    
+
     // สำหรับ rider: ตรวจสอบว่า senderType เป็น 'rider' และ senderId ตรง userId (ซึ่งเป็น rider_id)
-    final result = (message.senderType == userType && 
-                   message.senderId?.toString() == userId?.toString());
-    
+    final result =
+        (message.senderType == userType &&
+        message.senderId?.toString() == userId?.toString());
+
     print('   Result: $result');
     return result;
   }
@@ -382,22 +413,32 @@ class _RiderChatPageState extends State<RiderChatPage> {
     final isOwnMessage = _isMyMessage(message);
 
     print('📨 Building message:');
-    print('   senderId: ${message.senderId}, senderType: ${message.senderType}');
+    print(
+      '   senderId: ${message.senderId}, senderType: ${message.senderType}',
+    );
     print('   isOwnMessage: $isOwnMessage');
 
-    final alignment = isOwnMessage ? Alignment.centerRight : Alignment.centerLeft;
+    final alignment = isOwnMessage
+        ? Alignment.centerRight
+        : Alignment.centerLeft;
     final color = isOwnMessage ? Colors.green[300] : Colors.grey[300];
     final borderRadius = BorderRadius.only(
       topLeft: const Radius.circular(12),
       topRight: const Radius.circular(12),
-      bottomLeft: isOwnMessage ? const Radius.circular(12) : const Radius.circular(0),
-      bottomRight: isOwnMessage ? const Radius.circular(0) : const Radius.circular(12),
+      bottomLeft: isOwnMessage
+          ? const Radius.circular(12)
+          : const Radius.circular(0),
+      bottomRight: isOwnMessage
+          ? const Radius.circular(0)
+          : const Radius.circular(12),
     );
 
     return Align(
       alignment: alignment,
       child: Row(
-        mainAxisAlignment: isOwnMessage ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isOwnMessage
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isOwnMessage)
@@ -406,10 +447,14 @@ class _RiderChatPageState extends State<RiderChatPage> {
               child: CircleAvatar(
                 radius: 16,
                 backgroundColor: Colors.grey[300],
-                backgroundImage: message.senderPhoto != null && message.senderPhoto!.isNotEmpty
+                backgroundImage:
+                    message.senderPhoto != null &&
+                        message.senderPhoto!.isNotEmpty
                     ? NetworkImage(message.senderPhoto!)
                     : null,
-                child: (message.senderPhoto == null || message.senderPhoto!.isEmpty)
+                child:
+                    (message.senderPhoto == null ||
+                        message.senderPhoto!.isEmpty)
                     ? const Icon(Icons.person, size: 16, color: Colors.grey)
                     : null,
               ),
@@ -434,7 +479,8 @@ class _RiderChatPageState extends State<RiderChatPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (message.messageType == 'image' && message.imageUrl != null)
+                  if (message.messageType == 'image' &&
+                      message.imageUrl != null)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: message.imageUrl!.startsWith('http')
@@ -443,15 +489,18 @@ class _RiderChatPageState extends State<RiderChatPage> {
                               width: 180,
                               height: 180,
                               fit: BoxFit.cover,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  width: 180,
-                                  height: 180,
-                                  color: Colors.grey[200],
-                                  child: const Center(child: CircularProgressIndicator()),
-                                );
-                              },
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      width: 180,
+                                      height: 180,
+                                      color: Colors.grey[200],
+                                      child: const Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  },
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
                                   width: 180,
@@ -517,7 +566,9 @@ class _RiderChatPageState extends State<RiderChatPage> {
           CircleAvatar(
             radius: 16,
             backgroundColor: Colors.grey[300],
-            backgroundImage: partnerPhoto != null ? NetworkImage(partnerPhoto!) : null,
+            backgroundImage: partnerPhoto != null
+                ? NetworkImage(partnerPhoto!)
+                : null,
             child: partnerPhoto == null
                 ? const Icon(Icons.person, size: 16, color: Colors.grey)
                 : null,
@@ -576,7 +627,9 @@ class _RiderChatPageState extends State<RiderChatPage> {
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.grey[300],
-              backgroundImage: partnerPhoto != null ? NetworkImage(partnerPhoto!) : null,
+              backgroundImage: partnerPhoto != null
+                  ? NetworkImage(partnerPhoto!)
+                  : null,
               child: partnerPhoto == null
                   ? const Icon(Icons.person, color: Colors.grey)
                   : null,
@@ -670,12 +723,19 @@ class _RiderChatPageState extends State<RiderChatPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.photo_camera, color: Colors.green),
-                          onPressed: _isUploadingImage ? null : () => _pickImage(ImageSource.camera),
+                          icon: const Icon(
+                            Icons.photo_camera,
+                            color: Colors.green,
+                          ),
+                          onPressed: _isUploadingImage
+                              ? null
+                              : () => _pickImage(ImageSource.camera),
                         ),
                         IconButton(
                           icon: const Icon(Icons.photo, color: Colors.green),
-                          onPressed: _isUploadingImage ? null : () => _pickImage(ImageSource.gallery),
+                          onPressed: _isUploadingImage
+                              ? null
+                              : () => _pickImage(ImageSource.gallery),
                         ),
                       ],
                     ),
@@ -695,10 +755,15 @@ class _RiderChatPageState extends State<RiderChatPage> {
                                 SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 ),
                                 SizedBox(width: 8),
-                                Text('กำลังอัพโลดรูปภาพ...', style: TextStyle(fontSize: 12)),
+                                Text(
+                                  'กำลังอัพโลดรูปภาพ...',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ],
                             ),
                           ),
@@ -760,7 +825,10 @@ class _RiderChatPageState extends State<RiderChatPage> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(24),
-                              borderSide: const BorderSide(color: Colors.green, width: 2),
+                              borderSide: const BorderSide(
+                                color: Colors.green,
+                                width: 2,
+                              ),
                             ),
                             filled: true,
                             fillColor: Colors.grey[100],
