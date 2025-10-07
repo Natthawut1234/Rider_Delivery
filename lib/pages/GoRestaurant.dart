@@ -21,44 +21,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
   bool foodReceived = false; // เพิ่มสถานะใหม่สำหรับรับอาหารแล้ว
   bool _isLoading = true;
 
-  // Calculate items subtotal
-  double get itemsSubtotal {
-    return orderItems.fold(0.0, (sum, item) => sum + item.subtotal);
-  }
-
-  // Helpers to include selected option prices in totals (match JobStart.dart)
-  double _asDouble(dynamic v) {
-    if (v == null) return 0.0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0.0;
-  }
-
-  double _optionsExtraPerUnit(OrderItem item) {
-    if (item.selectedOptions.isEmpty) return 0.0;
-    return item.selectedOptions
-        .map((o) => _asDouble((o as Map?)?['extraPrice']))
-        .fold(0.0, (a, b) => a + b);
-  }
-
-  double _orderBasePrice() {
-    final order = currentOrder;
-    if (order == null) return 0.0;
-    if (order.basePrice != null) return order.basePrice!.toDouble();
-    return order.items.fold(
-      0.0,
-      (sum, item) => sum + ((item.basePrice ?? item.sellPrice) * item.quantity),
-    );
-  }
-
-  double _orderOptionsExtras() {
-    final order = currentOrder;
-    if (order == null) return 0.0;
-    return order.items.fold(
-      0.0,
-      (sum, item) => sum + (_optionsExtraPerUnit(item) * item.quantity),
-    );
-  }
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -202,8 +164,8 @@ class _GoRestaurantState extends State<GoRestaurant> {
   String get paymentMethod => currentOrder?.paymentMethod ?? 'เงินสด';
   double get totalPrice => currentOrder?.totalPrice ?? 0.0;
   double get deliveryFee => currentOrder?.deliveryFee ?? 0.0;
-  // Pay-at-shop = base food price + selected option extras (rounded)
-  int get shopPayAmount => (_orderBasePrice() + _orderOptionsExtras()).round();
+  // Pay-at-shop = use originalTotalPrice to match JobStart
+  double get shopPayAmount => currentOrder?.originalTotalPrice ?? 0.0;
   String get deliveryType =>
       currentOrder?.deliveryType ?? 'ไม่ระบุประเภทการจัดส่ง';
   String get note => currentOrder?.note ?? 'เพิ่มเติม: -';
@@ -212,7 +174,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
   List<OrderItem> get orderItems => currentOrder?.items ?? [];
   String get orderNumberDisplay => currentOrder?.orderId.toString() ?? '';
   int get earn => currentOrder != null ? deliveryFee.toInt() : 0;
-  int get bonus => 0; // Bonus logic can be added here
+  double get bonus => currentOrder?.bonus ?? 0.0;
 
   void _showOrderDetailsDialog(BuildContext context) {
     showDialog(
@@ -469,6 +431,28 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         ),
                       ],
                     ),
+                    // if (bonus > 0) ...[
+                    //   SizedBox(height: 8),
+                    //   Row(
+                    //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    //     children: [
+                    //       Text(
+                    //         'โบนัส',
+                    //         style: TextStyle(
+                    //           fontSize: 16,
+                    //           color: Colors.orange,
+                    //         ),
+                    //       ),
+                    //       Text(
+                    //         '+ ${bonus.toStringAsFixed(0)} บาท',
+                    //         style: TextStyle(
+                    //           fontSize: 16,
+                    //           color: Colors.orange,
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    // ],
                     SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -502,7 +486,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                           ),
                         ),
                         Text(
-                          '${shopPayAmount.toString()} บาท',
+                          '${shopPayAmount.toStringAsFixed(0)} บาท',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -717,7 +701,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                   'deliveryType': deliveryType,
                   'note': note,
                   'earn': earn.toDouble(),
-                  'payAtShop': shopPayAmount.toDouble(),
+                  'payAtShop': shopPayAmount,
                   'bonus': bonus.toDouble(),
                   'totalReceived': (earn + shopPayAmount + bonus).toDouble(),
                   'payType': paymentMethod,
@@ -732,6 +716,8 @@ class _GoRestaurantState extends State<GoRestaurant> {
                           'quantity': item.quantity,
                           'selectedOptions': item.selectedOptions,
                           'subtotal': item.subtotal,
+                          'additionalNotes':
+                              item.additionalNotes, // เพิ่ม additionalNotes
                         },
                       )
                       .toList(),
@@ -871,22 +857,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
 
     // ร้านทั่วไปต้องรอให้ร้านยืนยันก่อน
     return currentOrder!.status == 'confirmed';
-  }
-
-  bool _canPickupFood() {
-    if (currentOrder == null) return false;
-
-    // ถ้าเป็นร้านแอดมิน สามารถรับได้เลยเมื่อถึงร้าน
-    final marketLocation = currentOrder!.marketLocation;
-    final isAdminShop = marketLocation?['owner_id'] == null;
-
-    if (isAdminShop && currentOrder!.status == 'arrived_at_shop') {
-      return true;
-    }
-
-    // ร้านทั่วไปต้องรอให้ shop_status เป็น ready_for_pickup
-    return currentOrder!.status == 'arrived_at_shop' &&
-        currentOrder!.shopStatus == 'ready_for_pickup';
   }
 
   String _getButtonText() {
@@ -1361,6 +1331,39 @@ class _GoRestaurantState extends State<GoRestaurant> {
                     ),
                   SizedBox(height: 16),
 
+                  // Header Section Divider
+                  Container(
+                    margin: EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: Colors.grey.shade300,
+                          ),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            'รายละเอียดออเดอร์',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: Colors.grey.shade300,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+
                   // Order Items Display
                   if (!(arrivedAtRestaurant && !confirmedArrival))
                     Container(
@@ -1410,64 +1413,201 @@ class _GoRestaurantState extends State<GoRestaurant> {
                           ),
                           SizedBox(height: 12),
                           ...orderItems.map(
-                            (item) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
+                            (item) => Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  OrderItemWidget(
-                                    name: item.foodName,
-                                    option: item.selectedOptions.isNotEmpty
-                                        ? item.selectedOptions
-                                              .map((opt) => opt['label'])
-                                              .join(', ')
-                                        : '',
-                                    description: '',
-                                    quantity: 'x${item.quantity}',
-                                    price:
-                                        '${item.subtotal.toStringAsFixed(0)} บาท',
+                                  // Header ของเมนู
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          item.foodName,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            'x${item.quantity}',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.green,
+                                            ),
+                                          ),
+                                          Text(
+                                            '${item.subtotal.toStringAsFixed(0)} บาท',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.orange,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
+
+                                  // ตัวเลือกเพิ่มเติม (Options)
                                   if (item.selectedOptions.isNotEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 4,
-                                      children: item.selectedOptions.map((
-                                        option,
-                                      ) {
-                                        final label =
-                                            option['label']?.toString() ?? '';
-                                        final extraPrice =
-                                            option['extraPrice']?.toString() ??
-                                            '0';
-                                        return Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green.withOpacity(
-                                              0.1,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.green.withOpacity(
-                                                0.2,
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: Colors.green.withOpacity(0.2),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.add_circle_outline,
+                                                color: Colors.green[700],
+                                                size: 16,
                                               ),
-                                            ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'ตัวเลือกเพิ่มเติม:',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.green[700],
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          child: Text(
-                                            '$label (+฿$extraPrice)',
+                                          const SizedBox(height: 8),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: item.selectedOptions.map((
+                                              option,
+                                            ) {
+                                              final label =
+                                                  option['label']?.toString() ??
+                                                  '';
+                                              final extraPrice =
+                                                  option['extraPrice']
+                                                      ?.toString() ??
+                                                  '0';
+                                              return Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 6,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                  border: Border.all(
+                                                    color: Colors.green
+                                                        .withOpacity(0.4),
+                                                    width: 1,
+                                                  ),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Colors.green
+                                                          .withOpacity(0.1),
+                                                      blurRadius: 2,
+                                                      offset: const Offset(
+                                                        0,
+                                                        1,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: Text(
+                                                  '$label (+฿$extraPrice)',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.green[800],
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+
+                                  // หมายเหตุเพิ่มเติม (Additional Notes)
+                                  if (item.additionalNotes.isNotEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: Colors.orange.withOpacity(0.2),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.note_alt_outlined,
+                                                color: Colors.orange[700],
+                                                size: 16,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'หมายเหตุเพิ่มเติม:',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.orange[700],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            item.additionalNotes,
                                             style: TextStyle(
-                                              fontSize: 11,
-                                              color: Colors.green[800],
-                                              fontWeight: FontWeight.w500,
+                                              fontSize: 13,
+                                              color: Colors.orange[800],
+                                              height: 1.3,
                                             ),
                                           ),
-                                        );
-                                      }).toList(),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ],
@@ -1518,6 +1658,29 @@ class _GoRestaurantState extends State<GoRestaurant> {
                               ),
                             ],
                           ),
+                          // if (bonus > 0) ...[
+                          //   SizedBox(height: 4),
+                          //   Row(
+                          //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          //     children: [
+                          //       Text(
+                          //         'โบนัส',
+                          //         style: TextStyle(
+                          //           fontSize: 14,
+                          //           color: Colors.orange[600],
+                          //         ),
+                          //       ),
+                          //       Text(
+                          //         '+ ${bonus.toStringAsFixed(0)} บาท',
+                          //         style: TextStyle(
+                          //           fontSize: 14,
+                          //           fontWeight: FontWeight.w500,
+                          //           color: Colors.orange[600],
+                          //         ),
+                          //       ),
+                          //     ],
+                          //   ),
+                          // ],
                           SizedBox(height: 4),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1542,6 +1705,22 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         ],
                       ),
                     ),
+
+                  // Section Divider
+                  SizedBox(height: 20),
+                  Container(
+                    margin: EdgeInsets.symmetric(horizontal: 16),
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          Colors.grey.shade300,
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
 
                   // Restaurant Direction Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
                   if (!foodReceived)
@@ -1670,7 +1849,39 @@ class _GoRestaurantState extends State<GoRestaurant> {
                     ),
 
                   // Recommendation Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
-                  if (!foodReceived)
+                  if (!foodReceived) ...[
+                    // Header for Recommendation Section
+                    Container(
+                      margin: EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              color: Colors.grey.shade300,
+                            ),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'ข้อมูลการเดินทาง',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              color: Colors.grey.shade300,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
                     Container(
                       alignment: Alignment.centerLeft,
                       margin: EdgeInsets.symmetric(horizontal: 16),
@@ -1720,6 +1931,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         ],
                       ),
                     ),
+                  ],
 
                   SizedBox(height: 16),
 
@@ -1881,7 +2093,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                           ),
                         ),
                         Text(
-                          '${shopPayAmount.toString()} บาท',
+                          '${shopPayAmount.toStringAsFixed(0)} บาท',
                           style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -1974,17 +2186,47 @@ class OrderItemWidget extends StatelessWidget {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                   ),
                   if (option.isNotEmpty) ...[
-                    SizedBox(height: 2),
-                    Text(
-                      option,
-                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    SizedBox(height: 4),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: Colors.blue.shade200,
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        option,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ],
                   if (description.isNotEmpty) ...[
-                    SizedBox(height: 2),
-                    Text(
-                      "เพิ่มเติม: " + description,
-                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    SizedBox(height: 4),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: Colors.green.shade200,
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        "เพิ่มเติม: " + description,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ],
                 ],

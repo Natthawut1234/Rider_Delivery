@@ -30,6 +30,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   double _thisSubprice(Order order) {
     return order.items.fold(0.0, (sum, item) => sum + item.subtotal);
   }
+  // ราคา original_total_price
 
   // Helpers to include selected option prices in per-item total
   double _asDouble(dynamic v) {
@@ -525,6 +526,41 @@ class _RiderJobsPageState extends State<RiderJobsPage>
               ),
             ),
             const SizedBox(height: 12),
+            if (order.bonus > 0) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: lightGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: lightGreen.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.monetization_on,
+                          color: Colors.orange,
+                          size: 18,
+                        ),
+
+                        const SizedBox(width: 8),
+                        Text(
+                          'เครดิตช่วยจ่าย ฿${order.bonus.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
 
             // Address
             Row(
@@ -547,7 +583,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
             // Items summary
             if (order.items.isNotEmpty) ...[
               Text(
-                'รายการ: ${order.items.length} เมนู - ฿${{_thisSubprice(order).toStringAsFixed(0)}}',
+                'รายการ: ${order.items.length} เมนู  จ่ายให้ร้าน ฿${order.originalTotalPrice.toStringAsFixed(0)}',
                 style: const TextStyle(
                   color: primaryGreen,
                   fontWeight: FontWeight.w500,
@@ -659,6 +695,25 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                     ),
                   ),
                 ),
+                const SizedBox(width: 5),
+                if (order.bonus > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange),
+                    ),
+                    child: Text(
+                      'เครดิตช่วยจ่าย ฿${order.bonus.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[800],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
 
@@ -982,15 +1037,34 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'ค่าอาหารจ่ายให้ร้าน: ฿${(_orderBasePrice(order) + _orderOptionsExtras(order)).toStringAsFixed(0)}',
+                            'ค่าอาหารจ่ายให้ร้าน: ฿${(order.originalTotalPrice).toStringAsFixed(0)}',
                             style: const TextStyle(fontSize: 12),
                           ),
                           Text(
                             'ค่าส่ง: ฿${order.deliveryFee.toStringAsFixed(0)}',
                             style: const TextStyle(fontSize: 12),
                           ),
+                          if (order.bonus > 0)
+                            Text(
+                              'เครดิตช่วยจ่าย: ฿${order.bonus.toStringAsFixed(0)}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
                         ],
                       ),
+                      // Text(
+                      //   'รวมที่ต้องรับจากลูกค้า: ฿${order.totalPrice.toStringAsFixed(0)}',
+                      //   style: const TextStyle(
+                      //     fontWeight: FontWeight.bold,
+                      //     fontSize: 16,
+                      //     color: primaryGreen,
+                      //   ),
+                      // ),
+                    ],
+                  ),
+                  const Divider(color: lightGreen, thickness: 1),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
                       Text(
                         'รวมที่ต้องรับจากลูกค้า: ฿${order.totalPrice.toStringAsFixed(0)}',
                         style: const TextStyle(
@@ -1105,7 +1179,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'ราคาฐาน: ฿${item.sellPrice.toStringAsFixed(0)}',
+                'ราคาขาย: ฿${item.sellPrice.toStringAsFixed(0)}',
                 style: const TextStyle(fontSize: 13, color: Colors.grey),
               ),
               Text(
@@ -1177,6 +1251,45 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                         ),
                       );
                     }).toList(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          // Additional notes for the item if any
+          if (item.additionalNotes.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.note, color: Colors.grey[700], size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        'เพิ่มเติม:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    children: [
+                      Text(
+                        item.additionalNotes,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1317,6 +1430,16 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                       color: lightGreen,
                     ),
                   ),
+                  if (order.bonus > 0) ...[
+                    Text(
+                      'เครดิตช่วยจ่าย ฿${order.bonus.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
                 ],
               ],
             ),
@@ -1353,12 +1476,9 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                 'deliveryType': order.deliveryType,
                 'note': order.note ?? 'เพิ่มเติม: -',
                 'earn': order.deliveryFee,
-                'payAtShop':
-                    (_orderBasePrice(order) + _orderOptionsExtras(order)),
+                'payAtShop': order.originalTotalPrice,
                 'bonus': 0.0,
-                'totalReceived':
-                    order.deliveryFee +
-                    (_orderBasePrice(order) + _orderOptionsExtras(order)),
+                'totalReceived': order.deliveryFee + order.originalTotalPrice,
                 'payType': order.paymentMethod,
                 'distance':
                     '${order.distanceKm?.toStringAsFixed(1) ?? '0.0'} กม.',
@@ -1372,6 +1492,8 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                         'quantity': item.quantity,
                         'selectedOptions': item.selectedOptions,
                         'subtotal': item.subtotal,
+                        'additionalNotes':
+                            item.additionalNotes, // เพิ่ม additionalNotes
                       },
                     )
                     .toList(),
@@ -1436,8 +1558,37 @@ class _RiderJobsPageState extends State<RiderJobsPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('ร้าน: ${order.shopName}'),
-            Text('รายได้: ฿$earning'),
+            // รายได้ และแสดงโบนัสถ้ามี
+            Builder(
+              builder: (_) {
+                final bonus = order.bonus;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('รายได้: ฿${earning.toStringAsFixed(0)}'),
+                    if (bonus > 0) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'เครดิตช่วยจ่าย: ฿${bonus.toStringAsFixed(0)}',
+                        style: const TextStyle(color: Colors.orange),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
             Text('ระยะทาง: ${(order.distanceKm ?? 0).toStringAsFixed(1)} กม.'),
+            if (order.bonus > 0) ...[
+              Text(
+                'เหลือเครดิตที่ต้องใช้: ${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
+                style: TextStyle(color: Colors.green[600]),
+              ),
+            ] else ...[
+              Text(
+                'เครดิตที่ต้องใช้: ${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
+                style: TextStyle(color: Colors.green[600]),
+              ),
+            ],
             const SizedBox(height: 8),
             const Text(
               'คุณต้องการรับงานนี้หรือไม่?',
@@ -1453,19 +1604,149 @@ class _RiderJobsPageState extends State<RiderJobsPage>
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              final success = await _orderController.assignRider(
-                order.orderId,
-                widget.riderId,
-              );
-              if (success) {
-                _showSuccessSnackBar('รับงานสำเร็จ!');
-                await _fetchOrders();
-              } else {
-                _showErrorSnackBar('ไม่สามารถรับงานได้');
-              }
+              await _handleAcceptOrder(order);
             },
             style: ElevatedButton.styleFrom(backgroundColor: lightGreen),
             child: const Text('ยืนยัน', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleAcceptOrder(Order order) async {
+    try {
+      final success = await _orderController.assignRider(
+        order.orderId,
+        widget.riderId,
+      );
+
+      if (success) {
+        _showSuccessSnackBar('รับงานสำเร็จ!');
+        await _fetchOrders();
+      } else {
+        // ตรวจสอบว่าเป็นปัญหาเครดิตไม่พอหรือไม่
+        final error = _orderController.error;
+        print('🔍 Error from API: $error');
+
+        if (error != null &&
+            (error.contains('เครดิต') ||
+                error.contains('credit') ||
+                error.contains('Insufficient') ||
+                error.contains('insufficient') ||
+                error.toLowerCase().contains('credit') ||
+                error.contains('ไม่เพียงพอ'))) {
+          print('💳 Detected insufficient credit error');
+          _showInsufficientCreditDialog(order);
+        } else {
+          print('❌ Other error occurred: $error');
+          _showErrorSnackBar(error ?? 'ไม่สามารถรับงานได้');
+        }
+      }
+    } catch (e) {
+      _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
+    }
+  }
+
+  void _showInsufficientCreditDialog(Order order) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // ป้องกันไม่ให้ปิด dialog เมื่อแตะข้างนอก
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange, size: 28),
+            const SizedBox(width: 8),
+            const Text(
+              'เครดิตไม่เพียงพอ',
+              style: TextStyle(
+                color: Colors.orange,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.orange.shade700,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'เครดิตในบัญชีของคุณไม่เพียงพอสำหรับรับงานนี้',
+                          style: TextStyle(
+                            color: Colors.orange.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text('ร้าน: ${order.shopName}'),
+                  Text(
+                    'เครดิตที่ต้องใช้: ${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'กรุณาเติมเครดิตก่อนรับงาน',
+                      style: TextStyle(
+                        color: Colors.orange.shade800,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              // ปิดป๊อปอัพและกลับไปหน้า Home
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
+            child: const Text('ตกลง', style: TextStyle(color: Colors.orange)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // ปิดป๊อปอัพทั้งหมดและไปหน้า MyCredit
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              Navigator.pushNamed(context, '/myCredit');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text(
+              'เติมเครดิต',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),

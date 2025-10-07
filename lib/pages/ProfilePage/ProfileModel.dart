@@ -149,6 +149,17 @@ class ProfileModel extends ChangeNotifier {
             'user_rider',
             jsonEncode(profileData['user_info']),
           );
+
+          // เก็บ rider_id แยกต่างหากเพื่อป้องกันการสูญหาย
+          if (profileData['user_info']['rider_id'] != null) {
+            await prefs.setInt(
+              'cached_rider_id',
+              profileData['user_info']['rider_id'],
+            );
+            print(
+              '🔄 Profile refresh: Cached rider_id = ${profileData['user_info']['rider_id']}',
+            );
+          }
         }
       }
 
@@ -359,45 +370,91 @@ class ProfileModel extends ChangeNotifier {
       final authService = AuthService();
       await authService.logout();
 
-      // เคลียร์ข้อมูลใน model
-      _clearAllData();
+      // เคลียร์ข้อมูลใน model และ token
+      await _clearAllData();
       notifyListeners();
     } catch (e) {
       print('❌ Error during logout: $e');
     }
   }
 
-  void _clearAllData() {
-    available = true;
-    userId = null;
-    name = '';
-    phone = '';
-    email = '';
-    birthdate = null;
-    gender = null;
-    photoUrl = null;
-    isVerified = false;
-    createdAt = null;
-    approvalStatus = 'incomplete';
-    submittedAt = null;
-    approvedAt = null;
-    rejectionReason = null;
-    vehicleType = '';
-    vehicleBrandModel = '';
-    vehicleColor = '';
-    vehicleRegistrationNumber = '';
-    vehicleRegistrationProvince = '';
-    houseNumber = null;
-    street = null;
-    subdistrict = null;
-    district = null;
-    province = null;
-    postalCode = null;
-    rating = 0.0;
-    completed = 0;
-    earnings = 0.0;
-    promptpay = '';
-    profileImage = null;
+  Future<void> _clearAllData() async {
+    // เคลียร์ข้อมูลใน model
+    // available = true;
+    // userId = null;
+    // name = '';
+    // phone = '';
+    // email = '';
+    // birthdate = null;
+    // gender = null;
+    // photoUrl = null;
+    // isVerified = false;
+    // createdAt = null;
+    // approvalStatus = 'incomplete';
+    // submittedAt = null;
+    // approvedAt = null;
+    // rejectionReason = null;
+    // vehicleType = '';
+    // vehicleBrandModel = '';
+    // vehicleColor = '';
+    // vehicleRegistrationNumber = '';
+    // vehicleRegistrationProvince = '';
+    // houseNumber = null;
+    // street = null;
+    // subdistrict = null;
+    // district = null;
+    // province = null;
+    // postalCode = null;
+    // rating = 0.0;
+    // completed = 0;
+    // earnings = 0.0;
+    // promptpay = '';
+    // profileImage = null;
+
+    // เคลียร์ token และข้อมูลทั้งหมดจาก SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // ดู token ที่เก็บอยู่ก่อนลบ (debug)
+      final authToken = prefs.getString('auth_token');
+      final accessToken = prefs.getString('access_token');
+      final refreshToken = prefs.getString('refresh_token');
+      final token = prefs.getString('token');
+      final cachedRiderId = prefs.getInt('cached_rider_id');
+
+      print(
+        '🔍 Stored tokens/ids -> auth_token: $authToken, access_token: $accessToken, refresh_token: $refreshToken, token: $token, cached_rider_id: $cachedRiderId',
+      );
+
+      // ลบคีย์ที่เกี่ยวข้องทั้งหมด (ถ้ามี)
+      final keysToRemove = [
+        'auth_token',
+        'access_token',
+        'refresh_token',
+        'token',
+        'user_rider',
+        'rider_id',
+        'cached_rider_id',
+        'user_id',
+        'registered_user_id',
+        'login_type',
+        'google_user_data',
+        'is_logged_in',
+        'last_login_date',
+      ];
+
+      for (final key in keysToRemove) {
+        if (prefs.containsKey(key)) {
+          await prefs.remove(key);
+          print('🗑️ Removed key: $key');
+        }
+      }
+
+      print('✅ Cleared all tokens and user data from SharedPreferences');
+      print('Remaining keys: ${prefs.getKeys()}');
+    } catch (e) {
+      print('❌ Error clearing SharedPreferences: $e');
+    }
   }
 
   // ✅ อัปเดตรูปโปรไฟล์ + อัพโหลด API

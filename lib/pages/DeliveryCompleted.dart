@@ -472,7 +472,7 @@ class DeliveryCompletedPage extends StatelessWidget {
                     onPressed: () {
                       Navigator.pushNamedAndRemoveUntil(
                         context,
-                        '/jobStart',
+                        '/home',
                         (route) => false,
                       );
                     },

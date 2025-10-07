@@ -564,162 +564,162 @@ class _RiderIdentityPageState extends State<RiderIdentityPage>
     );
   }
 
-  Widget _buildProgressSection() {
-    // รายการเอกสารที่เป็น required (ปรับได้ตามจริง)
-    final requiredDocs = [
-      _selfieWithId,
-      _idCard,
-      _driverLicense,
-      _vehiclePhoto,
-      _vehicleRegistration,
-    ];
+  // Widget _buildProgressSection() {
+  //   // รายการเอกสารที่เป็น required (ปรับได้ตามจริง)
+  //   final requiredDocs = [
+  //     _selfieWithId,
+  //     _idCard,
+  //     _driverLicense,
+  //     _vehiclePhoto,
+  //     _vehicleRegistration,
+  //   ];
 
-    // รายการฟิลด์ข้อมูลที่ต้องกรอก
-    final requiredFields = [
-      _idCardNumberController.text,
-      _driverLicenseNumberController.text,
-      _selectedVehicleType,
-      _vehicleBrandController.text,
-      _vehicleColorController.text,
-      _vehiclePlateController.text,
-      _vehicleProvinceController.text,
-    ];
+  //   // รายการฟิลด์ข้อมูลที่ต้องกรอก
+  //   final requiredFields = [
+  //     _idCardNumberController.text,
+  //     _driverLicenseNumberController.text,
+  //     _selectedVehicleType,
+  //     _vehicleBrandController.text,
+  //     _vehicleColorController.text,
+  //     _vehiclePlateController.text,
+  //     _vehicleProvinceController.text,
+  //   ];
 
-    // นับที่กรอก/อัพโหลดแล้ว
-    int completedDocs = requiredDocs.where((f) => f != null).length;
-    int completedFields = requiredFields
-        .where((v) => v != null && v.toString().trim().isNotEmpty)
-        .length;
+  //   // นับที่กรอก/อัพโหลดแล้ว
+  //   int completedDocs = requiredDocs.where((f) => f != null).length;
+  //   int completedFields = requiredFields
+  //       .where((v) => v != null && v.toString().trim().isNotEmpty)
+  //       .length;
 
-    final int totalRequiredFields = requiredDocs.length + requiredFields.length;
-    final int completedTotal = completedDocs + completedFields;
-    double progress = totalRequiredFields > 0
-        ? (completedTotal / totalRequiredFields)
-        : 0.0;
+  //   final int totalRequiredFields = requiredDocs.length + requiredFields.length;
+  //   final int completedTotal = completedDocs + completedFields;
+  //   double progress = totalRequiredFields > 0
+  //       ? (completedTotal / totalRequiredFields)
+  //       : 0.0;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [const Color(0xFF667EEA), const Color(0xFF764BA2)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF667EEA).withOpacity(0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.analytics_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'ความคืบหน้าการอัปโหลด',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      progress >= 1.0
-                          ? 'เอกสารและข้อมูลครบถ้วนแล้ว!'
-                          : 'เอกสารและข้อมูลที่ต้องการ ${totalRequiredFields - completedTotal} รายการ',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${(progress * 100).toInt()}%',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            height: 8,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: progress.clamp(0.0, 1.0),
-                backgroundColor: Colors.transparent,
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                minHeight: 8,
-              ),
-            ),
-          ),
-          if (progress >= 1.0) ...[
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.celebration_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'พร้อมส่งข้อมูลครบถ้วนแล้ว!',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  //   return Container(
+  //     margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+  //     padding: const EdgeInsets.all(20),
+  //     decoration: BoxDecoration(
+  //       gradient: LinearGradient(
+  //         begin: Alignment.topLeft,
+  //         end: Alignment.bottomRight,
+  //         colors: [const Color(0xFF667EEA), const Color(0xFF764BA2)],
+  //       ),
+  //       borderRadius: BorderRadius.circular(20),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: const Color(0xFF667EEA).withOpacity(0.3),
+  //           blurRadius: 16,
+  //           offset: const Offset(0, 8),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Column(
+  //       children: [
+  //         Row(
+  //           children: [
+  //             Container(
+  //               padding: const EdgeInsets.all(10),
+  //               decoration: BoxDecoration(
+  //                 color: Colors.white.withOpacity(0.2),
+  //                 borderRadius: BorderRadius.circular(12),
+  //               ),
+  //               child: const Icon(
+  //                 Icons.analytics_rounded,
+  //                 color: Colors.white,
+  //                 size: 24,
+  //               ),
+  //             ),
+  //             const SizedBox(width: 12),
+  //             Expanded(
+  //               child: Column(
+  //                 crossAxisAlignment: CrossAxisAlignment.start,
+  //                 children: [
+  //                   const Text(
+  //                     'ความคืบหน้าการอัปโหลด',
+  //                     style: TextStyle(
+  //                       fontSize: 16,
+  //                       fontWeight: FontWeight.w700,
+  //                       color: Colors.white,
+  //                     ),
+  //                   ),
+  //                   const SizedBox(height: 4),
+  //                   Text(
+  //                     progress >= 1.0
+  //                         ? 'เอกสารและข้อมูลครบถ้วนแล้ว!'
+  //                         : 'เอกสารและข้อมูลที่ต้องการ ${totalRequiredFields - completedTotal} รายการ',
+  //                     style: TextStyle(
+  //                       fontSize: 13,
+  //                       color: Colors.white.withOpacity(0.9),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //             Container(
+  //               padding: const EdgeInsets.symmetric(
+  //                 horizontal: 12,
+  //                 vertical: 6,
+  //               ),
+  //               decoration: BoxDecoration(
+  //                 color: Colors.white.withOpacity(0.2),
+  //                 borderRadius: BorderRadius.circular(20),
+  //               ),
+  //               child: Text(
+  //                 '${(progress * 100).toInt()}%',
+  //                 style: const TextStyle(
+  //                   fontSize: 14,
+  //                   fontWeight: FontWeight.w800,
+  //                   color: Colors.white,
+  //                 ),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         const SizedBox(height: 16),
+  //         Container(
+  //           height: 8,
+  //           decoration: BoxDecoration(
+  //             color: Colors.white.withOpacity(0.3),
+  //             borderRadius: BorderRadius.circular(10),
+  //           ),
+  //           child: ClipRRect(
+  //             borderRadius: BorderRadius.circular(10),
+  //             child: LinearProgressIndicator(
+  //               value: progress.clamp(0.0, 1.0),
+  //               backgroundColor: Colors.transparent,
+  //               valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+  //               minHeight: 8,
+  //             ),
+  //           ),
+  //         ),
+  //         if (progress >= 1.0) ...[
+  //           const SizedBox(height: 12),
+  //           Row(
+  //             mainAxisAlignment: MainAxisAlignment.center,
+  //             children: [
+  //               const Icon(
+  //                 Icons.celebration_rounded,
+  //                 color: Colors.white,
+  //                 size: 20,
+  //               ),
+  //               const SizedBox(width: 8),
+  //               const Text(
+  //                 'พร้อมส่งข้อมูลครบถ้วนแล้ว!',
+  //                 style: TextStyle(
+  //                   fontSize: 14,
+  //                   fontWeight: FontWeight.w600,
+  //                   color: Colors.white,
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ],
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildFormField({
     required String title,
@@ -852,74 +852,74 @@ class _RiderIdentityPageState extends State<RiderIdentityPage>
     );
   }
 
-  Widget _buildInfoCard() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.blue[50]!, Colors.indigo[50]!],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blue[200]!, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.blue[500]!, Colors.indigo[600]!],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.info_outline_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'ข้อมูลสำคัญ',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.blue[800],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildInfoItem(
-            Icons.verified_user_rounded,
-            'ข้อมูลได้รับการปกป้อง',
-            'ระบบเข้ารหัสข้อมูลทั้งหมดด้วยมาตรฐาน SSL',
-            Colors.green[600]!,
-          ),
-          const SizedBox(height: 12),
-          _buildInfoItem(
-            Icons.speed_rounded,
-            'ตรวจสอบเร็ว',
-            'ทีมงานจะตรวจสอบภายใน 24 ชั่วโมง',
-            Colors.orange[600]!,
-          ),
-          const SizedBox(height: 12),
-          _buildInfoItem(
-            Icons.support_agent_rounded,
-            'ช่วยเหลือ 24/7',
-            'มีทีมงานคอยให้คำปรึกษาตลอดเวลา',
-            Colors.purple[600]!,
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildInfoCard() {
+  //   return Container(
+  //     margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+  //     padding: const EdgeInsets.all(20),
+  //     decoration: BoxDecoration(
+  //       gradient: LinearGradient(
+  //         begin: Alignment.topLeft,
+  //         end: Alignment.bottomRight,
+  //         colors: [Colors.blue[50]!, Colors.indigo[50]!],
+  //       ),
+  //       borderRadius: BorderRadius.circular(20),
+  //       border: Border.all(color: Colors.blue[200]!, width: 1),
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Row(
+  //           children: [
+  //             Container(
+  //               padding: const EdgeInsets.all(10),
+  //               decoration: BoxDecoration(
+  //                 gradient: LinearGradient(
+  //                   colors: [Colors.blue[500]!, Colors.indigo[600]!],
+  //                 ),
+  //                 borderRadius: BorderRadius.circular(12),
+  //               ),
+  //               child: const Icon(
+  //                 Icons.info_outline_rounded,
+  //                 color: Colors.white,
+  //                 size: 20,
+  //               ),
+  //             ),
+  //             const SizedBox(width: 12),
+  //             Text(
+  //               'ข้อมูลสำคัญ',
+  //               style: TextStyle(
+  //                 fontSize: 16,
+  //                 fontWeight: FontWeight.w700,
+  //                 color: Colors.blue[800],
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         const SizedBox(height: 16),
+  //         _buildInfoItem(
+  //           Icons.verified_user_rounded,
+  //           'ข้อมูลได้รับการปกป้อง',
+  //           'ระบบเข้ารหัสข้อมูลทั้งหมดด้วยมาตรฐาน SSL',
+  //           Colors.green[600]!,
+  //         ),
+  //         const SizedBox(height: 12),
+  //         _buildInfoItem(
+  //           Icons.speed_rounded,
+  //           'ตรวจสอบเร็ว',
+  //           'ทีมงานจะตรวจสอบภายใน 24 ชั่วโมง',
+  //           Colors.orange[600]!,
+  //         ),
+  //         const SizedBox(height: 12),
+  //         _buildInfoItem(
+  //           Icons.support_agent_rounded,
+  //           'ช่วยเหลือ 24/7',
+  //           'มีทีมงานคอยให้คำปรึกษาตลอดเวลา',
+  //           Colors.purple[600]!,
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildInfoItem(
     IconData icon,
@@ -1283,10 +1283,10 @@ class _RiderIdentityPageState extends State<RiderIdentityPage>
                         ],
 
                         // Info card
-                        _buildInfoCard(),
+                        // _buildInfoCard(),
 
                         // Progress section
-                        _buildProgressSection(),
+                        // _buildProgressSection(),
 
                         // Document sections
                         _buildStepHeader(

@@ -24,7 +24,10 @@ class Order {
   final String? note;
   final double? distanceKm;
   final double deliveryFee;
+  final double bonus;
   final double totalPrice;
+  final double originalTotalPrice;
+  final double riderRequiredGp;
   final String status;
   final String? shopStatus; // เพิ่ม shop status
   final DateTime createdAt;
@@ -51,7 +54,10 @@ class Order {
     this.note,
     this.distanceKm,
     required this.deliveryFee,
+    required this.bonus,
     required this.totalPrice,
+    required this.originalTotalPrice,
+    required this.riderRequiredGp,
     required this.status,
     this.shopStatus, // เพิ่ม shop status
     required this.createdAt,
@@ -95,7 +101,10 @@ class Order {
       note: json['note'],
       distanceKm: _toDouble(json['distance_km']),
       deliveryFee: _toDouble(json['delivery_fee']),
+      bonus: _toDouble(json['bonus']),
       totalPrice: _toDouble(json['total_price']),
+      originalTotalPrice: _toDouble(json['original_total_price']),
+      riderRequiredGp: _toDouble(json['rider_required_gp']),
       status: json['status'] ?? 'waiting',
       shopStatus: json['shop_status'], // เพิ่มการ parse shop_status
       createdAt: DateTime.parse(json['created_at']),
@@ -132,7 +141,10 @@ class Order {
       'note': note,
       'distance_km': distanceKm,
       'delivery_fee': deliveryFee,
+      'bonus': bonus,
       'total_price': totalPrice,
+      'original_total_price': originalTotalPrice,
+      'rider_required_gp': riderRequiredGp,
       'status': status,
       'shop_status': shopStatus, // เพิ่ม shop_status ใน toJson
       'created_at': createdAt.toIso8601String(),
@@ -243,7 +255,10 @@ class Order {
     String? note,
     double? distanceKm,
     double? deliveryFee,
+    double? bonus,
     double? totalPrice,
+    double? originalTotalPrice,
+    double? riderRequiredGp,
     String? status,
     String? shopStatus,
     DateTime? createdAt,
@@ -270,7 +285,10 @@ class Order {
       note: note ?? this.note,
       distanceKm: distanceKm ?? this.distanceKm,
       deliveryFee: deliveryFee ?? this.deliveryFee,
+      bonus: bonus ?? this.bonus,
       totalPrice: totalPrice ?? this.totalPrice,
+      originalTotalPrice: originalTotalPrice ?? this.originalTotalPrice,
+      riderRequiredGp: riderRequiredGp ?? this.riderRequiredGp,
       status: status ?? this.status,
       shopStatus: shopStatus ?? this.shopStatus,
       createdAt: createdAt ?? this.createdAt,
@@ -294,6 +312,7 @@ class OrderItem {
   final double sellPrice;
   final double subtotal;
   final List<dynamic> selectedOptions;
+  final String additionalNotes; // เพิ่มเติมสำหรับแต่ละเมนูที่มีโน้ต
 
   OrderItem({
     required this.itemId,
@@ -305,6 +324,7 @@ class OrderItem {
     required this.sellPrice,
     required this.subtotal,
     required this.selectedOptions,
+    required this.additionalNotes, // เพิ่มเติมสำหรับแต่ละเมนูที่มีโน้ต
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
@@ -318,6 +338,7 @@ class OrderItem {
       sellPrice: _toDouble(json['sell_price']),
       subtotal: _toDouble(json['subtotal']),
       selectedOptions: json['selected_options'] ?? [],
+      additionalNotes: json['additional_notes'] ?? '', // เพิ่มเติมสำหรับแต่ละเมนูที่มีโน้ต
     );
   }
 
@@ -332,6 +353,7 @@ class OrderItem {
       'sell_price': sellPrice,
       'subtotal': subtotal,
       'selected_options': selectedOptions,
+      'additional_notes': additionalNotes, // เพิ่มเติมสำหรับแต่ละเมนูที่มีโน้ต
     };
   }
 }

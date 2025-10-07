@@ -101,6 +101,10 @@ class _HomePageState extends State<HomePage> {
       // log raw string
       print('📦 SharedPreferences[Rider] = $userRiderString');
 
+      // Debug: แสดงข้อมูล cached_rider_id
+      final cachedRiderId = prefs.getInt('cached_rider_id');
+      print('🔍 Debug: cached_rider_id = $cachedRiderId');
+
       // โหลดข้อมูลจาก SharedPreferences ก่อน (เพื่อแสดง UI เร็วขึ้น)
       if (userRiderString != null) {
         final userData = jsonDecode(userRiderString);
@@ -112,8 +116,23 @@ class _HomePageState extends State<HomePage> {
           _gender = userData['gender'];
           _promptpay = userData['promptpay'];
           // เก็บ rider_id
-          _riderId = userData['rider_id'] ?? 0;
-          print('🏍️ Rider ID loaded: $_riderId');
+          final riderId = userData['rider_id'];
+          if (riderId != null && riderId != 0) {
+            _riderId = riderId;
+            // เก็บ rider_id ลง SharedPreferences แยกต่างหาก
+            prefs.setInt('cached_rider_id', riderId);
+            print('🏍️ Rider ID loaded and cached: $_riderId');
+          } else {
+            // ถ้าไม่มี rider_id ใน user data ให้ลองโหลดจาก cache
+            final cachedRiderId = prefs.getInt('cached_rider_id');
+            if (cachedRiderId != null && cachedRiderId != 0) {
+              _riderId = cachedRiderId;
+              print('🏍️ Rider ID loaded from cache: $_riderId');
+            } else {
+              print('⚠️ No valid Rider ID found!');
+              _riderId = 0;
+            }
+          }
 
           print(
             '👤 User loaded: name=$_userName, phone=$_phone, gender=$_gender, promptpay=$_promptpay',
@@ -143,6 +162,14 @@ class _HomePageState extends State<HomePage> {
         });
       } else {
         print('⚠️ No user_rider found in SharedPreferences');
+        // ลองโหลด rider_id จาก cache ถ้าไม่มีข้อมูล user
+        final cachedRiderId = prefs.getInt('cached_rider_id');
+        if (cachedRiderId != null && cachedRiderId != 0) {
+          setState(() {
+            _riderId = cachedRiderId;
+          });
+          print('🏍️ Rider ID loaded from cache (no user data): $_riderId');
+        }
       }
 
       // เรียก API เพื่อดึงข้อมูลล่าสุด (รวมถึงรูปโปรไฟล์) เสมอ
