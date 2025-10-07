@@ -84,10 +84,13 @@ class RiderControllerSocket extends ChangeNotifier {
       notifyListeners();
     });
 
-    _socketService.on('disconnect', (data) {
+    _socketService.on('disconnect', (data) async {
       if (_isDisposed) return;
-      print('❌ Socket disconnected');
-      notifyListeners();
+      print('❌ Socket disconnected. Attempting reconnect in 3s...');
+      await Future.delayed(const Duration(seconds: 3));
+      if (!_isDisposed) {
+        await initializeSocket(riderId: _currentUserId ?? 0);
+      }
     });
 
     // Main order update listener
@@ -492,6 +495,13 @@ class RiderControllerSocket extends ChangeNotifier {
     print("👁️ [RiderSocket] Watching order $orderId");
   }
 
+  void leaveAllOrders() {
+    for (final order in _orders) {
+      _socketService.emit("rider:leaveOrder", order.orderId);
+    }
+    print('🚪 Left all order rooms');
+  }
+
   // Send heartbeat to check connection
   void sendHeartbeat() {
     if (_isDisposed) return;
@@ -763,11 +773,15 @@ class RiderControllerSocket extends ChangeNotifier {
     print('🗑️ Disposing RiderControllerSocket...');
     _isDisposed = true;
 
-    // Cancel debounce timer
     _debounceTimer?.cancel();
     _pendingUpdates.clear();
 
     try {
+      leaveAllOrders();
+      if (_currentUserId != null) {
+        _socketService.emit("leave_room", {"room": "rider:$_currentUserId"});
+        print('🚪 [Socket] Left room: rider:$_currentUserId');
+      }
       _socketService.disconnect();
     } catch (e) {
       print('⚠️ Error disconnecting socket during disposal: $e');

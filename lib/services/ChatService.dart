@@ -6,8 +6,8 @@ import 'package:rider_delivery/pages/Chats/models/ChatMessage.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class RiderChatService {
-  static const String baseUrl = 'http://192.168.1.129:4000';
-  static const String socketUrl = 'http://192.168.1.129:4000';
+  static const String baseUrl = 'http://172.29.173.44:4000';
+  static const String socketUrl = 'http://172.29.173.44:4000';
 
   late Dio _dio;
   IO.Socket? _socket;
