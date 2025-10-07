@@ -794,6 +794,9 @@ extension OrderCopyWith on Order {
     String? note,
     double? distanceKm,
     double? deliveryFee,
+    double? bonus,
+    double? riderRequiredGp,
+    double? originalTotalPrice,
     double? totalPrice,
     String? status,
     String? shopStatus, // เพิ่ม shopStatus parameter
@@ -819,7 +822,10 @@ extension OrderCopyWith on Order {
       note: note ?? this.note,
       distanceKm: distanceKm ?? this.distanceKm,
       deliveryFee: deliveryFee ?? this.deliveryFee,
+      bonus: bonus ?? this.bonus,
       totalPrice: totalPrice ?? this.totalPrice,
+      originalTotalPrice: originalTotalPrice ?? this.originalTotalPrice,
+      riderRequiredGp: riderRequiredGp ?? this.riderRequiredGp,
       status: status ?? this.status,
       shopStatus: shopStatus ?? this.shopStatus, // เพิ่ม shopStatus
       createdAt: createdAt ?? this.createdAt,
