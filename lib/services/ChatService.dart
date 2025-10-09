@@ -1,13 +1,14 @@
 // services/rider_chat_service.dart (Fixed for rider_id/user_id separation)
 import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:rider_delivery/APIs/baseAPI_URL/baseURL.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rider_delivery/pages/Chats/models/ChatMessage.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class RiderChatService {
-  static const String baseUrl = 'http://172.29.173.44:4000';
-  static const String socketUrl = 'http://172.29.173.44:4000';
+  static const String baseUrl = '${BaseAPI_URL.HostSocketURL}';
+  static const String socketUrl = '${BaseAPI_URL.HostSocketURL}';
 
   late Dio _dio;
   IO.Socket? _socket;

@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
 import 'package:rider_delivery/APIs/Orders/models/Order_items.dart';
+import 'package:rider_delivery/pages/maps/map_button_widget.dart';
 
 class GoRestaurant extends StatefulWidget {
   const GoRestaurant({super.key});
@@ -13,12 +14,13 @@ class GoRestaurant extends StatefulWidget {
 
 class _GoRestaurantState extends State<GoRestaurant> {
   int? orderId;
+  int? userId;
   int? riderId;
   Order? currentOrder;
   RiderControllerSocket? _orderController;
   bool arrivedAtRestaurant = false;
   bool confirmedArrival = false;
-  bool foodReceived = false; // เพิ่มสถานะใหม่สำหรับรับอาหารแล้ว
+  bool foodReceived = false;
   bool _isLoading = true;
 
   @override
@@ -31,14 +33,16 @@ class _GoRestaurantState extends State<GoRestaurant> {
       if (args != null) {
         orderId = args['orderId'];
         riderId = args['riderId'];
-        print('GoRestaurant: Received orderId: $orderId, riderId: $riderId');
+        userId = args['userId'];
+        print(
+          'GoRestaurant: Received orderId: $orderId, riderId: $riderId, userId: $userId',
+        );
         _initializeData();
       } else {
         print('GoRestaurant: No arguments received');
         setState(() => _isLoading = false);
       }
     } else {
-      // ถ้ามี orderId แล้ว แสดงว่ากลับมาจากหน้าอื่น ให้รีเฟรชข้อมูล
       _loadOrderData();
     }
   }
@@ -58,19 +62,16 @@ class _GoRestaurantState extends State<GoRestaurant> {
       setState(() => _isLoading = false);
       return;
     }
-
     print(
       'GoRestaurant: Looking for order $orderId in ${_orderController!.orders.length} orders',
     );
 
-    // Print all available orders for debugging
     for (var order in _orderController!.orders) {
       print(
         'Available order: ${order.orderId} - Status: ${order.status} - Rider: ${order.riderId}',
       );
     }
 
-    // หาข้อมูลออเดอร์จาก controller
     Order? order;
     try {
       order = _orderController!.orders
@@ -80,7 +81,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
       print('Error finding order: $e');
     }
 
-    // ถ้าไม่พบในรายการ ลองดึงข้อมูลใหม่
     if (order == null) {
       print(
         'GoRestaurant: Order not found in current list, fetching fresh data...',
@@ -103,48 +103,15 @@ class _GoRestaurantState extends State<GoRestaurant> {
     if (order != null) {
       print('GoRestaurant: Order found - ${order.shopName}');
       _orderController!.watchOrder(orderId!);
-      // ถ้ายังไม่มี marketLocation พยายาม hydrate เพิ่ม
-      // if (order.marketLocation == null) {
-      //   final ensuredOrderId = order.orderId; // capture non-null order id
-      //   Future.microtask(() async {
-      //     try {
-      //       await _orderController!.hydrateMarketInfoForOrder(ensuredOrderId);
-      //     } catch (e) {
-      //       print('[GoRestaurant] Hydrate market info failed: $e');
-      //     }
-      //   });
-      // }
     } else {
       print('GoRestaurant: Order still not found after fetch');
     }
   }
 
-  // Getter functions for safe data access
+  // Getter functions
   String get restaurantName => currentOrder?.shopName ?? 'ร้านอาหาร';
   String get restaurantAddress =>
       currentOrder?.marketLocation?['address'] ?? 'ไม่ระบุที่อยู่ร้าน';
-  // String get restaurantAddress {
-  //   // เดิม fallback ไปใช้ order.address ซึ่งคือที่อยู่ลูกค้า (ปลายทาง) ทำให้โชว์ผิด
-  //   // แก้ให้ดึงเฉพาะค่าที่ยืนยันว่าเป็นที่อยู่ร้านเท่านั้น
-  //   final market = currentOrder?.marketLocation;
-  //   final candidates = <String?>[
-  //     market?['shop_address']?.toString(),
-  //     market?['address']?.toString(),
-  //     market?['shopAddress']?.toString(),
-  //     market?['market_address']?.toString(),
-  //     // บางกรณีอาจซ่อนอยู่ใน object ย่อย เช่น location: { address: "..." }
-  //     (market?['location'] is Map
-  //         ? (market?['location']['address']?.toString())
-  //         : null),
-  //   ].whereType<String>().map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-
-  //   if (candidates.isNotEmpty) return candidates.first;
-
-  //   print(
-  //     '[GoRestaurant] ⚠️ ไม่พบที่อยู่ร้านใน marketLocation=${currentOrder?.marketLocation} orderId=$orderId',
-  //   );
-  //   return 'ไม่ระบุที่อยู่ร้าน';
-  // }
 
   String get customerName {
     final nameInLocation = currentOrder?.customerLocation?['name']?.toString();
@@ -153,7 +120,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
       return nameInLocation;
     if (directClientName != null && directClientName.isNotEmpty)
       return directClientName;
-    return 'สมุย'; // fallback placeholder
+    return 'สมุย';
   }
 
   String get customerPhone => currentOrder?.customerLocation?['phone'] ?? '';
@@ -164,12 +131,10 @@ class _GoRestaurantState extends State<GoRestaurant> {
   String get paymentMethod => currentOrder?.paymentMethod ?? 'เงินสด';
   double get totalPrice => currentOrder?.totalPrice ?? 0.0;
   double get deliveryFee => currentOrder?.deliveryFee ?? 0.0;
-  // Pay-at-shop = use originalTotalPrice to match JobStart
   double get shopPayAmount => currentOrder?.originalTotalPrice ?? 0.0;
   String get deliveryType =>
       currentOrder?.deliveryType ?? 'ไม่ระบุประเภทการจัดส่ง';
   String get note => currentOrder?.note ?? 'เพิ่มเติม: -';
-  // String get note2 => 'เพิ่มเติม: วางบนหลังคา';
   double get distance => currentOrder?.distanceKm ?? 0.0;
   List<OrderItem> get orderItems => currentOrder?.items ?? [];
   String get orderNumberDisplay => currentOrder?.orderId.toString() ?? '';
@@ -186,7 +151,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // หัวข้อ dialog พื้นหลังสีเขียว
+              // หัวข้อ dialog
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
@@ -266,7 +231,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                       'หมายเลขออเดอร์: $orderNumberDisplay',
                       style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     ),
-                    const SizedBox(height: 4),
                   ],
                 ),
               ),
@@ -431,28 +395,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         ),
                       ],
                     ),
-                    // if (bonus > 0) ...[
-                    //   SizedBox(height: 8),
-                    //   Row(
-                    //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    //     children: [
-                    //       Text(
-                    //         'โบนัส',
-                    //         style: TextStyle(
-                    //           fontSize: 16,
-                    //           color: Colors.orange,
-                    //         ),
-                    //       ),
-                    //       Text(
-                    //         '+ ${bonus.toStringAsFixed(0)} บาท',
-                    //         style: TextStyle(
-                    //           fontSize: 16,
-                    //           color: Colors.orange,
-                    //         ),
-                    //       ),
-                    //     ],
-                    //   ),
-                    // ],
                     SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -506,7 +448,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
   }
 
   void _showConfirmationDialog(BuildContext context) {
-    // ตรวจสอบเงื่อนไขก่อนแสดง dialog
     if (!_canGoToShop()) {
       final marketLocation = currentOrder!.marketLocation;
       final isAdminShop = marketLocation?['owner_id'] == null;
@@ -639,11 +580,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
             onPressed: () {
               Navigator.pop(context);
               setState(() {
-                foodReceived =
-                    true; // เปลี่ยนจาก confirmedArrival เป็น foodReceived
+                foodReceived = true;
               });
               _updateOrderStatus('picked_up');
-              // ลบการเรียก _goToCustomer() ออก
             },
             isDefaultAction: true,
             child: Text('ยืนยัน'),
@@ -685,12 +624,12 @@ class _GoRestaurantState extends State<GoRestaurant> {
             onPressed: () {
               Navigator.pop(context);
               _updateOrderStatus('delivering');
-              // ส่งข้อมูลครบถ้วนไป GoCustomer และใช้ pushReplacement เพื่อไม่ให้กลับมาหน้านี้
               Navigator.pushReplacementNamed(
                 context,
                 '/goCustomer',
                 arguments: {
                   'orderId': orderId,
+                  'userId': userId,
                   'riderId': riderId,
                   'orderNumber': orderNumberDisplay,
                   'restaurantName': restaurantName,
@@ -708,6 +647,14 @@ class _GoRestaurantState extends State<GoRestaurant> {
                   'distance': '${distance.toStringAsFixed(1)} กม.',
                   'totalPrice': totalPrice,
                   'deliveryFee': deliveryFee,
+                  'customerLat':
+                      currentOrder?.customerLocation?['latitude']?.toDouble() ??
+                      0.0,
+                  'customerLng':
+                      currentOrder?.customerLocation?['longitude']
+                          ?.toDouble() ??
+                      0.0,
+
                   'orderItems': orderItems
                       .map(
                         (item) => {
@@ -716,8 +663,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                           'quantity': item.quantity,
                           'selectedOptions': item.selectedOptions,
                           'subtotal': item.subtotal,
-                          'additionalNotes':
-                              item.additionalNotes, // เพิ่ม additionalNotes
+                          'additionalNotes': item.additionalNotes,
                         },
                       )
                       .toList(),
@@ -746,7 +692,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('อัปเดตสถานะสำเร็จ')));
-        // รีเฟรชข้อมูลออเดอร์
         _loadOrderData();
       } else {
         final errorMessage = result['error'] ?? 'เกิดข้อผิดพลาด';
@@ -782,7 +727,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
 
   String _getStatusText(String status) {
     switch (status) {
-      // Order Status
       case 'waiting':
         return 'รอไรเดอร์รับ';
       case 'rider_assigned':
@@ -815,10 +759,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
         return 'ร้านกำลังเตรียมอาหาร';
       case 'ready_for_pickup':
         return 'ร้านเตรียมเสร็จแล้ว';
-      // case 'confirmed':
-      //   return 'ร้านยืนยันออเดอร์';
-      // case 'pending':
-      //   return 'รอร้านยืนยัน';
       default:
         return shopStatus;
     }
@@ -839,7 +779,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
   bool _canGoToShop() {
     if (currentOrder == null) return false;
 
-    // ถ้าสถานะไม่ใช่ rider_assigned แสดงว่าผ่านขั้นตอนนี้ไปแล้ว
     if (currentOrder!.status != 'rider_assigned') {
       return [
         'confirmed',
@@ -849,13 +788,11 @@ class _GoRestaurantState extends State<GoRestaurant> {
       ].contains(currentOrder!.status);
     }
 
-    // ถ้าเป็นร้านแอดมิน (owner_id = null) สามารถไปได้เลย
     final marketLocation = currentOrder!.marketLocation;
     final isAdminShop = marketLocation?['owner_id'] == null;
 
     if (isAdminShop) return true;
 
-    // ร้านทั่วไปต้องรอให้ร้านยืนยันก่อน
     return currentOrder!.status == 'confirmed';
   }
 
@@ -878,6 +815,12 @@ class _GoRestaurantState extends State<GoRestaurant> {
 
   @override
   Widget build(BuildContext context) {
+    // 📍 ดึงพิกัดลูกค้าสำหรับแมพ
+    final double? customerLat = currentOrder?.customerLocation?['latitude']
+        ?.toDouble();
+    final double? customerLng = currentOrder?.customerLocation?['longitude']
+        ?.toDouble();
+
     if (_isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator(color: Colors.green)),
@@ -926,9 +869,14 @@ class _GoRestaurantState extends State<GoRestaurant> {
       );
     }
 
+    // ดึงข้อมูล lat/lng สำหรับแมพ
+    final marketLocation = currentOrder?.marketLocation;
+    final double? latitude = marketLocation?['latitude']?.toDouble();
+    final double? longitude = marketLocation?['longitude']?.toDouble();
+    final String? phone = marketLocation?['phone']?.toString();
+
     return Consumer<RiderControllerSocket>(
       builder: (context, controller, _) {
-        // อัปเดตข้อมูลออเดอร์ปัจจุบันจาก controller
         final updatedOrder = controller.orders
             .where((o) => o.orderId == orderId)
             .firstOrNull;
@@ -939,11 +887,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
 
         return WillPopScope(
           onWillPop: () async {
-            // รีเฟรชข้อมูลก่อนกลับ
             _loadOrderData();
-            // ส่ง result กลับไปยัง JobStart เพื่อให้รีเฟรชข้อมูล
             Navigator.pop(context, {'refreshData': true});
-            return false; // ป้องกันการ pop ปกติ
+            return false;
           },
           child: Scaffold(
             backgroundColor: Colors.grey[50],
@@ -975,26 +921,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                 ),
               ),
               actions: [
-                // Container(
-                //   margin: const EdgeInsets.only(right: 8),
-                //   padding: const EdgeInsets.symmetric(
-                //     horizontal: 8,
-                //     vertical: 4,
-                //   ),
-                //   decoration: BoxDecoration(
-                //     color: Colors.white.withOpacity(0.2),
-                //     borderRadius: BorderRadius.circular(12),
-                //     border: Border.all(color: Colors.white),
-                //   ),
-                //   child: Text(
-                //     _getCombinedStatusText(),
-                //     style: const TextStyle(
-                //       color: Colors.white,
-                //       fontSize: 12,
-                //       fontWeight: FontWeight.bold,
-                //     ),
-                //   ),
-                // ),
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: TextButton(
@@ -1076,7 +1002,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                           ),
                         ),
                         Container(height: 40, width: 2, color: Colors.white30),
-
                         Expanded(
                           child: Column(
                             children: [
@@ -1103,7 +1028,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                     ),
                   ),
 
-                  // Status display section ที่ด้านล่าง
+                  // Status display section
                   const SizedBox(height: 16),
                   Container(
                     margin: EdgeInsets.symmetric(horizontal: 16),
@@ -1133,14 +1058,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Text(
-                              //   'สถานะปัจจุบัน',
-                              //   style: TextStyle(
-                              //     fontSize: 12,
-                              //     color: Colors.grey[600],
-                              //     fontWeight: FontWeight.w500,
-                              //   ),
-                              // ),
                               const SizedBox(height: 2),
                               Text(
                                 _getCombinedStatusText(),
@@ -1427,7 +1344,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Header ของเมนู
                                   Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -1468,7 +1384,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                                     ],
                                   ),
 
-                                  // ตัวเลือกเพิ่มเติม (Options)
                                   if (item.selectedOptions.isNotEmpty) ...[
                                     const SizedBox(height: 12),
                                     Container(
@@ -1561,7 +1476,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                                     ),
                                   ],
 
-                                  // หมายเหตุเพิ่มเติม (Additional Notes)
                                   if (item.additionalNotes.isNotEmpty) ...[
                                     const SizedBox(height: 12),
                                     Container(
@@ -1617,7 +1531,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                           SizedBox(height: 8),
                           Divider(),
                           SizedBox(height: 8),
-                          // Summary section
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -1658,29 +1571,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                               ),
                             ],
                           ),
-                          // if (bonus > 0) ...[
-                          //   SizedBox(height: 4),
-                          //   Row(
-                          //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          //     children: [
-                          //       Text(
-                          //         'โบนัส',
-                          //         style: TextStyle(
-                          //           fontSize: 14,
-                          //           color: Colors.orange[600],
-                          //         ),
-                          //       ),
-                          //       Text(
-                          //         '+ ${bonus.toStringAsFixed(0)} บาท',
-                          //         style: TextStyle(
-                          //           fontSize: 14,
-                          //           fontWeight: FontWeight.w500,
-                          //           color: Colors.orange[600],
-                          //         ),
-                          //       ),
-                          //     ],
-                          //   ),
-                          // ],
                           SizedBox(height: 4),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1706,7 +1596,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                       ),
                     ),
 
-                  // Section Divider
                   SizedBox(height: 20),
                   Container(
                     margin: EdgeInsets.symmetric(horizontal: 16),
@@ -1722,8 +1611,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
                     ),
                   ),
 
-                  // Restaurant Direction Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
+                  // Restaurant Map Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
                   if (!foodReceived)
+                  
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1744,6 +1634,8 @@ class _GoRestaurantState extends State<GoRestaurant> {
                           ),
                         ),
                         SizedBox(height: 12),
+
+                        // ✅ ใช้ MapNavigationButton แทน placeholder map
                         Container(
                           margin: EdgeInsets.symmetric(horizontal: 16),
                           padding: EdgeInsets.all(16),
@@ -1778,68 +1670,11 @@ class _GoRestaurantState extends State<GoRestaurant> {
                                 ),
                               ),
                               SizedBox(height: 12),
-                              // Map placeholder
-                              Container(
-                                height: 120,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Stack(
-                                  children: [
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(8),
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            Colors.green[100]!,
-                                            Colors.blue[50]!,
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      left: 50,
-                                      top: 40,
-                                      child: Container(
-                                        padding: EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.green,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          Icons.location_on,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      right: 30,
-                                      top: 20,
-                                      child: Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.purple,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'ระยะทาง ${distance.toStringAsFixed(1)} กม.',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 8,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              MapNavigationButton(
+                                latitude: latitude,
+                                longitude: longitude,
+                                locationName: restaurantName,
+                                address: restaurantAddress,
                               ),
                             ],
                           ),
@@ -1850,7 +1685,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
 
                   // Recommendation Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
                   if (!foodReceived) ...[
-                    // Header for Recommendation Section
                     Container(
                       margin: EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
@@ -1882,60 +1716,11 @@ class _GoRestaurantState extends State<GoRestaurant> {
                       ),
                     ),
                     SizedBox(height: 16),
-                    Container(
-                      alignment: Alignment.centerLeft,
-                      margin: EdgeInsets.symmetric(horizontal: 16),
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'คำแนะนำ',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'ระยะทาง ${distance.toStringAsFixed(1)} กม.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            confirmedArrival
-                                ? 'รอร้านเตรียมอาหาร คุณอยู่ที่ร้านแล้ว'
-                                : (arrivedAtRestaurant
-                                      ? 'คุณถึงร้านอาหารแล้ว'
-                                      : 'คุณจะไปถึงร้านประมาณ 7 นาที'),
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
 
                   SizedBox(height: 16),
 
-                  // Customer Direction Section - แสดงเฉพาะเมื่อรับอาหารแล้ว
+                  // Customer Map Section - แสดงเฉพาะเมื่อรับอาหารแล้ว
                   if (foodReceived)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1987,70 +1772,13 @@ class _GoRestaurantState extends State<GoRestaurant> {
                                 ),
                               ),
                               SizedBox(height: 12),
-                              // Map placeholder for customer
-                              Container(
-                                height: 120,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(8),
+                              // ✅ ใช้ MapNavigationButton ไปยังลูกค้า
+                                MapNavigationButton(
+                                  latitude: customerLat,
+                                  longitude: customerLng,
+                                  locationName: customerName,
+                                  address: customerAddress,
                                 ),
-                                child: Stack(
-                                  children: [
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            Colors.blue[100]!,
-                                            Colors.blue[50]!,
-                                          ],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        ),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.location_on,
-                                            size: 32,
-                                            color: Colors.blue,
-                                          ),
-                                          Text(
-                                            'จุดจัดส่ง',
-                                            style: TextStyle(
-                                              color: Colors.blue,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Positioned(
-                                      right: 8,
-                                      top: 8,
-                                      child: Container(
-                                        padding: EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange,
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.directions,
-                                          color: Colors.white,
-                                          size: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
                             ],
                           ),
                         ),
@@ -2081,6 +1809,49 @@ class _GoRestaurantState extends State<GoRestaurant> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Container(
+                      margin: EdgeInsets.symmetric(horizontal: 16),
+                      padding: EdgeInsets.all(6),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.info_outline,
+                              color: Colors.green[700],
+                              size: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 2),
+                                Text(
+                                  _getCombinedStatusText(),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [

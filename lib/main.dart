@@ -27,6 +27,7 @@ import 'package:rider_delivery/pages/auth/Register.dart';
 import 'package:rider_delivery/pages/auth/Rider_identity.dart';
 import 'package:rider_delivery/pages/auth/Wellcome.dart';
 import 'package:rider_delivery/APIs/middleware/AuthGuard.dart';
+import 'package:rider_delivery/pages/maps/MapNavigationPage.dart';
 import 'package:rider_delivery/services/RiderStatusService.dart';
 
 void main() async {
@@ -72,12 +73,13 @@ class MyApp extends StatelessWidget {
                 : RiderJobsPage(riderId: 0, initialTabIndex: initialTabIndex),
           );
         },
-        '/goRestaurant': (_) => AuthGuard(child: GoRestaurant()),
+        '/goRestaurant': (_) => AuthGuard(child: const GoRestaurant()),  // แก้ไขบรรทัดนี้
+        '/mapNavigation': (_) => AuthGuard(child: const MapNavigationPage()),  // เพิ่มบรรทัดนี้
         '/chat-lists': (_) => AuthGuard(child: const RiderChatListPage()),
         '/rider-chat': (_) => AuthGuard(child: const RiderChatPage()),
         '/goCustomer': (_) => AuthGuard(child: const GoCustomer()),
-        '/deliveryConfirm': (_) =>
-            AuthGuard(child: const DeliveryConfirmPage()),
+        // '/deliveryConfirm': (_) =>
+        //     AuthGuard(child: const DeliveryConfirmPage()),
         '/income': (_) => AuthGuard(child: IncomePage()),
         '/trip': (_) => AuthGuard(child: const TripPage()),
         '/jobs': (_) => AuthGuard(child: const JobsPage()),

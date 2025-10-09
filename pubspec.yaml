@@ -26,6 +26,9 @@ dependencies:
   dio: ^5.9.0
   timeago: ^3.7.1
   get: ^4.7.2
+  google_maps_flutter: ^2.13.1
+  flutter_polyline_points: ^3.1.0
+  flutter_tts: ^4.2.3
 
 dev_dependencies:
   flutter_test:

@@ -815,6 +815,41 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                           },
                         ),
                       ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Distance
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.yellow.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        color: Colors.red,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'ระยะทางระหว่างกัน :',
+                          style: const TextStyle(fontSize: 12),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -822,14 +857,14 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.deepOrange.withOpacity(0.18),
+                          color: primaryGreen.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           '${distanceKm.toStringAsFixed(1)} กม.',
                           style: const TextStyle(
                             fontSize: 11,
-                            color: Colors.deepOrange,
+                            color: primaryGreen,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -885,6 +920,13 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                         ),
                     ],
                   ),
+
+                  // if (order.customerLocation is Map &&
+                  //     order.customerLocation!['latitude'] != null)
+                  //   Text(
+                  //     'Lat: ${order.customerLocation!['latitude']}',
+                  //     style: const TextStyle(fontSize: 13),
+                  //   ),
                   const SizedBox(height: 6),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -901,25 +943,6 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                           style: const TextStyle(fontSize: 12),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: primaryGreen.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '${distanceKm.toStringAsFixed(1)} กม.',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: primaryGreen,
-                            fontWeight: FontWeight.bold,
-                          ),
                         ),
                       ),
                     ],
@@ -1473,6 +1496,9 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                     order.customerLocation?['address'] ??
                     order.address ??
                     'ไม่ระบุที่อยู่',
+                'customerLat': order.customerLocation?['latitude'] ?? 0.0,
+                'customerLng': order.customerLocation?['longitude'] ?? 0.0,
+
                 'deliveryType': order.deliveryType,
                 'note': order.note ?? 'เพิ่มเติม: -',
                 'earn': order.deliveryFee,
@@ -1499,6 +1525,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                     .toList(),
               },
             );
+
             // จัดการ result จาก GoCustomer
             if (result != null && result is Map<String, dynamic>) {
               if (result['switchToTab'] != null) {
@@ -1515,7 +1542,11 @@ class _RiderJobsPageState extends State<RiderJobsPage>
             final result = await Navigator.pushNamed(
               context,
               '/goRestaurant',
-              arguments: {'orderId': order.orderId, 'riderId': widget.riderId},
+              arguments: {
+                'orderId': order.orderId,
+                'riderId': widget.riderId,
+                'userId': order.userId,
+              },
             );
             // จัดการ result จาก GoRestaurant
             if (result != null && result is Map<String, dynamic>) {
@@ -1620,7 +1651,6 @@ class _RiderJobsPageState extends State<RiderJobsPage>
         order.orderId,
         widget.riderId,
       );
-
       if (success) {
         _showSuccessSnackBar('รับงานสำเร็จ!');
         await _fetchOrders();

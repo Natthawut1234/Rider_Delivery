@@ -3,9 +3,17 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
 
 class DeliveryConfirmPage extends StatefulWidget {
-  const DeliveryConfirmPage({super.key});
+  final int orderId;
+  final RiderControllerSocket orderController;
+
+  const DeliveryConfirmPage({
+    super.key,
+    required this.orderId,
+    required this.orderController,
+  });
 
   @override
   State<DeliveryConfirmPage> createState() => _DeliveryConfirmPageState();
@@ -14,7 +22,6 @@ class DeliveryConfirmPage extends StatefulWidget {
 class _DeliveryConfirmPageState extends State<DeliveryConfirmPage> {
   final ImagePicker _picker = ImagePicker();
   File? _pickedImage;
-  bool _submitted = false;
 
   Future<void> _takePhoto() async {
     final XFile? f = await _picker.pickImage(
@@ -24,49 +31,24 @@ class _DeliveryConfirmPageState extends State<DeliveryConfirmPage> {
     if (f != null) setState(() => _pickedImage = File(f.path));
   }
 
-  Future<void> _pickFromGallery() async {
-    final XFile? f = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-    );
-    if (f != null) setState(() => _pickedImage = File(f.path));
-  }
-
-  void _submit() {
+  void _confirmDelivery() {
     if (_pickedImage == null) {
-      // action close
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          // ทำให้ SnackBar ลอยขึ้นมาจากการ์ดด้านล่าง
           behavior: SnackBarBehavior.floating,
-          // กำหนดระยะห่างจากขอบจอ
           margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          // ทำให้ขอบมน
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          // สีพื้นหลังที่สื่อถึงการแจ้งเตือน (Error)
           backgroundColor: Colors.red.shade700,
-          // กำหนดระยะเวลาที่แสดง
           duration: const Duration(seconds: 3),
-
           content: GestureDetector(
-            behavior: HitTestBehavior
-                .opaque, // ให้ GestureDetector จับการสัมผัสได้ทั่วทั้ง SnackBar
-            onTap: () {
-              // ปิด SnackBar เมื่อถูกแตะ
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            },
-            child: Row(
-              children: const [
-                Icon(
-                  Icons.error_outline,
-                  color: Colors.white,
-                  size: 28,
-                ), // เปลี่ยนไอคอนให้สื่อถึง Error
+            onTap: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+            child: const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 28),
                 SizedBox(width: 12),
                 Expanded(
-                  // ใช้ Expanded เพื่อให้ Text ตัดคำได้สวยงามถ้าขนาดยาวเกิน
                   child: Text(
                     'กรุณาถ่ายรูปก่อน',
                     style: TextStyle(
@@ -83,118 +65,55 @@ class _DeliveryConfirmPageState extends State<DeliveryConfirmPage> {
       );
       return;
     }
-    setState(() => _submitted = true);
-    // simulate upload and return
-    Future.delayed(const Duration(seconds: 1), () {
-      Navigator.pop(context, true);
-    });
-  }
 
-  // confirm delivery
-  void _confirmDelivery() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => CupertinoAlertDialog(
-        title: Column(
+        title: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.check_circle_outline,
-              color: Colors.green,
-              size: 28,
-            ),
-            const Text('ยืนยันการจัดส่ง'),
+            Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
+            SizedBox(height: 8),
+            Text('ยืนยันการถ่ายรูป'),
           ],
         ),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 8.0),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8.0),
           child: Text(
-            'คุณต้องการยืนยันการจัดส่งใช่หรือไม่?',
+            'คุณต้องการยืนยันการถ่ายรูปนี้ใช่หรือไม่?',
             style: TextStyle(fontSize: 14),
             textAlign: TextAlign.center,
           ),
         ),
         actions: [
-          // Cancel button keep left
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context),
-            isDefaultAction: false,
             child: const Text('ยกเลิก'),
-            textStyle: TextStyle(color: Colors.black),
           ),
           CupertinoDialogAction(
             onPressed: () {
               Navigator.pop(context);
-              _submit();
+              Navigator.pop(this.context, _pickedImage);
             },
-            isDestructiveAction: true,
+            isDefaultAction: true,
             child: const Text('ยืนยัน'),
-            textStyle: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.bold,
-            ),
           ),
         ],
       ),
     );
   }
 
+  Future<void> _pickFromGallery() async {
+    final XFile? f = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (f != null) setState(() => _pickedImage = File(f.path));
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_submitted) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                color: Colors.green,
-                size: 120,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'ส่งรูปยืนยันเรียบร้อย',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'ขอบคุณที่ยืนยันการจัดส่ง',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-              ),
-              const SizedBox(height: 32),
-              // ElevatedButton(
-              //   onPressed: () => Navigator.pop(context, true),
-              //   style: ElevatedButton.styleFrom(
-              //     backgroundColor: Colors.green,
-              //     padding: const EdgeInsets.symmetric(
-              //       horizontal: 32,
-              //       vertical: 12,
-              //     ),
-              //     shape: RoundedRectangleBorder(
-              //       borderRadius: BorderRadius.circular(30),
-              //     ),
-              //   ),
-              //   child: const Text(
-              //     'กลับหน้าหลัก',
-              //     style: TextStyle(
-              //       fontWeight: FontWeight.bold,
-              //       fontSize: 16,
-              //       color: Colors.white,
-              //     ),
-              //   ),
-              // ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -283,33 +202,6 @@ class _DeliveryConfirmPageState extends State<DeliveryConfirmPage> {
                         ],
                       ),
                     )
-                  // ? Container(
-                  //     width: 250,
-                  //     height: 250,
-                  //     decoration: BoxDecoration(
-                  //       borderRadius: BorderRadius.circular(16),
-                  //       color: Colors.grey[100],
-                  //       border: Border.all(
-                  //         color: Colors.green.shade200,
-                  //         width: 2,
-                  //       ),
-                  //     ),
-                  //     child: const Column(
-                  //       mainAxisAlignment: MainAxisAlignment.center,
-                  //       children: [
-                  //         Icon(
-                  //           Icons.camera_alt_outlined,
-                  //           size: 60,
-                  //           color: Colors.grey,
-                  //         ),
-                  //         SizedBox(height: 8),
-                  //         Text(
-                  //           'กดปุ่มด้านล่างเพื่อถ่ายรูป',
-                  //           style: TextStyle(color: Colors.grey, fontSize: 14),
-                  //         ),
-                  //       ],
-                  //     ),
-                  //   )
                   : ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: Image.file(
@@ -379,7 +271,7 @@ class _DeliveryConfirmPageState extends State<DeliveryConfirmPage> {
                   ),
                 ),
                 child: const Text(
-                  'ยืนยันการจัดส่ง',
+                  'ยืนยันการถ่ายรูป',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
