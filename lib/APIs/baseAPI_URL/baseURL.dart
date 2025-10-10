@@ -32,4 +32,6 @@ class BaseAPI_URL {
   static const String SocketURL = 'http://20.189.96.19:4000/riders/socket';
 
   static const String HostSocketURL = 'http://20.189.96.19:4000';
+  static const String GoogleMapAPI = '';
+
 }
