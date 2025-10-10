@@ -1670,7 +1670,7 @@ class _RiderJobsPageState extends State<RiderJobsPage>
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: () async {
-          // ตรวจสอบสถานะ ถ้าอยู่ในขั้นตอนจัดส่งแล้ว ให้ไปหน้า GoCustomer โดยตรง
+          // ✅ ถ้าออเดอร์อยู่ในขั้นตอนจัดส่ง -> ไปหน้า GoCustomer
           if (['delivering', 'arrived_at_customer'].contains(order.status)) {
             final result = await Navigator.pushNamed(
               context,
@@ -1714,12 +1714,12 @@ class _RiderJobsPageState extends State<RiderJobsPage>
                       },
                     )
                     .toList(),
-                'status': order.status, // ✅ เพิ่มตรงนี้
-                'shopStatus': order.shopStatus, // ✅ และตรงนี้
+                'status': order.status, // ✅ เพิ่มสถานะ
+                'shopStatus': order.shopStatus, // ✅ เพิ่มสถานะร้าน
               },
             );
 
-            // จัดการ result จาก GoCustomer
+            // ✅ หลังกลับมาจากหน้า GoCustomer
             if (result != null && result is Map<String, dynamic>) {
               if (result['switchToTab'] != null) {
                 _tabController.animateTo(result['switchToTab']);
@@ -1731,55 +1731,20 @@ class _RiderJobsPageState extends State<RiderJobsPage>
               }
             }
           } else {
-            // ส่งไปหน้า GoRestaurant สำหรับสถานะอื่นๆ
+            // ✅ ถ้ายังอยู่ในขั้นตอนรับงานหรือไปร้านค้า -> ไปหน้า GoRestaurant
             final result = await Navigator.pushNamed(
               context,
-              '/goCustomer',
+              '/goRestaurant',
               arguments: {
                 'orderId': order.orderId,
                 'riderId': widget.riderId,
-                'orderNumber': order.orderId.toString(),
-                'restaurantName': order.shopName,
-                'customerName':
-                    order.customerLocation?['name'] ??
-                    order.clientName ??
-                    'ลูกค้า',
-                'titleCustomerAddress': 'ส่งถึง',
-                'customerAddress':
-                    order.customerLocation?['address'] ??
-                    order.address ??
-                    'ไม่ระบุที่อยู่',
-                'customerLat': order.customerLocation?['latitude'] ?? 0.0,
-                'customerLng': order.customerLocation?['longitude'] ?? 0.0,
-                'deliveryType': order.deliveryType,
-                'note': order.note ?? 'เพิ่มเติม: -',
-                'earn': order.deliveryFee,
-                'payAtShop': order.originalTotalPrice,
-                'bonus': 0.0,
-                'totalReceived': order.deliveryFee + order.originalTotalPrice,
-                'payType': order.paymentMethod,
-                'distance':
-                    '${order.distanceKm?.toStringAsFixed(1) ?? '0.0'} กม.',
-                'totalPrice': order.totalPrice,
-                'deliveryFee': order.deliveryFee,
-                'orderItems': order.items
-                    .map(
-                      (item) => {
-                        'orderNumber': order.orderId.toString(),
-                        'foodName': item.foodName,
-                        'quantity': item.quantity,
-                        'selectedOptions': item.selectedOptions,
-                        'subtotal': item.subtotal,
-                        'additionalNotes': item.additionalNotes,
-                      },
-                    )
-                    .toList(),
-                'status': order.status, // ✅ เพิ่มตรงนี้
-                'shopStatus': order.shopStatus, // ✅ และตรงนี้
+                'userId': order.userId,
+                'status': order.status, // ✅ เพิ่ม
+                'shopStatus': order.shopStatus, // ✅ เพิ่ม
               },
             );
 
-            // จัดการ result จาก GoRestaurant
+            // ✅ หลังกลับมาจากหน้า GoRestaurant
             if (result != null && result is Map<String, dynamic>) {
               if (result['switchToTab'] != null) {
                 _tabController.animateTo(result['switchToTab']);
