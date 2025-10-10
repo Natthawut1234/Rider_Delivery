@@ -750,59 +750,104 @@ class _GoCustomerState extends State<GoCustomer> {
   }
 
   void _confirmDeliveryFinal(Map<String, dynamic> data) {
-    // เก็บ context หลักไว้ก่อน (จะไม่โดน dispose ตอน dialog ปิด)
-    final parentContext = context;
+  final parentContext = context;
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) => CupertinoAlertDialog(
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
-            SizedBox(height: 8),
-            Text('ยืนยันการจัดส่งและรับเงิน'),
-          ],
-        ),
-        content: const Padding(
-          padding: EdgeInsets.only(top: 8.0),
-          child: Text(
-            'คุณต้องการยืนยันการจัดส่งและรับเงินจากลูกค้าหรือไม่?',
-            style: TextStyle(fontSize: 14),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('ยกเลิก'),
-          ),
-          CupertinoDialogAction(
-            onPressed: () async {
-              Navigator.pop(
-                dialogContext,
-              ); // ✅ ปิด dialog ด้วย context ของ dialog
-              await _updateOrderStatus('completed');
-
-              if (!mounted) return;
-
-              // ✅ ใช้ context หลักของหน้าแทน ไม่ใช่ของ dialog
-              Navigator.of(parentContext, rootNavigator: true).pushReplacement(
-                MaterialPageRoute(
-                  builder: (_) => const DeliveryCompletedPage(),
-                  settings: RouteSettings(
-                    arguments: {'orderId': orderId, ...data},
-                  ),
-                ),
-              );
-            },
-            isDefaultAction: true,
-            child: const Text('ยืนยัน'),
-          ),
+  showDialog(
+    context: context,
+    builder: (dialogContext) => CupertinoAlertDialog(
+      title: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
+          SizedBox(height: 8),
+          Text('ยืนยันการจัดส่งและรับเงิน'),
         ],
       ),
-    );
-  }
+      content: const Padding(
+        padding: EdgeInsets.only(top: 8.0),
+        child: Text(
+          'คุณต้องการยืนยันการจัดส่งและรับเงินจากลูกค้าหรือไม่?',
+          style: TextStyle(fontSize: 14),
+          textAlign: TextAlign.center,
+        ),
+      ),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('ยกเลิก'),
+        ),
+        CupertinoDialogAction(
+          onPressed: () async {
+            Navigator.pop(dialogContext); // ปิด dialog ยืนยัน
+            await _updateOrderStatus('completed');
+            if (!mounted) return;
+
+            // ✅ แสดงหน้าเต็มจอ “จัดส่งสำเร็จ”
+            showGeneralDialog(
+              context: parentContext,
+              barrierDismissible: false,
+              barrierColor: Colors.black.withOpacity(0.6),
+              transitionDuration: const Duration(milliseconds: 300),
+              pageBuilder: (_, __, ___) {
+                return Scaffold(
+                  backgroundColor: Colors.white,
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.check_circle,
+                          color: Color(0xFF4CAF50),
+                          size: 150,
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'จัดส่งสำเร็จ!',
+                          style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF388E3C),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'ขอบคุณที่ให้บริการกับลูกค้า 💚',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.black54,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+
+            // ✅ รอ 3 วิ แล้วเปลี่ยนหน้า
+            await Future.delayed(const Duration(seconds: 3));
+            if (!mounted) return;
+
+            Navigator.of(parentContext, rootNavigator: true).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => const DeliveryCompletedPage(),
+                settings: RouteSettings(arguments: {
+                  'orderId': orderId,
+                  ...data,
+                }),
+              ),
+            );
+          },
+          isDefaultAction: true,
+          child: const Text('ยืนยัน'),
+        ),
+      ],
+    ),
+  );
+}
+
 
   String _getStatusText(String status) {
     switch (status) {
