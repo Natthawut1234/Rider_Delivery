@@ -18,13 +18,17 @@ class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (orderData == null) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       if (args != null) {
         setState(() {
           orderData = args;
           isLoading = false;
         });
-        _orderController = Provider.of<RiderControllerSocket>(context, listen: false);
+        _orderController = Provider.of<RiderControllerSocket>(
+          context,
+          listen: false,
+        );
         _loadOrderDetails(args['orderId'], args['riderId']);
       }
     }
@@ -67,7 +71,9 @@ class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
 
     final orderId = orderData!['orderId'] ?? 0;
     final deliveryFee = (orderData!['deliveryFee'] ?? 0.0).toDouble();
-    final originalTotalPrice = (orderData!['originalTotalPrice'] ?? orderData!['payAtShop'] ?? 0.0).toDouble();
+    final originalTotalPrice =
+        (orderData!['originalTotalPrice'] ?? orderData!['payAtShop'] ?? 0.0)
+            .toDouble();
     final totalPrice = (orderData!['totalPrice'] ?? 0.0).toDouble();
     final bonus = (orderData!['bonus'] ?? 0.0).toDouble();
     final riderRequiredGp = (orderData!['riderRequiredGp'] ?? 0.0).toDouble();
@@ -87,10 +93,7 @@ class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
         ),
         title: Text(
           'จัดส่งเสร็จสิ้น',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
@@ -105,10 +108,7 @@ class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF4CAF50),
-                    Color(0xFF81C784),
-                  ],
+                  colors: [Color(0xFF4CAF50), Color(0xFF81C784)],
                 ),
               ),
               child: Column(
@@ -144,10 +144,7 @@ class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
                   SizedBox(height: 8),
                   Text(
                     'Order #$orderId',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
                   ),
                 ],
               ),
@@ -203,11 +200,7 @@ class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
                           Divider(height: 24),
                           Row(
                             children: [
-                              Icon(
-                                Icons.person,
-                                color: Colors.blue,
-                                size: 24,
-                              ),
+                              Icon(Icons.person, color: Colors.blue, size: 24),
                               SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -247,9 +240,9 @@ class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
                       color: Colors.black87,
                     ),
                   ),
-                  SizedBox(height: 12),
+                  SizedBox(height: 16),
 
-                  // Earnings Card
+                  // ข้อมูลการชำระเงิน (จ่ายให้ร้าน + รับจากลูกค้า)
                   Card(
                     elevation: 2,
                     shape: RoundedRectangleBorder(
@@ -258,60 +251,239 @@ class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
                     child: Padding(
                       padding: EdgeInsets.all(16),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.payments,
+                                color: Colors.purple,
+                                size: 20,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'ข้อมูลการชำระเงิน',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.purple,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 12),
                           _buildFinancialRow(
                             icon: Icons.restaurant_menu,
                             iconColor: Colors.orange,
-                            label: 'ค่าอาหาร (จ่ายให้ร้าน)',
+                            label: 'จ่ายให้ร้าน',
                             amount: originalTotalPrice,
                             amountColor: Colors.orange,
                           ),
-                          Divider(height: 24),
-                          _buildFinancialRow(
-                            icon: Icons.delivery_dining,
-                            iconColor: Color(0xFF4CAF50),
-                            label: 'ค่าจัดส่ง (รายได้)',
-                            amount: deliveryFee,
-                            amountColor: Color(0xFF4CAF50),
-                            isHighlight: true,
-                          ),
-                          if (bonus > 0) ...[
-                            Divider(height: 24),
-                            _buildFinancialRow(
-                              icon: Icons.card_giftcard,
-                              iconColor: Colors.purple,
-                              label: 'เครดิตช่วยจ่าย',
-                              amount: bonus,
-                              amountColor: Colors.purple,
-                            ),
-                          ],
-                          if (riderRequiredGp > 0) ...[
-                            Divider(height: 24),
-                            _buildFinancialRow(
-                              icon: Icons.remove_circle_outline,
-                              iconColor: Colors.red,
-                              label: 'เครดิตที่หัก',
-                              amount: riderRequiredGp,
-                              amountColor: Colors.red,
-                              isDeduction: true,
-                            ),
-                          ],
-                          Divider(height: 24, thickness: 2),
+                          SizedBox(height: 8),
                           _buildFinancialRow(
                             icon: Icons.attach_money,
                             iconColor: Colors.blue,
-                            label: 'รวมที่รับจากลูกค้า',
+                            label: 'รับจากลูกค้า',
                             amount: totalPrice,
                             amountColor: Colors.blue,
-                            isTotal: true,
+                            isHighlight: true,
                           ),
                         ],
                       ),
                     ),
                   ),
+                  SizedBox(height: 6),
+
+                  // 💰 รายได้ของคุณ
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Color(0xFF4CAF50).withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.monetization_on,
+                                color: Color(0xFF4CAF50),
+                                size: 20,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'รายได้ของคุณ',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF4CAF50),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 12),
+                          // _buildFinancialRow(
+                          //   icon: Icons.local_shipping,
+                          //   iconColor: Color(0xFF4CAF50),
+                          //   label: 'ค่าจัดส่ง',
+                          //   amount: deliveryFee,
+                          //   amountColor: Color(0xFF4CAF50),
+                          // ),
+                          // SizedBox(height: 8),
+                          _buildFinancialRow(
+                            icon: Icons.delivery_dining_sharp,
+                            iconColor: Color(0xFF4CAF50),
+                            label: 'รายได้รวม',
+                            amount: deliveryFee,
+                            amountColor: Color(0xFF4CAF50),
+                            isHighlight: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // 💳 ค่าใช้จ่าย (แสดงเฉพาะเมื่อมีเครดิตช่วยจ่าย)
+                  if (bonus > 0 || riderRequiredGp > 0) ...[
+                    SizedBox(height: 6),
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.credit_card,
+                                  color: Colors.orange,
+                                  size: 20,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'ค่าใช้จ่าย',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 12),
+                            if (riderRequiredGp > 0) ...[
+                              _buildFinancialRow(
+                                icon: Icons.payments,
+                                iconColor: Colors.grey[600]!,
+                                label: 'เครดิตที่ต้องจ่าย',
+                                amount: riderRequiredGp + bonus,
+                                amountColor: Colors.black87,
+                              ),
+                            ],
+                            if (bonus > 0) ...[
+                              SizedBox(height: 8),
+                              _buildFinancialRow(
+                                icon: Icons.savings,
+                                iconColor: Colors.orange,
+                                label: 'เครดิตช่วยจ่าย',
+                                amount: bonus,
+                                amountColor: Colors.orange,
+                                isDeduction: true,
+                              ),
+                            ],
+                            if (riderRequiredGp > 0) ...[
+                              SizedBox(height: 12),
+                              Divider(height: 8),
+                              SizedBox(height: 8),
+                              _buildFinancialRow(
+                                icon: Icons.remove_circle_outline,
+                                iconColor: Colors.red,
+                                label: 'เครดิตที่หักจริง',
+                                amount: riderRequiredGp,
+                                amountColor: Colors.red,
+                                isHighlight: true,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  // 📊 สรุป
+                  // if (bonus > 0) ...[
+                  //   SizedBox(height: 16),
+                  //   Card(
+                  //     elevation: 2,
+                  //     shape: RoundedRectangleBorder(
+                  //       borderRadius: BorderRadius.circular(12),
+                  //     ),
+                  //     child: Container(
+                  //       padding: EdgeInsets.all(16),
+                  //       decoration: BoxDecoration(
+                  //         color: Colors.blue.withOpacity(0.05),
+                  //         borderRadius: BorderRadius.circular(12),
+                  //       ),
+                  //       child: Column(
+                  //         crossAxisAlignment: CrossAxisAlignment.start,
+                  //         children: [
+                  //           Row(
+                  //             children: [
+                  //               Icon(
+                  //                 Icons.savings,
+                  //                 color: Colors.blue,
+                  //                 size: 20,
+                  //               ),
+                  //               SizedBox(width: 8),
+                  //               Text(
+                  //                 'สรุป',
+                  //                 style: TextStyle(
+                  //                   fontSize: 16,
+                  //                   fontWeight: FontWeight.bold,
+                  //                   color: Colors.blue,
+                  //                 ),
+                  //               ),
+                  //             ],
+                  //           ),
+                  //           SizedBox(height: 12),
+                  //           _buildFinancialRow(
+                  //             icon: Icons.trending_up,
+                  //             iconColor: Color(0xFF4CAF50),
+                  //             label: 'รายได้สุทธิ',
+                  //             amount: deliveryFee,
+                  //             amountColor: Color(0xFF4CAF50),
+                  //           ),
+                  //           SizedBox(height: 8),
+                  //           _buildFinancialRow(
+                  //             icon: Icons.account_balance_wallet,
+                  //             iconColor: Colors.blue,
+                  //             label: 'ประหยัดได้',
+                  //             amount: bonus,
+                  //             amountColor: Colors.blue,
+                  //             isHighlight: true,
+                  //           ),
+                  //         ],
+                  //       ),
+                  //     ),
+                  //   ),
+                  // ],
                   SizedBox(height: 20),
 
-                  // Quick Summary Card
+                  // Quick Summary Card - แสดงรายได้สุทธิเสมอ
                   Container(
                     padding: EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -343,13 +515,34 @@ class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
                             ),
                             SizedBox(height: 4),
                             Text(
-                              '฿${(deliveryFee + bonus).toStringAsFixed(0)}',
+                              '฿${deliveryFee.toStringAsFixed(0)}',
                               style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF4CAF50),
                               ),
                             ),
+                            if (bonus > 0) ...[
+                              SizedBox(height: 4),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[100],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'ประหยัดเครดิต ฿${bonus.toStringAsFixed(0)}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blue[700],
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         Container(
@@ -414,45 +607,47 @@ class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
     bool isDeduction = false,
   }) {
     return Container(
-      padding: EdgeInsets.symmetric(vertical: isTotal ? 8 : 0),
+      padding: EdgeInsets.symmetric(vertical: isTotal ? 8 : 4),
       decoration: isHighlight
           ? BoxDecoration(
-              color: Color(0xFF4CAF50).withOpacity(0.1),
+              color: amountColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             )
           : null,
       child: Padding(
-        padding: isHighlight ? EdgeInsets.all(12) : EdgeInsets.zero,
+        padding: isHighlight ? EdgeInsets.all(8) : EdgeInsets.zero,
         child: Row(
           children: [
             Container(
-              padding: EdgeInsets.all(8),
+              padding: EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
               ),
-              child: Icon(
-                icon,
-                color: iconColor,
-                size: isTotal ? 24 : 20,
-              ),
+              child: Icon(icon, color: iconColor, size: isTotal ? 18 : 16),
             ),
-            SizedBox(width: 12),
+            SizedBox(width: 10),
             Expanded(
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: isTotal ? 16 : 14,
-                  fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
-                  color: isTotal ? Colors.black87 : Colors.grey[700],
+                  fontSize: isTotal || isHighlight ? 15 : 14,
+                  fontWeight: isTotal || isHighlight
+                      ? FontWeight.bold
+                      : FontWeight.w500,
+                  color: isTotal || isHighlight
+                      ? Colors.black87
+                      : Colors.grey[700],
                 ),
               ),
             ),
             Text(
               '${isDeduction ? '-' : ''}฿${amount.toStringAsFixed(0)}',
               style: TextStyle(
-                fontSize: isTotal ? 20 : 16,
-                fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
+                fontSize: isTotal || isHighlight ? 18 : 16,
+                fontWeight: isTotal || isHighlight
+                    ? FontWeight.bold
+                    : FontWeight.w600,
                 color: amountColor,
               ),
             ),

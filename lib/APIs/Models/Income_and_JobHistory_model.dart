@@ -227,7 +227,7 @@ class JobItem {
   }
 
   // Helper methods for UI
-  double get totalEarnings => double.parse(deliveryFee) + double.parse(bonus);
+  double get totalEarnings => double.parse(deliveryFee);
   double get deliveryFeeAmount => double.parse(deliveryFee);
   double get bonusAmount => double.parse(bonus);
   double get riderGpAmount => double.parse(riderRequiredGp);

@@ -641,40 +641,132 @@ class _RiderJobsPageState extends State<RiderJobsPage>
               ),
             ),
             const SizedBox(height: 12),
-            if (order.bonus > 0) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: lightGreen.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: lightGreen.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.monetization_on,
-                          color: Colors.orange,
-                          size: 18,
-                        ),
 
-                        const SizedBox(width: 8),
+            // Credit information section
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.account_balance_wallet,
+                        color: accentGreen,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'ข้อมูลเครดิต',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: primaryGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  if (order.bonus > 0) ...[
+                    // Credit with bonus
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'เครดิตปกติ:',
+                          style: TextStyle(fontSize: 13, color: Colors.grey),
+                        ),
                         Text(
-                          'เครดิตช่วยจ่าย ฿${order.bonus.toStringAsFixed(0)}',
+                          '${(order.riderRequiredGp + order.bonus).toStringAsFixed(0)} เครดิต',
                           style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.orange,
+                            fontSize: 13,
+                            color: Colors.grey,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'คุณจ่ายเพียง:',
+                          style: TextStyle(
+                            fontSize: 13,
                             fontWeight: FontWeight.bold,
+                            color: primaryGreen,
+                          ),
+                        ),
+                        Text(
+                          '${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: primaryGreen,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: Colors.orange.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.savings, size: 12, color: Colors.orange),
+                          const SizedBox(width: 4),
+                          Text(
+                            'ประหยัด ${order.bonus.toStringAsFixed(0)} เครดิต!',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    // Normal credit (no bonus)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'เครดิตที่ต้องใช้:',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                        Text(
+                          '${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: primaryGreen,
                           ),
                         ),
                       ],
                     ),
                   ],
-                ),
+                ],
               ),
-            ],
+            ),
             const SizedBox(height: 12),
 
             // Address
@@ -1775,69 +1867,286 @@ class _RiderJobsPageState extends State<RiderJobsPage>
     final earning = (order.deliveryFee);
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          'ยืนยันรับงาน',
-          style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ร้าน: ${order.shopName}'),
-            // รายได้ และแสดงโบนัสถ้ามี
-            Builder(
-              builder: (_) {
-                final bonus = order.bonus;
-                return Column(
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 10,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white, backgroundGreen.withOpacity(0.3)],
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with icon
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: primaryGreen.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.assignment_add,
+                  size: 40,
+                  color: primaryGreen,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Title
+              const Text(
+                'ยืนยันรับงาน',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: primaryGreen,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Content container
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryGreen.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('รายได้: ฿${earning.toStringAsFixed(0)}'),
-                    if (bonus > 0) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'เครดิตช่วยจ่าย: ฿${bonus.toStringAsFixed(0)}',
-                        style: const TextStyle(color: Colors.orange),
+                    // Shop info
+                    _buildInfoRow(
+                      icon: Icons.store,
+                      label: 'ร้าน',
+                      value: order.shopName,
+                      iconColor: Colors.orange,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Earnings section
+                    _buildInfoRow(
+                      icon: Icons.payments,
+                      label: 'รายได้',
+                      value: '฿${earning.toStringAsFixed(0)}',
+                      iconColor: primaryGreen,
+                      isHighlight: true,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Distance
+                    _buildInfoRow(
+                      icon: Icons.route,
+                      label: 'ระยะทาง',
+                      value:
+                          '${(order.distanceKm ?? 0).toStringAsFixed(1)} กม.',
+                      iconColor: Colors.blue,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Credit section with detailed breakdown
+                    if (order.bonus > 0) ...[
+                      // Total credits normally required
+                      _buildInfoRow(
+                        icon: Icons.account_balance_wallet,
+                        label: 'เครดิตที่ต้องจ่าย',
+                        value:
+                            '${(order.riderRequiredGp + order.bonus).toStringAsFixed(0)} เครดิต',
+                        iconColor: Colors.grey,
+                      ),
+                      const SizedBox(height: 8),
+                      // Bonus if available
+                      if (order.bonus > 0) ...[
+                        const SizedBox(height: 8),
+                        _buildInfoRow(
+                          icon: Icons.star,
+                          label: 'เครดิตช่วยจ่าย',
+                          value: '฿${order.bonus.toStringAsFixed(0)}',
+                          iconColor: Colors.orange,
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+
+                      // Credits remaining to pay
+                      _buildInfoRow(
+                        icon: Icons.wallet_giftcard,
+                        label: 'คุณจ่ายเพียง',
+                        value:
+                            '${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
+                        iconColor: accentGreen,
+                        isHighlight: true,
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Savings
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.orange.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.savings, size: 16, color: Colors.orange),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'ประหยัด ${order.bonus.toStringAsFixed(0)} เครดิต!',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else ...[
+                      // Normal credit requirement (no bonus)
+                      _buildInfoRow(
+                        icon: Icons.account_balance_wallet,
+                        label: 'เครดิตที่ต้องใช้',
+                        value:
+                            '${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
+                        iconColor: accentGreen,
                       ),
                     ],
                   ],
-                );
-              },
-            ),
-            Text('ระยะทาง: ${(order.distanceKm ?? 0).toStringAsFixed(1)} กม.'),
-            if (order.bonus > 0) ...[
-              Text(
-                'เหลือเครดิตที่ต้องใช้: ${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
-                style: TextStyle(color: Colors.green[600]),
+                ),
               ),
-            ] else ...[
-              Text(
-                'เครดิตที่ต้องใช้: ${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
-                style: TextStyle(color: Colors.green[600]),
+              const SizedBox(height: 20),
+
+              // Question
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: primaryGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'คุณต้องการรับงานนี้หรือไม่?',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: primaryGreen,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Action buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      child: const Text(
+                        'ยกเลิก',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await _handleAcceptOrder(order);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 3,
+                      ),
+                      child: const Text(
+                        'ยืนยัน',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
-            const SizedBox(height: 8),
-            const Text(
-              'คุณต้องการรับงานนี้หรือไม่?',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('ยกเลิก', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _handleAcceptOrder(order);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: lightGreen),
-            child: const Text('ยืนยัน', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
+    );
+  }
+
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color iconColor,
+    bool isHighlight = false,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 20, color: iconColor),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            '$label:',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isHighlight ? 16 : 15,
+            fontWeight: isHighlight ? FontWeight.bold : FontWeight.w600,
+            color: isHighlight ? primaryGreen : Colors.black87,
+          ),
+        ),
+      ],
     );
   }
 
