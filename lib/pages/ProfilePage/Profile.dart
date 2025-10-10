@@ -116,11 +116,11 @@ class _ProfileViewState extends State<_ProfileView>
                         Divider(height: 1, color: Colors.grey[200]),
 
                         // 3. Stats Card
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: _buildStatsCard(profile),
-                        ),
-                        Divider(height: 1, color: Colors.grey[200]),
+                        // Padding(
+                        //   padding: const EdgeInsets.all(20),
+                        //   child: _buildStatsCard(profile),
+                        // ),
+                        // Divider(height: 1, color: Colors.grey[200]),
 
                         // 4. Personal Info
                         _buildPersonalInfoCard(profile),
@@ -404,17 +404,17 @@ class _ProfileViewState extends State<_ProfileView>
                 ],
               ),
             ),
-            Row(
-              children: [
-                const Text('พร้อม', style: TextStyle(fontSize: 12)),
-                Switch(
-                  value: profile.available,
-                  onChanged: (val) => profile.toggleAvailable(val),
-                  activeColor: Colors.white,
-                  activeTrackColor: Colors.green,
-                ),
-              ],
-            ),
+            // Row(
+            //   children: [
+            //     const Text('พร้อม', style: TextStyle(fontSize: 12)),
+            //     Switch(
+            //       value: profile.available,
+            //       onChanged: (val) => profile.toggleAvailable(val),
+            //       activeColor: Colors.white,
+            //       activeTrackColor: Colors.green,
+            //     ),
+            //   ],
+            // ),
             IconButton(
               tooltip: 'รีเฟรช',
               icon: const Icon(Icons.refresh, size: 20),
@@ -432,30 +432,30 @@ class _ProfileViewState extends State<_ProfileView>
   }
 
   // ---------------- Stats Card ----------------
-  Widget _buildStatsCard(ProfileModel profile) {
-    return Row(
-      children: [
-        _statItem(
-          "รายได้",
-          "฿${profile.earnings.toStringAsFixed(2)}",
-          Icons.account_balance_wallet,
-          AppColors.greenGradient,
-        ),
-        _statItem(
-          "งานสำเร็จ",
-          "${profile.completed}",
-          Icons.check_circle,
-          AppColors.blueGradient,
-        ),
-        _statItem(
-          "เรตติ้ง",
-          profile.rating > 0 ? profile.rating.toString() : "ยังไม่มี",
-          Icons.star,
-          AppColors.orangeGradient,
-        ),
-      ],
-    );
-  }
+  // Widget _buildStatsCard(ProfileModel profile) {
+  //   return Row(
+  //     children: [
+  //       _statItem(
+  //         "รายได้",
+  //         "฿${profile.earnings.toStringAsFixed(2)}",
+  //         Icons.account_balance_wallet,
+  //         AppColors.greenGradient,
+  //       ),
+  //       _statItem(
+  //         "งานสำเร็จ",
+  //         "${profile.completed}",
+  //         Icons.check_circle,
+  //         AppColors.blueGradient,
+  //       ),
+  //       _statItem(
+  //         "เรตติ้ง",
+  //         profile.rating > 0 ? profile.rating.toString() : "ยังไม่มี",
+  //         Icons.star,
+  //         AppColors.orangeGradient,
+  //       ),
+  //     ],
+  //   );
+  // }
 
   Widget _statItem(
     String label,
@@ -669,18 +669,18 @@ class _ProfileViewState extends State<_ProfileView>
               ),
             ),
           ),
-          TextButton.icon(
-            onPressed: () => _showDeleteAccountConfirm(profile),
-            icon: Icon(Icons.delete_outline, color: Colors.red[300], size: 18),
-            label: Text(
-              "ลบบัญชี",
-              style: TextStyle(
-                color: Colors.red[300],
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ),
+          // TextButton.icon(
+          //   onPressed: () => _showDeleteAccountConfirm(profile),
+          //   icon: Icon(Icons.delete_outline, color: Colors.red[300], size: 18),
+          //   label: Text(
+          //     "ลบบัญชี",
+          //     style: TextStyle(
+          //       color: Colors.red[300],
+          //       fontSize: 14,
+          //       fontWeight: FontWeight.w400,
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );
@@ -1266,74 +1266,74 @@ class _ProfileViewState extends State<_ProfileView>
   }
 
   // ---------------- Delete Account Dialog ----------------
-  void _showDeleteAccountConfirm(ProfileModel profile) {
-    _deleteConfirmController.clear();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        elevation: 10,
-        title: _popupHeader(Icons.delete, "ลบบัญชี", AppColors.darkRedGradient),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "การลบบัญชีไม่สามารถย้อนกลับได้ กรุณาพิมพ์ DELETE เพื่อยืนยัน",
-              style: TextStyle(
-                color: Colors.red,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _deleteConfirmController,
-              decoration: const InputDecoration(
-                labelText: "พิมพ์ DELETE เพื่อยืนยัน",
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("ยกเลิก", style: AppTextStyles.subtitle),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: AppColors.darkRedGradient,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ElevatedButton(
-              style: _popupButtonStyle(AppColors.darkRedGradient),
-              onPressed: () async {
-                final success = await profile.deleteAccount(
-                  _deleteConfirmController.text,
-                );
-                if (success) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("🗑️ ลบบัญชีเรียบร้อย")),
-                  );
-                  // นำทางกลับไปหน้า welcome
-                  Navigator.of(
-                    context,
-                  ).pushNamedAndRemoveUntil('/wellcome', (route) => false);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("❌ กรุณาพิมพ์ DELETE ให้ถูกต้อง"),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              child: const Text("ลบ"),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  //   void _showDeleteAccountConfirm(ProfileModel profile) {
+  //     _deleteConfirmController.clear();
+  //     showDialog(
+  //       context: context,
+  //       builder: (ctx) => AlertDialog(
+  //         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+  //         elevation: 10,
+  //         title: _popupHeader(Icons.delete, "ลบบัญชี", AppColors.darkRedGradient),
+  //         content: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           children: [
+  //             const Text(
+  //               "การลบบัญชีไม่สามารถย้อนกลับได้ กรุณาพิมพ์ DELETE เพื่อยืนยัน",
+  //               style: TextStyle(
+  //                 color: Colors.red,
+  //                 fontSize: 14,
+  //                 fontWeight: FontWeight.w500,
+  //               ),
+  //             ),
+  //             const SizedBox(height: 16),
+  //             TextField(
+  //               controller: _deleteConfirmController,
+  //               decoration: const InputDecoration(
+  //                 labelText: "พิมพ์ DELETE เพื่อยืนยัน",
+  //                 border: OutlineInputBorder(),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             onPressed: () => Navigator.pop(ctx),
+  //             child: const Text("ยกเลิก", style: AppTextStyles.subtitle),
+  //           ),
+  //           Container(
+  //             decoration: BoxDecoration(
+  //               gradient: AppColors.darkRedGradient,
+  //               borderRadius: BorderRadius.circular(12),
+  //             ),
+  //             child: ElevatedButton(
+  //               style: _popupButtonStyle(AppColors.darkRedGradient),
+  //               onPressed: () async {
+  //                 final success = await profile.deleteAccount(
+  //                   _deleteConfirmController.text,
+  //                 );
+  //                 if (success) {
+  //                   Navigator.pop(ctx);
+  //                   ScaffoldMessenger.of(context).showSnackBar(
+  //                     const SnackBar(content: Text("🗑️ ลบบัญชีเรียบร้อย")),
+  //                   );
+  //                   // นำทางกลับไปหน้า welcome
+  //                   Navigator.of(
+  //                     context,
+  //                   ).pushNamedAndRemoveUntil('/wellcome', (route) => false);
+  //                 } else {
+  //                   ScaffoldMessenger.of(context).showSnackBar(
+  //                     const SnackBar(
+  //                       content: Text("❌ กรุณาพิมพ์ DELETE ให้ถูกต้อง"),
+  //                       backgroundColor: Colors.red,
+  //                     ),
+  //                   );
+  //                 }
+  //               },
+  //               child: const Text("ลบ"),
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     );
+  //   }
 }

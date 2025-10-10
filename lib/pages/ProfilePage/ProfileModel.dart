@@ -344,25 +344,25 @@ class ProfileModel extends ChangeNotifier {
   }
 
   // ✅ ลบบัญชี
-  Future<bool> deleteAccount(String confirmText) async {
-    if (confirmText.trim().toUpperCase() != "DELETE") {
-      return false;
-    }
+  // Future<bool> deleteAccount(String confirmText) async {
+  //   if (confirmText.trim().toUpperCase() != "DELETE") {
+  //     return false;
+  //   }
 
-    try {
-      // TODO: เรียก API ลบบัญชี
-      // final authService = AuthService();
-      // final result = await authService.deleteAccount();
-      // return result['success'] ?? false;
+  //   try {
+  //     // TODO: เรียก API ลบบัญชี
+  //     // final authService = AuthService();
+  //     // final result = await authService.deleteAccount();
+  //     // return result['success'] ?? false;
 
-      // Mock สำเร็จ
-      await Future.delayed(const Duration(milliseconds: 500));
-      return true;
-    } catch (e) {
-      print('❌ Error deleting account: $e');
-      return false;
-    }
-  }
+  //     // Mock สำเร็จ
+  //     await Future.delayed(const Duration(milliseconds: 500));
+  //     return true;
+  //   } catch (e) {
+  //     print('❌ Error deleting account: $e');
+  //     return false;
+  //   }
+  // }
 
   // ✅ ออกจากระบบ
   Future<void> logout() async {
