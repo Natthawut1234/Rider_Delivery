@@ -6,6 +6,8 @@ import 'package:rider_delivery/pages/DeliveryCompleted.dart';
 import 'package:rider_delivery/pages/DeliveryConfirm.dart';
 import 'package:rider_delivery/pages/maps/map_button_widget.dart';
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:rider_delivery/pages/utils/navigation_guard.dart';
 
 class GoCustomer extends StatefulWidget {
   const GoCustomer({super.key});
@@ -25,6 +27,61 @@ class _GoCustomerState extends State<GoCustomer> {
   void initState() {
     super.initState();
     _initializeController();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+      if (args != null) {
+        orderId = args['orderId'];
+        riderId = args['riderId'];
+
+        // ✅ ดึง socket controller
+        _orderController = Provider.of<RiderControllerSocket>(
+          context,
+          listen: false,
+        );
+
+        // ✅ ถ้ายังไม่ดึงข้อมูล ให้ดึงจาก backend
+        await _orderController!.fetchOrdersByRider(riderId: riderId!);
+
+        // ✅ เริ่ม watch order นี้แบบ real-time
+        _orderController!.watchOrder(orderId!);
+
+        // ✅ อัปเดตสถานะในหน้า
+        setState(() {});
+      }
+    });
+  }
+
+  Future<void> _restoreActiveOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedOrderId = prefs.getInt('active_order_id');
+    final storedRiderId = prefs.getInt('active_rider_id');
+
+    if (storedOrderId != null && storedRiderId != null) {
+      print('🔁 โหลดงานค้าง orderId=$storedOrderId riderId=$storedRiderId');
+      setState(() {
+        orderId = storedOrderId;
+        riderId = storedRiderId;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        _orderController = Provider.of<RiderControllerSocket>(
+          context,
+          listen: false,
+        );
+        await _orderController!.fetchOrdersByRider(riderId: storedRiderId);
+      });
+    }
+  }
+
+  Future<void> _saveActiveOrderToLocal() async {
+    if (orderId == null || riderId == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('active_order_id', orderId!);
+    await prefs.setInt('active_rider_id', riderId!);
+    print('💾 บันทึกงานค้าง orderId=$orderId riderId=$riderId');
   }
 
   void _initializeController() {
@@ -749,105 +806,110 @@ class _GoCustomerState extends State<GoCustomer> {
     }
   }
 
-  void _confirmDeliveryFinal(Map<String, dynamic> data) {
-  final parentContext = context;
+  void _confirmDeliveryFinal(Map<String, dynamic> data) async {
+    await _updateOrderStatus('completed');
 
-  showDialog(
-    context: context,
-    builder: (dialogContext) => CupertinoAlertDialog(
-      title: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: const [
-          Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
-          SizedBox(height: 8),
-          Text('ยืนยันการจัดส่งและรับเงิน'),
+    final prefs = await SharedPreferences.getInstance();
+    prefs.remove('active_order_id');
+    prefs.remove('active_rider_id');
+    print('🧹 ล้างงานค้างหลังจัดส่งเสร็จ');
+
+    final parentContext = context;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
+            SizedBox(height: 8),
+            Text('ยืนยันการจัดส่งและรับเงิน'),
+          ],
+        ),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8.0),
+          child: Text(
+            'คุณต้องการยืนยันการจัดส่งและรับเงินจากลูกค้าหรือไม่?',
+            style: TextStyle(fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('ยกเลิก'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () async {
+              Navigator.pop(dialogContext); // ปิด dialog ยืนยัน
+              await _updateOrderStatus('completed');
+              if (!mounted) return;
+
+              // ✅ แสดงหน้าเต็มจอ “จัดส่งสำเร็จ”
+              showGeneralDialog(
+                context: parentContext,
+                barrierDismissible: false,
+                barrierColor: Colors.black.withOpacity(0.6),
+                transitionDuration: const Duration(milliseconds: 300),
+                pageBuilder: (_, __, ___) {
+                  return Scaffold(
+                    backgroundColor: Colors.white,
+                    body: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF4CAF50),
+                            size: 150,
+                          ),
+                          const SizedBox(height: 30),
+                          const Text(
+                            'จัดส่งสำเร็จ!',
+                            style: TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF388E3C),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'ขอบคุณที่ให้บริการกับลูกค้า 💚',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.black54,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+
+              // ✅ รอ 3 วิ แล้วเปลี่ยนหน้า
+              await Future.delayed(const Duration(seconds: 3));
+              if (!mounted) return;
+
+              Navigator.of(parentContext, rootNavigator: true).pushReplacement(
+                MaterialPageRoute(
+                  builder: (_) => const DeliveryCompletedPage(),
+                  settings: RouteSettings(
+                    arguments: {'orderId': orderId, ...data},
+                  ),
+                ),
+              );
+            },
+            isDefaultAction: true,
+            child: const Text('ยืนยัน'),
+          ),
         ],
       ),
-      content: const Padding(
-        padding: EdgeInsets.only(top: 8.0),
-        child: Text(
-          'คุณต้องการยืนยันการจัดส่งและรับเงินจากลูกค้าหรือไม่?',
-          style: TextStyle(fontSize: 14),
-          textAlign: TextAlign.center,
-        ),
-      ),
-      actions: [
-        CupertinoDialogAction(
-          onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('ยกเลิก'),
-        ),
-        CupertinoDialogAction(
-          onPressed: () async {
-            Navigator.pop(dialogContext); // ปิด dialog ยืนยัน
-            await _updateOrderStatus('completed');
-            if (!mounted) return;
-
-            // ✅ แสดงหน้าเต็มจอ “จัดส่งสำเร็จ”
-            showGeneralDialog(
-              context: parentContext,
-              barrierDismissible: false,
-              barrierColor: Colors.black.withOpacity(0.6),
-              transitionDuration: const Duration(milliseconds: 300),
-              pageBuilder: (_, __, ___) {
-                return Scaffold(
-                  backgroundColor: Colors.white,
-                  body: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.check_circle,
-                          color: Color(0xFF4CAF50),
-                          size: 150,
-                        ),
-                        const SizedBox(height: 30),
-                        const Text(
-                          'จัดส่งสำเร็จ!',
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF388E3C),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'ขอบคุณที่ให้บริการกับลูกค้า 💚',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.black54,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            );
-
-            // ✅ รอ 3 วิ แล้วเปลี่ยนหน้า
-            await Future.delayed(const Duration(seconds: 3));
-            if (!mounted) return;
-
-            Navigator.of(parentContext, rootNavigator: true).pushReplacement(
-              MaterialPageRoute(
-                builder: (_) => const DeliveryCompletedPage(),
-                settings: RouteSettings(arguments: {
-                  'orderId': orderId,
-                  ...data,
-                }),
-              ),
-            );
-          },
-          isDefaultAction: true,
-          child: const Text('ยืนยัน'),
-        ),
-      ],
-    ),
-  );
-}
-
+    );
+  }
 
   String _getStatusText(String status) {
     switch (status) {
@@ -888,6 +950,16 @@ class _GoCustomerState extends State<GoCustomer> {
     }
   }
 
+  String? _getCurrentStatus() {
+    if (_orderController == null || orderId == null) return null;
+
+    final currentOrder = IterableExtension(
+      _orderController!.orders.where((o) => o.orderId == orderId),
+    ).firstOrNull;
+
+    return currentOrder?.status;
+  }
+
   @override
   Widget build(BuildContext context) {
     final args =
@@ -912,10 +984,22 @@ class _GoCustomerState extends State<GoCustomer> {
 
     return WillPopScope(
       onWillPop: () async {
-        if (_orderController != null && orderId != null) {
-          await _orderController!.fetchOrdersByRider(riderId: riderId!);
+        final currentStatus = _getCurrentStatus();
+
+        // เรียกใช้ NavigationGuard
+        final canPop = await NavigationGuard.showBackWarningDialog(
+          context,
+          currentStatus,
+        );
+
+        if (canPop) {
+          if (_orderController != null && orderId != null) {
+            await _orderController!.fetchOrdersByRider(riderId: riderId!);
+          }
+          Navigator.pop(context, {'switchToTab': 1, 'refreshData': true});
+          return false;
         }
-        Navigator.pop(context, {'switchToTab': 1, 'refreshData': true});
+
         return false;
       },
       child: Scaffold(
@@ -929,7 +1013,25 @@ class _GoCustomerState extends State<GoCustomer> {
           leading: Padding(
             padding: const EdgeInsets.only(left: 20, right: 8),
             child: TextButton(
-              onPressed: () {},
+              onPressed: () async {
+                final currentStatus = _getCurrentStatus();
+                final canPop = await NavigationGuard.showBackWarningDialog(
+                  context,
+                  currentStatus,
+                );
+
+                if (canPop && mounted) {
+                  if (_orderController != null && orderId != null) {
+                    await _orderController!.fetchOrdersByRider(
+                      riderId: riderId!,
+                    );
+                  }
+                  Navigator.pop(context, {
+                    'switchToTab': 1,
+                    'refreshData': true,
+                  });
+                }
+              },
               style: TextButton.styleFrom(
                 backgroundColor: const Color(0xFFE0E0E0),
                 shape: RoundedRectangleBorder(
@@ -971,7 +1073,7 @@ class _GoCustomerState extends State<GoCustomer> {
                           Text(
                             '1. ไปร้าน',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: Colors.green[900],
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -980,7 +1082,7 @@ class _GoCustomerState extends State<GoCustomer> {
                           Text(
                             restaurantName,
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: Colors.green[900],
                               fontSize: 12,
                             ),
                           ),
@@ -1040,34 +1142,36 @@ class _GoCustomerState extends State<GoCustomer> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Consumer<RiderControllerSocket>(
-                        builder: (context, controller, _) {
-                          final currentOrder = controller.orders
-                              .where((o) => o.orderId == orderId)
-                              .firstOrNull;
+  child: Consumer<RiderControllerSocket>(
+    builder: (context, controller, _) {
+      final currentOrder = IterableExtension(controller.orders
+          .where((o) => o.orderId == orderId))
+          .firstOrNull;
 
-                          String statusText = _getStatusText(
-                            currentOrder?.status ?? '',
-                          );
-                          String shopStatusText = _getShopStatusText(
-                            currentOrder?.shopStatus,
-                          );
+      final argStatus = data['status'] ?? '';
+      final argShopStatus = data['shopStatus'] ?? '';
 
-                          if (shopStatusText.isNotEmpty) {
-                            statusText = '$statusText • $shopStatusText';
-                          }
+      String statusText =
+          _getStatusText(currentOrder?.status ?? argStatus);
+      String shopStatusText =
+          _getShopStatusText(currentOrder?.shopStatus ?? argShopStatus);
 
-                          return Text(
-                            statusText,
-                            style: const TextStyle(
-                              color: Colors.green,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+      if (shopStatusText.isNotEmpty) {
+        statusText = '$statusText • $shopStatusText';
+      }
+
+      return Text(
+        statusText,
+        style: const TextStyle(
+          color: Colors.green,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    },
+  ),
+),
+
                   ],
                 ),
               ),
@@ -1358,34 +1462,74 @@ class _GoCustomerState extends State<GoCustomer> {
                     const SizedBox(height: 12),
                     if (_deliveryPhoto != null)
                       Center(
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 8),
-                          width: MediaQuery.of(context).size.width * 0.85,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.green.shade200,
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                        child: GestureDetector(
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              barrierColor: Colors.black.withOpacity(0.9),
+                              builder: (context) => GestureDetector(
+                                onTap: () => Navigator.pop(context),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    InteractiveViewer(
+                                      panEnabled: true,
+                                      minScale: 0.8,
+                                      maxScale: 3.0,
+                                      child: Image.file(
+                                        _deliveryPhoto!,
+                                        fit: BoxFit.contain,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 40,
+                                      right: 20,
+                                      child: IconButton(
+                                        icon: const Icon(
+                                          Icons.close,
+                                          color: Colors.white,
+                                          size: 28,
+                                        ),
+                                        onPressed: () => Navigator.pop(context),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Image.file(
-                              _deliveryPhoto!,
-                              height: 200,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
+                            );
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(vertical: 8),
+                            width: MediaQuery.of(context).size.width * 0.85,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.green.shade200,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.file(
+                                _deliveryPhoto!,
+                                height: 200,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                         ),
                       ),
+
                     if (_deliveryPhoto == null && !_photoConfirmed)
                       MapNavigationButton(
                         latitude: customerLat,
@@ -1441,34 +1585,36 @@ class _GoCustomerState extends State<GoCustomer> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Consumer<RiderControllerSocket>(
-                          builder: (context, controller, _) {
-                            final currentOrder = controller.orders
-                                .where((o) => o.orderId == orderId)
-                                .firstOrNull;
+  child: Consumer<RiderControllerSocket>(
+    builder: (context, controller, _) {
+      final currentOrder = IterableExtension(controller.orders
+          .where((o) => o.orderId == orderId))
+          .firstOrNull;
 
-                            String statusText = _getStatusText(
-                              currentOrder?.status ?? '',
-                            );
-                            String shopStatusText = _getShopStatusText(
-                              currentOrder?.shopStatus,
-                            );
+      final argStatus = data['status'] ?? '';
+      final argShopStatus = data['shopStatus'] ?? '';
 
-                            if (shopStatusText.isNotEmpty) {
-                              statusText = '$statusText • $shopStatusText';
-                            }
+      String statusText =
+          _getStatusText(currentOrder?.status ?? argStatus);
+      String shopStatusText =
+          _getShopStatusText(currentOrder?.shopStatus ?? argShopStatus);
 
-                            return Text(
-                              statusText,
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+      if (shopStatusText.isNotEmpty) {
+        statusText = '$statusText • $shopStatusText';
+      }
+
+      return Text(
+        statusText,
+        style: const TextStyle(
+          color: Colors.green,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    },
+  ),
+),
+
                     ],
                   ),
                 ),

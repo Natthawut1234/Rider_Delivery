@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
 import 'package:rider_delivery/APIs/Orders/models/Order_items.dart';
 import 'package:rider_delivery/pages/maps/map_button_widget.dart';
+import 'package:rider_delivery/pages/utils/navigation_guard.dart';
 
 class GoRestaurant extends StatefulWidget {
   const GoRestaurant({super.key});
@@ -887,8 +888,23 @@ class _GoRestaurantState extends State<GoRestaurant> {
 
         return WillPopScope(
           onWillPop: () async {
-            _loadOrderData();
-            Navigator.pop(context, {'refreshData': true});
+            // ตรวจสอบ status ปัจจุบัน
+            final currentStatus = currentOrder?.status;
+
+            // เรียกใช้ NavigationGuard
+            final canPop = await NavigationGuard.showBackWarningDialog(
+              context,
+              currentStatus,
+            );
+
+            if (canPop) {
+              // ถ้าอนุญาตให้กลับ ให้ refresh data
+              _loadOrderData();
+              Navigator.pop(context, {'refreshData': true});
+              return false;
+            }
+
+            // ไม่อนุญาตให้กลับ
             return false;
           },
           child: Scaffold(
@@ -902,15 +918,29 @@ class _GoRestaurantState extends State<GoRestaurant> {
               leading: Padding(
                 padding: const EdgeInsets.only(left: 20, right: 8),
                 child: TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () async {
+                    final currentStatus = currentOrder?.status;
+                    final canPop = await NavigationGuard.showBackWarningDialog(
+                      context,
+                      currentStatus,
+                    );
+
+                    if (canPop && mounted) {
+                      _loadOrderData();
+                      Navigator.pop(context, {'refreshData': true});
+                    }
+                  },
                   style: TextButton.styleFrom(
-                    backgroundColor: Color(0xFFE0E0E0),
+                    backgroundColor: const Color(0xFFE0E0E0),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
-                  child: Text(
+                  child: const Text(
                     'ยกเลิกออเดอร์',
                     style: TextStyle(
                       color: Colors.black87,
@@ -1008,7 +1038,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                               Text(
                                 '2. ส่งให้ลูกค้า',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: Colors.green[900],
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -1017,7 +1047,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                               Text(
                                 customerName,
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: Colors.green[900],
                                   fontSize: 14,
                                 ),
                               ),
@@ -1027,7 +1057,6 @@ class _GoRestaurantState extends State<GoRestaurant> {
                       ],
                     ),
                   ),
-
                   // Status display section
                   const SizedBox(height: 16),
                   Container(
@@ -1596,92 +1625,109 @@ class _GoRestaurantState extends State<GoRestaurant> {
                       ),
                     ),
 
-                  SizedBox(height: 20),
-                  Container(
-                    margin: EdgeInsets.symmetric(horizontal: 16),
-                    height: 1,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          Colors.grey.shade300,
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
+                  SizedBox(height: 16),
 
                   // Restaurant Map Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
                   if (!foodReceived)
-                  
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(height: 24),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            confirmedArrival
-                                ? 'รอรับอาหารจากร้าน'
-                                : 'ไปร้านอาหาร',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: confirmedArrival
-                                  ? Colors.orange
-                                  : Colors.green,
+                    Container(
+                      margin: EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              color: Colors.grey.shade300,
                             ),
                           ),
-                        ),
-                        SizedBox(height: 12),
-
-                        // ✅ ใช้ MapNavigationButton แทน placeholder map
-                        Container(
-                          margin: EdgeInsets.symmetric(horizontal: 16),
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
-                                spreadRadius: 1,
-                                blurRadius: 5,
-                                offset: Offset(0, 2),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'ข้อมูลการเดินทาง',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade600,
                               ),
-                            ],
+                            ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                restaurantName,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                restaurantAddress,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              SizedBox(height: 12),
-                              MapNavigationButton(
-                                latitude: latitude,
-                                longitude: longitude,
-                                locationName: restaurantName,
-                                address: restaurantAddress,
-                              ),
-                            ],
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              color: Colors.grey.shade300,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 16),
-                      ],
+                        ],
+                      ),
                     ),
+                  SizedBox(height: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: 16),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          confirmedArrival
+                              ? 'รอรับอาหารจากร้าน'
+                              : 'ไปร้านอาหาร',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: confirmedArrival
+                                ? Colors.orange
+                                : Colors.green,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 12),
+
+                      // ✅ ใช้ MapNavigationButton แทน placeholder map
+                      Container(
+                        margin: EdgeInsets.symmetric(horizontal: 16),
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.1),
+                              spreadRadius: 1,
+                              blurRadius: 5,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              restaurantName,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              restaurantAddress,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            SizedBox(height: 12),
+                            MapNavigationButton(
+                              latitude: latitude,
+                              longitude: longitude,
+                              locationName: restaurantName,
+                              address: restaurantAddress,
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                    ],
+                  ),
 
                   // Recommendation Section - แสดงเฉพาะเมื่อยังไม่รับอาหาร
                   if (!foodReceived) ...[
@@ -1773,12 +1819,12 @@ class _GoRestaurantState extends State<GoRestaurant> {
                               ),
                               SizedBox(height: 12),
                               // ✅ ใช้ MapNavigationButton ไปยังลูกค้า
-                                MapNavigationButton(
-                                  latitude: customerLat,
-                                  longitude: customerLng,
-                                  locationName: customerName,
-                                  address: customerAddress,
-                                ),
+                              MapNavigationButton(
+                                latitude: customerLat,
+                                longitude: customerLng,
+                                locationName: customerName,
+                                address: customerAddress,
+                              ),
                             ],
                           ),
                         ),
@@ -1810,8 +1856,14 @@ class _GoRestaurantState extends State<GoRestaurant> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      margin: EdgeInsets.symmetric(horizontal: 16),
-                      padding: EdgeInsets.all(6),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 6,
+                      ), // ⬅️ จาก 16 → 6
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 14,
+                      ),
                       width: double.infinity,
                       decoration: BoxDecoration(
                         color: Colors.grey[50],
@@ -1852,6 +1904,7 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1873,7 +1926,9 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 12),
+
                     SizedBox(
                       width: double.infinity,
                       height: 50,

@@ -430,7 +430,7 @@ class _IncomePageState extends State<IncomePage> {
                         style: const TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue,
+                          color: Colors.green,
                         ),
                       ),
                       // const SizedBox(height: 8),
@@ -737,7 +737,7 @@ class _IncomePageState extends State<IncomePage> {
                       Text(
                         '฿${job.totalEarnings.toStringAsFixed(2)}',
                         style: const TextStyle(
-                          color: Colors.blue,
+                          color: Colors.green,
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
@@ -777,93 +777,119 @@ class _IncomePageState extends State<IncomePage> {
   void _showJobDetail(JobItem job) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
+      isScrollControlled: true, // ✅ ให้เลื่อนขึ้นสุดได้
+      backgroundColor: Colors.transparent, // ✅ ทำให้มุมโค้งสวย
       builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle bar
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.5, // เริ่มเปิดครึ่งจอ
+          minChildSize: 0.3,
+          maxChildSize: 0.95, // ✅ เลื่อนขึ้นได้เกือบเต็ม
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              Row(
-                children: [
-                  const Icon(Icons.receipt_long, color: Colors.green),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Order #${job.orderId}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+              child: SingleChildScrollView(
+                controller: scrollController, // ✅ ผูก scroll controller
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle bar
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+
+                    // Header
+                    Row(
+                      children: [
+                        const Icon(Icons.receipt_long, color: Colors.green),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Order #${job.orderId}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green[100],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            job.statusDisplayName,
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.green[100],
-                      borderRadius: BorderRadius.circular(12),
+
+                    const SizedBox(height: 16),
+
+                    // ✅ รายละเอียด (scroll ได้)
+                    _buildDetailRow('ร้านค้า', job.shopName, Icons.store),
+                    _buildDetailRow('ลูกค้า', job.displayName, Icons.person),
+                    _buildDetailRow(
+                      'เวลา',
+                      DateFormat('dd/MM/yyyy HH:mm').format(job.createdAt),
+                      Icons.access_time,
                     ),
-                    child: Text(
-                      job.statusDisplayName,
-                      style: const TextStyle(
-                        color: Colors.green,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                    _buildDetailRow(
+                      'ระยะทาง',
+                      '${job.distanceKm} กม.',
+                      Icons.location_on,
+                    ),
+                    _buildDetailRow(
+                      'วิธีชำระ',
+                      job.paymentMethod,
+                      Icons.payment,
+                    ),
+                    const Divider(),
+                    _buildDetailRow(
+                      'ค่าส่ง',
+                      '฿${job.deliveryFeeAmount.toStringAsFixed(2)}',
+                      Icons.local_shipping,
+                    ),
+                    if (job.bonusAmount > 0)
+                      _buildDetailRow(
+                        'โบนัส',
+                        '฿${job.bonusAmount.toStringAsFixed(2)}',
+                        Icons.bolt,
                       ),
+                    _buildDetailRow(
+                      'รายได้รวม',
+                      '฿${job.totalEarnings.toStringAsFixed(2)}',
+                      Icons.monetization_on,
+                      isTotal: true,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _buildDetailRow('ร้านค้า', job.shopName, Icons.store),
-              _buildDetailRow('ลูกค้า', job.displayName, Icons.person),
-              _buildDetailRow(
-                'เวลา',
-                DateFormat('dd/MM/yyyy HH:mm').format(job.createdAt),
-                Icons.access_time,
-              ),
-              _buildDetailRow(
-                'ระยะทาง',
-                '${job.distanceKm} กม.',
-                Icons.location_on,
-              ),
-              _buildDetailRow('วิธีชำระ', job.paymentMethod, Icons.payment),
-              const Divider(),
-              _buildDetailRow(
-                'ค่าส่ง',
-                '฿${job.deliveryFeeAmount.toStringAsFixed(2)}',
-                Icons.local_shipping,
-              ),
-              if (job.bonusAmount > 0)
-                _buildDetailRow(
-                  'โบนัส',
-                  '฿${job.bonusAmount.toStringAsFixed(2)}',
-                  Icons.bolt,
+
+                    const SizedBox(height: 20),
+                  ],
                 ),
-              _buildDetailRow(
-                'รายได้รวม',
-                '฿${job.totalEarnings.toStringAsFixed(2)}',
-                Icons.monetization_on,
-                isTotal: true,
               ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -889,13 +915,15 @@ class _IncomePageState extends State<IncomePage> {
               fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
             ),
           ),
+          const SizedBox(height: 12),
           const Spacer(),
+          const SizedBox(height: 12),
           Text(
             value,
             style: TextStyle(
               fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
               fontSize: isTotal ? 16 : 14,
-              color: isTotal ? Colors.blue : Colors.black87,
+              color: isTotal ? Colors.green : Colors.black87,
             ),
           ),
         ],
