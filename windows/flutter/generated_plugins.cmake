@@ -7,7 +7,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_tts
   gal
   geolocator_windows
-  rive_common
+  rive_native
   url_launcher_windows
 )
 

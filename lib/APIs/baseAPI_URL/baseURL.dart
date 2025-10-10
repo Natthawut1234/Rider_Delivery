@@ -24,14 +24,14 @@ class BaseAPI_URL {
   }
 
   // URL ตัวเลือกต่างๆ
-  static const String localhostURL = 'http://20.189.96.19:4000/rider';
-  static const String androidEmulatorURL = 'http://20.189.96.19:4000/rider';
+  static const String localhostURL = 'http://192.168.1.129:4000/rider';
+  static const String androidEmulatorURL = 'http://192.168.1.129:4000/rider';
   // แทนที่ด้วย IP จริงของเครื่อง
-  static const String localNetworkURL = 'http://20.189.96.19:4000/rider';
+  static const String localNetworkURL = 'http://192.168.1.129:4000/rider';
   //Socket URL
-  static const String SocketURL = 'http://20.189.96.19:4000/riders/socket';
+  static const String SocketURL = 'http://192.168.1.129:4000/riders/socket';
 
-  static const String HostSocketURL = 'http://20.189.96.19:4000';
-  static const String GoogleMapAPI = '';
+  static const String HostSocketURL = 'http://192.168.1.129:4000';
+  static const String GoogleMapAPI = 'AIzaSyCo_9Or6p8UxYruKJUgdYNhC2vnSNGvA4g';
 
 }

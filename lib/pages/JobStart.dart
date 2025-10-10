@@ -1,3 +1,4 @@
+import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
@@ -226,6 +227,35 @@ class _RiderJobsPageState extends State<RiderJobsPage>
       _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
     }
   }
+
+  void _showActiveOrderDialog(Order? activeOrder) {
+  AwesomeDialog(
+    context: context,
+    dialogType: DialogType.warning,
+    animType: AnimType.scale,
+    title: 'ไม่สามารถรับงานได้',
+    desc: activeOrder != null
+        ? 'คุณมีงานที่กำลังดำเนินการอยู่\n\nOrder #${activeOrder.orderId}\nร้าน: ${activeOrder.shopName}\nสถานะ: ${_getStatusText(activeOrder.status)}\n\nกรุณาทำงานปัจจุบันให้เสร็จสิ้นก่อน'
+        : 'คุณมีงานที่กำลังดำเนินการอยู่\nกรุณาทำงานปัจจุบันให้เสร็จสิ้นก่อน',
+    descTextStyle: const TextStyle(
+      fontSize: 14,
+      height: 1.5,
+    ),
+    btnOkText: 'ดูงานของฉัน',
+    btnOkColor: lightGreen,
+    btnCancelText: 'ปิด',
+    btnCancelColor: Colors.grey,
+    btnCancelOnPress: () {},
+    btnOkOnPress: () {
+      // สลับไปแท็บ "งานของฉัน"
+      _tabController.animateTo(1);
+    },
+    dismissOnTouchOutside: false,
+    dismissOnBackKeyPress: false,
+    headerAnimationLoop: true,
+    padding: const EdgeInsets.all(16),
+  ).show();
+}
 
   void _showLoadingDialog() {
     showDialog(
@@ -1842,142 +1872,176 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   }
 
   Future<void> _handleAcceptOrder(Order order) async {
-    try {
-      final success = await _orderController.assignRider(
-        order.orderId,
-        widget.riderId,
-      );
-      if (success) {
-        _showSuccessSnackBar('รับงานสำเร็จ!');
-        await _fetchOrders();
-      } else {
-        // ตรวจสอบว่าเป็นปัญหาเครดิตไม่พอหรือไม่
-        final error = _orderController.error;
-        print('🔍 Error from API: $error');
-
-        if (error != null &&
-            (error.contains('เครดิต') ||
-                error.contains('credit') ||
-                error.contains('Insufficient') ||
-                error.contains('insufficient') ||
-                error.toLowerCase().contains('credit') ||
-                error.contains('ไม่เพียงพอ'))) {
-          print('💳 Detected insufficient credit error');
-          _showInsufficientCreditDialog(order);
-        } else {
-          print('❌ Other error occurred: $error');
-          _showErrorSnackBar(error ?? 'ไม่สามารถรับงานได้');
-        }
-      }
-    } catch (e) {
-      _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
-    }
-  }
-
-  void _showInsufficientCreditDialog(Order order) {
-    showDialog(
-      context: context,
-      barrierDismissible: false, // ป้องกันไม่ให้ปิด dialog เมื่อแตะข้างนอก
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.orange, size: 28),
-            const SizedBox(width: 8),
-            const Text(
-              'เครดิตไม่เพียงพอ',
-              style: TextStyle(
-                color: Colors.orange,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: Colors.orange.shade700,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'เครดิตในบัญชีของคุณไม่เพียงพอสำหรับรับงานนี้',
-                          style: TextStyle(
-                            color: Colors.orange.shade700,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text('ร้าน: ${order.shopName}'),
-                  Text(
-                    'เครดิตที่ต้องใช้: ${order.riderRequiredGp.toStringAsFixed(0)} เครดิต',
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade100,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'กรุณาเติมเครดิตก่อนรับงาน',
-                      style: TextStyle(
-                        color: Colors.orange.shade800,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              // ปิดป๊อปอัพและกลับไปหน้า Home
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            child: const Text('ตกลง', style: TextStyle(color: Colors.orange)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // ปิดป๊อปอัพทั้งหมดและไปหน้า MyCredit
-              Navigator.of(context).popUntil((route) => route.isFirst);
-              Navigator.pushNamed(context, '/myCredit');
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text(
-              'เติมเครดิต',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
+  try {
+    // ✅ ตรวจสอบว่ามีงานที่กำลังทำอยู่หรือไม่
+    final activeOrder = _orderController.orders.firstWhere(
+      (o) =>
+          o.riderId == widget.riderId &&
+          [
+            'rider_assigned',
+            'going_to_shop',
+            'arrived_at_shop',
+            'picked_up',
+            'delivering',
+            'arrived_at_customer',
+          ].contains(o.status),
+      orElse: () => Order(
+        orderId: 0,
+        userId: 0,
+        marketId: 0,
+        shopName: '',
+        riderId: null,
+        address: '',
+        deliveryType: '',
+        paymentMethod: '',
+        distanceKm: 0,
+        deliveryFee: 0,
+        totalPrice: 0,
+        status: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        items: [],
+        riderRequiredGp: 0,
+        originalTotalPrice: 0,
+        bonus: 0,
       ),
     );
+
+    // ถ้ามีงานที่กำลังทำอยู่ (orderId != 0)
+    if (activeOrder.orderId != 0) {
+      print('🚫 มีงานที่กำลังทำอยู่: Order #${activeOrder.orderId}');
+      _showActiveOrderDialog(activeOrder);
+      return;
+    }
+
+    // ✅ ถ้าไม่มีงานค้าง ให้ดำเนินการรับงานตามปกติ
+    final success = await _orderController.assignRider(
+      order.orderId,
+      widget.riderId,
+    );
+
+    if (success) {
+      // แสดง AwesomeDialog สำเร็จ
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.success,
+        animType: AnimType.scale,
+        title: 'รับงานสำเร็จ!',
+        desc: 'คุณได้รับงาน Order #${order.orderId}\nจากร้าน ${order.shopName} แล้ว',
+        descTextStyle: const TextStyle(
+          fontSize: 14,
+          height: 1.5,
+        ),
+        btnOkText: 'ดูรายละเอียด',
+        btnOkColor: lightGreen,
+        btnOkOnPress: () {
+          // สลับไปแท็บ "งานของฉัน"
+          _tabController.animateTo(1);
+        },
+        dismissOnTouchOutside: false,
+        headerAnimationLoop: false,
+        autoHide: const Duration(seconds: 2),
+      ).show();
+
+      await _fetchOrders();
+      await _saveActiveOrdersToLocal(); // ✅ บันทึกงานลง local
+    } else {
+      // ตรวจสอบว่าเป็นปัญหาเครดิตไม่พอหรือไม่
+      final error = _orderController.error;
+      print('🔍 Error from API: $error');
+
+      if (error != null &&
+          (error.contains('เครดิต') ||
+              error.contains('credit') ||
+              error.contains('Insufficient') ||
+              error.contains('insufficient') ||
+              error.toLowerCase().contains('credit') ||
+              error.contains('ไม่เพียงพอ') ||
+              error.contains('already has an active order') ||
+              error.contains('Rider already has an active order'))) {
+        
+        // ✅ ตรวจสอบว่าเป็น error เรื่องมีงานค้างหรือเครดิต
+        if (error.contains('already has an active order') || 
+            error.contains('Rider already has an active order')) {
+          print('🚫 Rider มีงานที่ยังไม่เสร็จ');
+          _showActiveOrderDialog(null);
+        } else {
+          print('💳 Detected insufficient credit error');
+          _showInsufficientCreditDialog(order);
+        }
+      } else {
+        print('❌ Other error occurred: $error');
+        
+        // แสดง AwesomeDialog error ทั่วไป
+        AwesomeDialog(
+          context: context,
+          dialogType: DialogType.error,
+          animType: AnimType.scale,
+          title: 'ไม่สามารถรับงานได้',
+          desc: error ?? 'เกิดข้อผิดพลาดในการรับงาน\nกรุณาลองใหม่อีกครั้ง',
+          descTextStyle: const TextStyle(
+            fontSize: 14,
+            height: 1.5,
+          ),
+          btnOkText: 'ตกลง',
+          btnOkColor: Colors.red,
+          btnOkOnPress: () {},
+          dismissOnTouchOutside: true,
+        ).show();
+      }
+    }
+  } catch (e) {
+    print('❌ Exception in _handleAcceptOrder: $e');
+    
+    // แสดง AwesomeDialog exception
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.error,
+      animType: AnimType.scale,
+      title: 'เกิดข้อผิดพลาด',
+      desc: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้\nกรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต',
+      descTextStyle: const TextStyle(
+        fontSize: 14,
+        height: 1.5,
+      ),
+      btnOkText: 'ตกลง',
+      btnOkColor: Colors.red,
+      btnOkOnPress: () {},
+      dismissOnTouchOutside: true,
+    ).show();
   }
+}
+
+  void _showInsufficientCreditDialog(Order order) {
+  AwesomeDialog(
+    context: context,
+    dialogType: DialogType.warning,
+    animType: AnimType.scale,
+    title: 'เครดิตไม่เพียงพอ',
+    desc: 'เครดิตในบัญชีของคุณไม่เพียงพอสำหรับรับงานนี้\n\n'
+        'ร้าน: ${order.shopName}\n'
+        'เครดิตที่ต้องใช้: ${order.riderRequiredGp.toStringAsFixed(0)} เครดิต\n\n'
+        'กรุณาเติมเครดิตก่อนรับงาน',
+    descTextStyle: const TextStyle(
+      fontSize: 14,
+      height: 1.5,
+    ),
+    btnOkText: 'เติมเครดิต',
+    btnOkColor: Colors.orange,
+    btnCancelText: 'ปิด',
+    btnCancelColor: Colors.grey,
+    btnCancelOnPress: () {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    },
+    btnOkOnPress: () {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      Navigator.pushNamed(context, '/myCredit');
+    },
+    dismissOnTouchOutside: false,
+    dismissOnBackKeyPress: false,
+    headerAnimationLoop: true,
+  ).show();
+}
 
   String _formatDate(DateTime dateTime) {
     final day = dateTime.day;
