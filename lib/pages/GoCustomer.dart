@@ -43,6 +43,8 @@ class _GoCustomerState extends State<GoCustomer> {
         status,
       );
 
+      if (!mounted) return; // ✅ ป้องกัน context ใช้หลัง dispose
+
       if (result['success'] == true) {
         ScaffoldMessenger.of(
           context,
@@ -748,19 +750,18 @@ class _GoCustomerState extends State<GoCustomer> {
   }
 
   void _confirmDeliveryFinal(Map<String, dynamic> data) {
+    // เก็บ context หลักไว้ก่อน (จะไม่โดน dispose ตอน dialog ปิด)
+    final parentContext = context;
+
     showDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (dialogContext) => CupertinoAlertDialog(
         title: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.check_circle_outline,
-              color: Colors.green,
-              size: 28,
-            ),
-            const SizedBox(height: 8),
-            const Text('ยืนยันการจัดส่งและรับเงิน'),
+          children: const [
+            Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
+            SizedBox(height: 8),
+            Text('ยืนยันการจัดส่งและรับเงิน'),
           ],
         ),
         content: const Padding(
@@ -773,29 +774,30 @@ class _GoCustomerState extends State<GoCustomer> {
         ),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context),
-            isDefaultAction: false,
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('ยกเลิก'),
-            textStyle: TextStyle(color: Colors.black),
           ),
           CupertinoDialogAction(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(
+                dialogContext,
+              ); // ✅ ปิด dialog ด้วย context ของ dialog
               await _updateOrderStatus('completed');
 
-              if (mounted) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const DeliveryCompletedPage(),
-                    settings: RouteSettings(arguments: data),
+              if (!mounted) return;
+
+              // ✅ ใช้ context หลักของหน้าแทน ไม่ใช่ของ dialog
+              Navigator.of(parentContext, rootNavigator: true).pushReplacement(
+                MaterialPageRoute(
+                  builder: (_) => const DeliveryCompletedPage(),
+                  settings: RouteSettings(
+                    arguments: {'orderId': orderId, ...data},
                   ),
-                );
-              }
+                ),
+              );
             },
             isDefaultAction: true,
             child: const Text('ยืนยัน'),
-            textStyle: TextStyle(color: Colors.black),
           ),
         ],
       ),

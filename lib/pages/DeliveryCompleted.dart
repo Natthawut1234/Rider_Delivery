@@ -1,44 +1,212 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
 
-class DeliveryCompletedPage extends StatelessWidget {
+class DeliveryCompletedPage extends StatefulWidget {
   const DeliveryCompletedPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final args =
-        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    final data = args ?? {};
+  State<DeliveryCompletedPage> createState() => _DeliveryCompletedPageState();
+}
 
-    final payType = data['payType'] ?? '-';
-    final orderNumber =
-        data['orderNumber'] ??
-        (data['orderItems'] is List && (data['orderItems'] as List).isNotEmpty
-            ? data['orderItems'][0]['orderNumber'] ?? '9999999-9999'
+class _DeliveryCompletedPageState extends State<DeliveryCompletedPage> {
+  RiderControllerSocket? _orderController;
+  bool _isLoading = true;
+  Map<String, dynamic> _orderData = {};
+  int? _orderId;
+  int? _riderId;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeController();
+  }
+
+  void _initializeController() {
+    _orderController = Provider.of<RiderControllerSocket>(
+      context,
+      listen: false,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isLoading) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      
+      // รับ orderId และ riderId
+      _orderId = args?['orderId'];
+      _riderId = args?['riderId'];
+      
+      if (_orderId != null && _riderId != null) {
+        _fetchOrderDetails();
+      } else {
+        // ถ้าไม่มี orderId ให้ใช้ข้อมูลที่ส่งมาแบบเดิม
+        setState(() {
+          _orderData = args ?? {};
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchOrderDetails() async {
+    if (_orderId == null || _riderId == null || _orderController == null) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    try {
+      // ดึงข้อมูลล่าสุดจาก API ก่อน (แบบไม่ trigger notifyListeners ระหว่าง build)
+      await _orderController!.fetchOrdersByRider(riderId: _riderId!);
+      
+      // ดึงข้อมูล order จาก controller
+      final orders = _orderController!.orders;
+      final currentOrder = orders.firstWhere(
+        (order) => order.orderId == _orderId,
+        orElse: () => throw Exception('Order not found'),
+      );
+
+      // แปลงข้อมูลจาก Order model เป็น Map
+      // คำนวณค่าต่างๆ
+      final restaurantAddress = currentOrder.marketLocation?['address'] ?? 
+                                currentOrder.marketLocation?['shop_address'] ?? '-';
+      final customerAddress = currentOrder.address.isNotEmpty 
+                             ? currentOrder.address 
+                             : (currentOrder.customerLocation?['address'] ?? '-');
+      final titleCustomerAddress = currentOrder.customerLocation?['title'] ?? 
+                                   currentOrder.deliveryType;
+      final distance = currentOrder.distanceKm != null 
+                      ? '${currentOrder.distanceKm!.toStringAsFixed(1)} km' 
+                      : (currentOrder.distanceInfo?['distance']?.toString() ?? '0 km');
+      
+      // คำนวณเงินที่ต้องจ่ายให้ร้าน = ราคารวม - ค่าจัดส่ง
+      final payAtShop = currentOrder.totalPrice - currentOrder.deliveryFee;
+      
+      if (mounted) {
+        setState(() {
+          _orderData = {
+            'orderId': currentOrder.orderId,
+            'orderNumber': '${currentOrder.orderId}',
+            'restaurantName': currentOrder.shopName,
+            'restaurantAddress': restaurantAddress,
+            'customerName': currentOrder.clientName ?? 'ลูกค้า',
+            'customerAddress': customerAddress,
+            'titleCustomerAddress': titleCustomerAddress,
+            'distance': distance,
+            'payType': currentOrder.paymentMethod == 'cash' ? 'เงินสด' : 
+                       currentOrder.paymentMethod == 'promptpay' ? 'พร้อมเพย์' : 
+                       currentOrder.paymentMethod,
+            'totalPrice': currentOrder.totalPrice,
+            'deliveryFee': currentOrder.deliveryFee,
+            'payAtShop': payAtShop,
+            'earn': currentOrder.deliveryFee, // ค่าจัดส่ง = รายได้
+            'bonus': currentOrder.bonus, // โบนัสพิเศษ
+            'totalReceived': currentOrder.totalPrice,
+            'orderItems': currentOrder.items.map((item) => {
+              'orderNumber': '${currentOrder.orderId}',
+              'foodName': item.foodName,
+              'quantity': item.quantity,
+              'subtotal': item.subtotal,
+              'selectedOptions': item.selectedOptions,
+              'additionalNotes': item.additionalNotes,
+            }).toList(),
+          };
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching order details: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+      
+      // ใช้ SchedulerBinding เพื่อแสดง SnackBar หลัง build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('ไม่สามารถโหลดข้อมูลออเดอร์: $e'),
+              backgroundColor: Colors.red,
+              action: SnackBarAction(
+                label: 'กลับ',
+                textColor: Colors.white,
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5F5F5),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF4CAF50),
+          title: const Text(
+            'งานเสร็จสมบูรณ์',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          automaticallyImplyLeading: false,
+          elevation: 0,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
+          ),
+        ),
+      );
+    }
+
+    final payType = _orderData['payType'] ?? 'เงินสด';
+    final orderNumber = _orderData['orderNumber'] ??
+        (_orderData['orderItems'] is List && (_orderData['orderItems'] as List).isNotEmpty
+            ? _orderData['orderItems'][0]['orderNumber'] ?? '9999999-9999'
             : '-');
-    final restaurantName = data['restaurantName'] ?? '-';
-    final customerName = data['customerName'] ?? '-';
-    final customerAddress = data['customerAddress'] ?? '-';
+    final restaurantName = _orderData['restaurantName'] ?? '-';
+    final customerName = _orderData['customerName'] ?? '-';
+    final customerAddress = _orderData['customerAddress'] ?? '-';
     final double payAtShop =
-        double.tryParse((data['payAtShop'] ?? '0').toString()) ?? 0.0;
+        double.tryParse((_orderData['payAtShop'] ?? '0').toString()) ?? 0.0;
     final double earn =
-        double.tryParse((data['earn'] ?? '0').toString()) ?? 0.0;
+        double.tryParse((_orderData['earn'] ?? '0').toString()) ?? 0.0;
     final double bonus =
-        double.tryParse((data['bonus'] ?? '0').toString()) ?? 0.0;
+        double.tryParse((_orderData['bonus'] ?? '0').toString()) ?? 0.0;
 
     double totalReceived =
-        double.tryParse((data['totalReceived'] ?? '').toString()) ?? -1;
+        double.tryParse((_orderData['totalReceived'] ?? '').toString()) ?? -1;
     if (totalReceived < 0) {
       totalReceived = payAtShop + earn + bonus;
     }
 
     final double netIncome = totalReceived - payAtShop;
-    final distance = data['distance'] ?? '1.5 km';
-    final restaurantAddress = data['restaurantAddress'] ?? '-';
+    final distance = _orderData['distance'] ?? '1.5 km';
+    final restaurantAddress = _orderData['restaurantAddress'] ?? '-';
 
-    double credit = 100; //ตัวอย่างเครดิต
+    double credit = 100; // ตัวอย่างเครดิต
     // คิดเปอร์เซ็นต์เครดิต 20% ของรายได้สุทธ์(netIncome)
     double creditPercent = netIncome * (20 / 100);
     double creditRemaining = credit - creditPercent;
+
+    // จัดรูปแบบวันที่และเวลาปัจจุบัน (ใช้ format แบบง่าย ไม่ต้อง locale)
+    final now = DateTime.now();
+    final day = now.day;
+    final month = _getThaiMonth(now.month);
+    final year = now.year + 543; // แปลงเป็น พ.ศ.
+    final hour = now.hour.toString().padLeft(2, '0');
+    final minute = now.minute.toString().padLeft(2, '0');
+    final currentDateTime = '$day $month $year, $hour:$minute น.';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -52,10 +220,6 @@ class DeliveryCompletedPage extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        // leading: IconButton(
-        //   icon: const Icon(Icons.arrow_back, color: Colors.white),
-        //   onPressed: () => Navigator.pop(context),
-        // ),
         automaticallyImplyLeading: false,
         elevation: 0,
       ),
@@ -71,9 +235,9 @@ class DeliveryCompletedPage extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        '26 ม.ค 2025 ,13.45 PM',
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                      Text(
+                        currentDateTime,
+                        style: const TextStyle(color: Colors.grey, fontSize: 14),
                       ),
                       Text(
                         'ADR-$orderNumber',
@@ -245,7 +409,7 @@ class DeliveryCompletedPage extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '\$${payAtShop.toStringAsFixed(2)}',
+                                '฿${payAtShop.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -263,7 +427,7 @@ class DeliveryCompletedPage extends StatelessWidget {
                                 style: TextStyle(fontSize: 14),
                               ),
                               Text(
-                                '\$${earn.toStringAsFixed(2)}',
+                                '฿${earn.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -280,7 +444,7 @@ class DeliveryCompletedPage extends StatelessWidget {
                                 style: TextStyle(fontSize: 14),
                               ),
                               Text(
-                                '\$${bonus.toStringAsFixed(2)}',
+                                '฿${bonus.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -293,11 +457,11 @@ class DeliveryCompletedPage extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                'รับเงินจากลูกค้า' + ' ($payType)',
-                                style: TextStyle(fontSize: 14),
+                                'รับเงินจากลูกค้า ($payType)',
+                                style: const TextStyle(fontSize: 14),
                               ),
                               Text(
-                                '\$${totalReceived.toStringAsFixed(2)}',
+                                '฿${totalReceived.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -311,7 +475,7 @@ class DeliveryCompletedPage extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
+                              const Text(
                                 'หักภาษี 20% (เครดิตรับงาน)',
                                 style: TextStyle(
                                   fontSize: 14,
@@ -319,8 +483,8 @@ class DeliveryCompletedPage extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '\$${creditPercent.toStringAsFixed(2)}',
-                                style: TextStyle(
+                                '฿${creditPercent.toStringAsFixed(2)}',
+                                style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                   color: Colors.red,
@@ -332,7 +496,7 @@ class DeliveryCompletedPage extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
+                              const Text(
                                 'เครดิตรับงานคงเหลือ',
                                 style: TextStyle(
                                   fontSize: 14,
@@ -340,8 +504,8 @@ class DeliveryCompletedPage extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '\$${creditRemaining.toStringAsFixed(2)}',
-                                style: TextStyle(
+                                '฿${creditRemaining.toStringAsFixed(2)}',
+                                style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                   color: Colors.blue,
@@ -363,7 +527,7 @@ class DeliveryCompletedPage extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '\$${netIncome.toStringAsFixed(2)}',
+                                '฿${netIncome.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -446,7 +610,11 @@ class DeliveryCompletedPage extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.pushNamed(context, '/chat', arguments: data);
+                      Navigator.pushNamed(
+                        context,
+                        '/chat',
+                        arguments: _orderData,
+                      );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2196F3),
@@ -497,9 +665,18 @@ class DeliveryCompletedPage extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
         ],
       ),
     );
+  }
+
+  // Helper method สำหรับแปลงเดือนเป็นภาษาไทย
+  String _getThaiMonth(int month) {
+    const months = [
+      '', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+    ];
+    return months[month];
   }
 }

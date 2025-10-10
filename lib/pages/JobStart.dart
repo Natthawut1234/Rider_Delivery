@@ -1397,80 +1397,159 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   }
 
   Widget _buildHistoryCard(Order order) {
-    final isCompleted = order.status == 'completed';
-    final earning = isCompleted ? (order.deliveryFee) : 0;
+  final isCompleted = order.status == 'completed';
+  final earning = isCompleted ? (order.deliveryFee) : 0;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+  return Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    elevation: 2,
+    child: InkWell(
+      onTap: isCompleted
+          ? () {
+              // ไปหน้า DeliveryCompletedPage เมื่อกด
+              Navigator.pushNamed(
+                context,
+                '/deliveryCompleted',
+                arguments: {
+                  'orderId': order.orderId,
+                  'riderId': widget.riderId, // ส่ง riderId ด้วย
+                },
+              );
+            }
+          : null,
+      borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    order.shopName,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.shopName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Order #${order.orderId}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatDate(order.createdAt),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatDate(order.createdAt),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(order.status).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _getStatusText(order.status),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: _getStatusColor(order.status),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (isCompleted) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '฿${earning.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: lightGreen,
+                        ),
+                      ),
+                      if (order.bonus > 0) ...[
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'โบนัส ฿${order.bonus.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ],
+            ),
+            if (isCompleted) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.location_on,
+                    size: 14,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      order.address,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: Colors.grey,
                   ),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                // Container(
-                //   padding: const EdgeInsets.symmetric(
-                //     horizontal: 6,
-                //     vertical: 2,
-                //   ),
-                //   decoration: BoxDecoration(
-                //     color: _getStatusColor(order.status).withOpacity(0.2),
-                //     borderRadius: BorderRadius.circular(8),
-                //   ),
-                //   child: Text(
-                //     _getCombinedStatusText(order),
-                //     style: TextStyle(
-                //       fontSize: 10,
-                //       color: _getStatusColor(order.status),
-                //       fontWeight: FontWeight.bold,
-                //     ),
-                //   ),
-                // ),
-                if (isCompleted) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '฿$earning',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: lightGreen,
-                    ),
-                  ),
-                  if (order.bonus > 0) ...[
-                    Text(
-                      'เครดิตช่วยจ่าย ฿${order.bonus.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                      ),
-                    ),
-                  ],
-                ],
-              ],
-            ),
+            ],
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildActionButton(Order order) {
     return SizedBox(
@@ -1784,8 +1863,14 @@ class _RiderJobsPageState extends State<RiderJobsPage>
   }
 
   String _formatDate(DateTime dateTime) {
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-  }
+  final day = dateTime.day;
+  final month = dateTime.month;
+  final year = dateTime.year + 543; // แปลงเป็น พ.ศ.
+  final hour = dateTime.hour.toString().padLeft(2, '0');
+  final minute = dateTime.minute.toString().padLeft(2, '0');
+  
+  return '$day/$month/$year $hour:$minute';
+}
 
   Color _getStatusColor(String status) {
     switch (status) {
