@@ -125,6 +125,16 @@ class _JobsPageState extends State<JobsPage> {
     return _filteredJobs.fold(0.0, (sum, job) => sum + job.riderGpAmount);
   }
 
+  // Calculate total credit support from all jobs
+  double get totalCreditSupport {
+    return _filteredJobs.fold(0.0, (sum, job) => sum + job.bonusAmount);
+  }
+
+  // Calculate actual credit deducted (original - support)
+  double get actualCreditDeducted {
+    return totalGpDeducted;
+  }
+
   // Calculate total jobs count
   int get jobCount => _filteredJobs.length;
 
@@ -308,23 +318,67 @@ class _JobsPageState extends State<JobsPage> {
                       Icons.payment,
                     ),
                     const Divider(),
-                    _buildDetailRow(
-                      'ค่าส่ง',
-                      '฿${job.deliveryFeeAmount.toStringAsFixed(2)}',
-                      Icons.local_shipping,
-                    ),
-                    if (job.bonusAmount > 0)
-                      _buildDetailRow(
-                        'โบนัส',
-                        '฿${job.bonusAmount.toStringAsFixed(2)}',
-                        Icons.bolt,
+
+                    // 💳 ค่าใช้จ่าย
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange[50],
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    _buildDetailRow(
-                      'เครดิตที่หัก',
-                      '฿${job.riderGpAmount.toStringAsFixed(2)}',
-                      Icons.remove_circle_outline,
-                      isTotal: true,
-                      valueColor: Colors.red,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.credit_card,
+                                color: Colors.orange,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'ค่าใช้จ่าย',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          _buildDetailRow(
+                            'เครดิตที่ต้องจ่าย',
+                            '฿${(job.riderGpAmount + job.bonusAmount).toStringAsFixed(2)}',
+                            Icons.payments,
+                          ),
+                          if (job.bonusAmount > 0) ...[
+                            _buildDetailRow(
+                              'เครดิตช่วยจ่าย',
+                              '-฿${job.bonusAmount.toStringAsFixed(2)}',
+                              Icons.savings,
+                              valueColor: Colors.orange,
+                            ),
+                            const SizedBox(height: 4),
+                            const Divider(height: 8),
+                            _buildDetailRow(
+                              'เครดิตที่หักจริง',
+                              '฿${(job.riderGpAmount).toStringAsFixed(2)}',
+                              Icons.remove_circle_outline,
+                              isTotal: true,
+                              valueColor: Colors.red,
+                            ),
+                          ] else ...[
+                            _buildDetailRow(
+                              'เครดิตที่หักจริง',
+                              '฿${job.riderGpAmount.toStringAsFixed(2)}',
+                              Icons.remove_circle_outline,
+                              isTotal: true,
+                              valueColor: Colors.red,
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                     // const SizedBox(height: 16),
                     // Row(
@@ -409,43 +463,105 @@ class _JobsPageState extends State<JobsPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // 💳 ค่าใช้จ่าย Header
+            Row(
+              children: [
+                const Icon(Icons.credit_card, color: Colors.orange, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'ค่าใช้จ่าย',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // เครดิตที่ต้องจ่าย
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'เครดิตที่ต้องจ่าย:',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+                Text(
+                  '฿${(totalGpDeducted + totalCreditSupport).toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+
+            // เครดิตช่วยจ่าย (แสดงเฉพาะเมื่อมี)
+            if (totalCreditSupport > 0) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'เครดิตที่หักรวม',
-                    style: TextStyle(color: Colors.grey),
+                    'เครดิตช่วยจ่าย:',
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
-                  const SizedBox(height: 8),
                   Text(
-                    '฿${totalGpDeducted.toStringAsFixed(2)}',
+                    '-฿${totalCreditSupport.toStringAsFixed(2)}',
                     style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange,
                     ),
                   ),
-                  // const SizedBox(height: 6),
-                  // Text(
-                  //   '$jobCount งาน • $period',
-                  //   style: const TextStyle(color: Colors.grey),
-                  // ),
                 ],
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.green[50],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.assignment_turned_in,
-                color: Colors.green,
-              ),
+              const SizedBox(height: 12),
+              const Divider(),
+            ],
+
+            // เครดิตที่หักจริง
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'เครดิตที่หักจริง',
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '฿${actualCreditDeducted.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.remove_circle_outline,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -453,8 +569,17 @@ class _JobsPageState extends State<JobsPage> {
     );
   }
 
-  Widget _smallStat(String title, String value, IconData icon) {
+  Widget _smallStat(
+    String title,
+    String value,
+    IconData icon, {
+    bool isCredit = false,
+  }) {
     final isCancel = title == 'ยกเลิก';
+    final cardColor = isCredit
+        ? Colors.orange
+        : (isCancel ? Colors.red : Colors.green);
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
       decoration: BoxDecoration(
@@ -469,14 +594,10 @@ class _JobsPageState extends State<JobsPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isCancel ? Colors.red[50] : Colors.green[50],
+              color: cardColor[50],
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: isCancel ? Colors.red : Colors.green,
-              size: 18,
-            ),
+            child: Icon(icon, color: cardColor, size: 18),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -493,7 +614,9 @@ class _JobsPageState extends State<JobsPage> {
                     value,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: isCancel ? Colors.red : null,
+                      color: isCredit
+                          ? Colors.orange
+                          : (isCancel ? Colors.red : null),
                     ),
                   ),
                 ),
@@ -616,7 +739,7 @@ class _JobsPageState extends State<JobsPage> {
             child: Row(
               children: [
                 Expanded(child: _smallStat('งาน', '$jobCount', Icons.list_alt)),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _smallStat(
                     'สำเร็จ',
@@ -624,14 +747,25 @@ class _JobsPageState extends State<JobsPage> {
                     Icons.check_circle,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _smallStat(
-                    'ยกเลิก',
-                    '$cancelledJobCount',
-                    Icons.cancel,
+                const SizedBox(width: 8),
+                if (totalCreditSupport > 0) ...[
+                  Expanded(
+                    child: _smallStat(
+                      'ช่วยจ่าย',
+                      '฿${totalCreditSupport.toStringAsFixed(0)}',
+                      Icons.savings,
+                      isCredit: true,
+                    ),
                   ),
-                ),
+                ] else ...[
+                  Expanded(
+                    child: _smallStat(
+                      'ยกเลิก',
+                      '$cancelledJobCount',
+                      Icons.cancel,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -799,19 +933,53 @@ class _JobsPageState extends State<JobsPage> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Text(
-                      //   'GP หัก',
-                      //   style: TextStyle(color: Colors.grey[600], fontSize: 10),
-                      // ),
-                      // const SizedBox(height: 2),
-                      Text(
-                        '฿${job.riderGpAmount.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                      if (job.bonusAmount > 0) ...[
+                        Text(
+                          'หัก ฿${(job.riderGpAmount + job.bonusAmount).toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 11,
+                            decoration: TextDecoration.lineThrough,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[100],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'ช่วย ฿${job.bonusAmount.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: Colors.orange[700],
+                              fontSize: 9,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '฿${(job.riderGpAmount).toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ] else ...[
+                        Text(
+                          '฿${job.riderGpAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],

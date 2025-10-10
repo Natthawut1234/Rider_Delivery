@@ -147,7 +147,7 @@ class _IncomePageState extends State<IncomePage> {
   }
 
   // Calculate total bonus from completed jobs
-  double get _totalBonus {
+  double get _totalCreditSupport {
     return _filteredJobs.fold(0.0, (sum, job) => sum + job.bonusAmount);
   }
 
@@ -414,48 +414,127 @@ class _IncomePageState extends State<IncomePage> {
                 ),
               ],
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'รวมรายได้',
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                // 💰 รายได้ของคุณ
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.monetization_on,
+                      color: Colors.green,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'รายได้ของคุณ',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '฿${_totalIncome.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'ค่าจัดส่ง',
+                            style: TextStyle(fontSize: 14, color: Colors.grey),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '฿${_totalIncome.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
                       ),
-                      // const SizedBox(height: 8),
-                      // Text(
-                      //   '$selectedPeriod • $_jobCount งาน',
-                      //   style: const TextStyle(
-                      //     fontSize: 12,
-                      //     color: Colors.grey,
-                      //   ),
-                      // ),
-                    ],
-                  ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.account_balance_wallet_outlined,
+                        color: Colors.green,
+                        size: 30,
+                      ),
+                    ),
+                  ],
                 ),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.account_balance_wallet_outlined,
-                    color: Colors.green,
-                    size: 30,
-                  ),
-                ),
+
+                // 💳 ค่าใช้จ่าย (แสดงเฉพาะเมื่อมีเครดิตช่วยจ่าย)
+                // if (_totalCreditSupport > 0) ...[
+                //   const SizedBox(height: 16),
+                //   const Divider(),
+                //   const SizedBox(height: 12),
+                //   Row(
+                //     children: [
+                //       const Icon(
+                //         Icons.credit_card,
+                //         color: Colors.orange,
+                //         size: 20,
+                //       ),
+                //       const SizedBox(width: 8),
+                //       const Text(
+                //         'เครดิตช่วยจ่าย',
+                //         style: TextStyle(
+                //           fontSize: 16,
+                //           fontWeight: FontWeight.bold,
+                //           color: Colors.orange,
+                //         ),
+                //       ),
+                //     ],
+                //   ),
+                //   const SizedBox(height: 8),
+                //   Text(
+                //     '฿${_totalCreditSupport.toStringAsFixed(2)}',
+                //     style: const TextStyle(
+                //       fontSize: 20,
+                //       fontWeight: FontWeight.bold,
+                //       color: Colors.orange,
+                //     ),
+                //   ),
+
+                //   // 📊 สรุป
+                //   const SizedBox(height: 16),
+                //   const Divider(),
+                //   const SizedBox(height: 12),
+                //   Row(
+                //     children: [
+                //       const Icon(Icons.savings, color: Colors.blue, size: 20),
+                //       const SizedBox(width: 8),
+                //       const Text(
+                //         'ประหยัดได้',
+                //         style: TextStyle(
+                //           fontSize: 16,
+                //           fontWeight: FontWeight.bold,
+                //           color: Colors.blue,
+                //         ),
+                //       ),
+                //     ],
+                //   ),
+                //   const SizedBox(height: 8),
+                //   Text(
+                //     '฿${_totalCreditSupport.toStringAsFixed(2)}',
+                //     style: const TextStyle(
+                //       fontSize: 18,
+                //       fontWeight: FontWeight.bold,
+                //       color: Colors.blue,
+                //     ),
+                //   ),
+                // ],
               ],
             ),
           ),
@@ -480,11 +559,11 @@ class _IncomePageState extends State<IncomePage> {
                             Icons.assignment_turned_in,
                           ),
                           const SizedBox(width: 8),
-                          _buildSmallStat(
-                            'โบนัส',
-                            '฿${_totalBonus.toStringAsFixed(2)}',
-                            Icons.bolt,
-                          ),
+                          // _buildSmallStat(
+                          //   'เครดิตช่วยจ่าย',
+                          //   '฿${_totalCreditSupport.toStringAsFixed(2)}',
+                          //   Icons.credit_card,
+                          // ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -508,12 +587,12 @@ class _IncomePageState extends State<IncomePage> {
                         '$_jobCount',
                         Icons.assignment_turned_in,
                       ),
-                      const SizedBox(width: 8),
-                      _buildSmallStat(
-                        'โบนัส',
-                        '฿${_totalBonus.toStringAsFixed(2)}',
-                        Icons.bolt,
-                      ),
+                      // const SizedBox(width: 8),
+                      // _buildSmallStat(
+                      //   'เครดิตช่วยจ่าย',
+                      //   '฿${_totalCreditSupport.toStringAsFixed(2)}',
+                      //   Icons.credit_card,
+                      // ),
                       const SizedBox(width: 8),
                       _buildSmallStat(
                         'เฉลี่ย/งาน',
@@ -742,27 +821,27 @@ class _IncomePageState extends State<IncomePage> {
                           fontSize: 16,
                         ),
                       ),
-                      if (job.bonusAmount > 0) ...[
-                        const SizedBox(height: 2),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange[100],
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            'โบนัส ฿${job.bonusAmount.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              color: Colors.orange[700],
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
+                      // if (job.bonusAmount > 0) ...[
+                      //   const SizedBox(height: 2),
+                      //   Container(
+                      //     padding: const EdgeInsets.symmetric(
+                      //       horizontal: 6,
+                      //       vertical: 2,
+                      //     ),
+                      //     decoration: BoxDecoration(
+                      //       color: Colors.orange[100],
+                      //       borderRadius: BorderRadius.circular(10),
+                      //     ),
+                      //     child: Text(
+                      //       'ช่วยจ่าย ฿${job.bonusAmount.toStringAsFixed(2)}',
+                      //       style: TextStyle(
+                      //         color: Colors.orange[700],
+                      //         fontSize: 10,
+                      //         fontWeight: FontWeight.w500,
+                      //       ),
+                      //     ),
+                      //   ),
+                      // ],
                     ],
                   ),
                 ],
@@ -866,25 +945,93 @@ class _IncomePageState extends State<IncomePage> {
                       Icons.payment,
                     ),
                     const Divider(),
-                    _buildDetailRow(
-                      'ค่าส่ง',
-                      '฿${job.deliveryFeeAmount.toStringAsFixed(2)}',
-                      Icons.local_shipping,
-                    ),
-                    if (job.bonusAmount > 0)
-                      _buildDetailRow(
-                        'โบนัส',
-                        '฿${job.bonusAmount.toStringAsFixed(2)}',
-                        Icons.bolt,
+
+                    // 💰 รายได้ของคุณ
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    _buildDetailRow(
-                      'รายได้รวม',
-                      '฿${job.totalEarnings.toStringAsFixed(2)}',
-                      Icons.monetization_on,
-                      isTotal: true,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.monetization_on,
+                                color: Colors.green,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'รายได้ของคุณ',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          _buildDetailRow(
+                            'ค่าจัดส่ง',
+                            '฿${job.deliveryFeeAmount.toStringAsFixed(2)}',
+                            Icons.local_shipping,
+                          ),
+                          _buildDetailRow(
+                            'รายได้รวม',
+                            '฿${job.totalEarnings.toStringAsFixed(2)}',
+                            Icons.account_balance_wallet,
+                            isHighlight: true,
+                          ),
+                        ],
+                      ),
                     ),
 
-                    const SizedBox(height: 20),
+                    // 💳 เครดิตช่วยจ่าย (แสดงเฉพาะเมื่อมี)
+                    // if (job.bonusAmount > 0) ...[
+                    //   const SizedBox(height: 12),
+                    //   Container(
+                    //     padding: const EdgeInsets.all(12),
+                    //     decoration: BoxDecoration(
+                    //       color: Colors.orange[50],
+                    //       borderRadius: BorderRadius.circular(8),
+                    //     ),
+                    //     child: Column(
+                    //       crossAxisAlignment: CrossAxisAlignment.start,
+                    //       children: [
+                    //         Row(
+                    //           children: [
+                    //             const Icon(
+                    //               Icons.credit_card,
+                    //               color: Colors.orange,
+                    //               size: 16,
+                    //             ),
+                    //             const SizedBox(width: 6),
+                    //             const Text(
+                    //               'เครดิตช่วยจ่าย',
+                    //               style: TextStyle(
+                    //                 fontWeight: FontWeight.bold,
+                    //                 color: Colors.orange,
+                    //               ),
+                    //             ),
+                    //           ],
+                    //         ),
+                    //         const SizedBox(height: 8),
+                    //         _buildDetailRow(
+                    //           'ประหยัดได้',
+                    //           '฿${job.bonusAmount.toStringAsFixed(2)}',
+                    //           Icons.savings,
+                    //           isHighlight: true,
+                    //           highlightColor: Colors.orange,
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ),
+                    // ],
+
+                    // const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -900,7 +1047,13 @@ class _IncomePageState extends State<IncomePage> {
     String value,
     IconData icon, {
     bool isTotal = false,
+    bool isHighlight = false,
+    Color? highlightColor,
   }) {
+    final textColor = isHighlight
+        ? (highlightColor ?? Colors.green)
+        : (isTotal ? Colors.green : Colors.black87);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -912,7 +1065,9 @@ class _IncomePageState extends State<IncomePage> {
             style: TextStyle(
               color: Colors.grey[600],
               fontSize: 14,
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontWeight: isTotal || isHighlight
+                  ? FontWeight.bold
+                  : FontWeight.normal,
             ),
           ),
           const SizedBox(height: 12),
@@ -921,9 +1076,11 @@ class _IncomePageState extends State<IncomePage> {
           Text(
             value,
             style: TextStyle(
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
-              fontSize: isTotal ? 16 : 14,
-              color: isTotal ? Colors.green : Colors.black87,
+              fontWeight: isTotal || isHighlight
+                  ? FontWeight.bold
+                  : FontWeight.w500,
+              fontSize: isTotal || isHighlight ? 16 : 14,
+              color: textColor,
             ),
           ),
         ],

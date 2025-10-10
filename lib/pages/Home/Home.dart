@@ -362,13 +362,14 @@ class _HomePageState extends State<HomePage> {
       _isUserDataLoading = true;
     });
 
-    // รีเฟรชทั้งข้อมูลโปรไฟล์, เครดิต, รายได้วันนี้, จำนวนงานวันนี้ และคะแนนรีวิว
+    // รีเฟรชทั้งข้อมูลโปรไฟล์, เครดิต, รายได้วันนี้, จำนวนงานวันนี้, คะแนนรีวิว และสถานะไรเดอร์
     await Future.wait([
       _refreshProfileData(),
       _loadGPBalance(),
       _loadTodayIncome(),
       _loadTodayJobCount(),
       _loadRatingData(),
+      _checkRiderStatus(), // เพิ่มการรีเฟรชสถานะไรเดอร์
     ]);
   }
 
@@ -715,14 +716,16 @@ class _HomePageState extends State<HomePage> {
                     color: textColor,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _statusMessage,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: textColor.withOpacity(0.8),
+                if (_riderStatus != RiderStatus.approved) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _statusMessage,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: textColor.withOpacity(0.8),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
