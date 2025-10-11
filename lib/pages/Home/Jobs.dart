@@ -153,7 +153,10 @@ class _JobsPageState extends State<JobsPage> {
       firstDate: DateTime.now().subtract(const Duration(days: 365 * 2)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
     );
-    if (picked != null) setState(() => selectedDate = picked);
+    if (picked != null) {
+      setState(() => selectedDate = picked);
+      _loadJobHistory();
+    }
   }
 
   void _prevPeriod() {
