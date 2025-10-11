@@ -1,14 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:rider_delivery/APIs/Orders/models/Order_items.dart';
 import 'package:rider_delivery/APIs/baseAPI_URL/baseURL.dart';
 import 'package:rider_delivery/services/SocketService.dart';
 import 'package:flutter/material.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:http/http.dart' as http;
 
 class RiderControllerSocket extends ChangeNotifier {
   final SocketService _socketService = SocketService();
   final String baseUrl = BaseAPI_URL.SocketURL; // Fixed: Use correct URL
+  final ImagePicker _imagePicker = ImagePicker();
 
   List<Order> _orders = [];
   bool _isLoading = false;
@@ -393,35 +397,110 @@ class RiderControllerSocket extends ChangeNotifier {
   //   print('⚠️ Could not hydrate market info for order $orderId');
   // }
 
-  // Fixed: Update order status with better error handling
+  Future<File?> pickImageFromGallery() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        print('📸 Image selected from gallery: ${image.path}');
+        return File(image.path);
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error picking image: $e');
+      _error = 'Failed to pick image: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  // ⭐ NEW: Method สำหรับถ่ายรูปจากกล้อง
+  Future<File?> takePhoto() async {
+    try {
+      final XFile? photo = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (photo != null) {
+        print('📸 Photo taken: ${photo.path}');
+        return File(photo.path);
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error taking photo: $e');
+      _error = 'Failed to take photo: $e';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  // ⭐ UPDATED: Method สำหรับอัพเดทสถานะพร้อมรูปภาพ
   Future<Map<String, dynamic>> updateOrderStatus(
     int orderId,
     String status, {
     Map<String, dynamic>? additionalData,
+    File? photo,
   }) async {
     if (_isDisposed) return {'success': false, 'error': 'Service disposed'};
 
     try {
       print('🔄 Updating order $orderId status to $status');
+      if (photo != null) {
+        print('📸 Including photo: ${photo.path}');
+      }
 
-      final response = await http.put(
-        Uri.parse('$baseUrl/update_order_status'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'order_id': orderId,
-          'status': status,
-          'additional_data': additionalData,
-        }),
-      );
+      // ⭐ สร้าง multipart request สำหรับส่งรูปภาพ
+      final uri = Uri.parse('$baseUrl/update_order_status');
+      final request = http.MultipartRequest('PUT', uri);
+
+      // เพิ่ม fields
+      request.fields['order_id'] = orderId.toString();
+      request.fields['status'] = status;
+
+      if (additionalData != null) {
+        request.fields['additional_data'] = json.encode(additionalData);
+      }
+
+      // ⭐ เพิ่มไฟล์รูปภาพถ้ามี
+      if (photo != null) {
+        final fileExtension = photo.path.split('.').last.toLowerCase();
+        final mimeType = _getMimeType(fileExtension);
+
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'photo',
+            photo.path,
+            contentType: mimeType != null ? MediaType.parse(mimeType) : null,
+          ),
+        );
+        print('📤 Photo attached to request');
+      }
+
+      // ส่ง request
+      print('📡 Sending multipart request...');
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('📡 Response status: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
 
       final data = json.decode(response.body);
+
       if (response.statusCode == 200 && data['success'] == true) {
         // Update local order status immediately
         final orderIndex = _orders.indexWhere(
           (order) => order.orderId == orderId,
         );
+
         if (orderIndex != -1) {
-          // ใช้ข้อมูลจาก API response เพื่ออัพเดท
           final responseData = data['data'] ?? {};
           final updatedOrder = _orders[orderIndex].copyWith(
             status: status,
@@ -430,17 +509,21 @@ class RiderControllerSocket extends ChangeNotifier {
             updatedAt: DateTime.now(),
           );
           _orders[orderIndex] = updatedOrder;
-          print(
-            '✅ Local order updated immediately: status=$status, shopStatus=${updatedOrder.shopStatus}',
-          );
+          print('✅ Local order updated: status=$status');
         }
 
-        print('✅ Order $orderId status updated to $status');
+        print('✅ Order $orderId status updated successfully');
         if (!_isDisposed) notifyListeners();
         return data;
       } else {
         _error = data['error'] ?? 'Failed to update order status';
         print('❌ Failed to update order status: $_error');
+
+        // แสดง hint ถ้ามี
+        if (data['hint'] != null) {
+          print('💡 Hint: ${data['hint']}');
+        }
+
         if (!_isDisposed) notifyListeners();
         return data;
       }
@@ -451,6 +534,68 @@ class RiderControllerSocket extends ChangeNotifier {
       if (!_isDisposed) notifyListeners();
       return errorResult;
     }
+  }
+
+  // ⭐ Helper method สำหรับ MIME type
+  String? _getMimeType(String extension) {
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return null;
+    }
+  }
+
+  // ⭐ NEW: Method สำหรับแสดง dialog เลือกแหล่งที่มาของรูป
+  Future<File?> showPhotoSourceDialog(BuildContext context) async {
+    return showDialog<File?>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('เลือกแหล่งที่มาของรูปภาพ'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('ถ่ายรูป'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final photo = await takePhoto();
+                  if (context.mounted) {
+                    Navigator.of(context).pop(photo);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('เลือกจากแกลเลอรี่'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final photo = await pickImageFromGallery();
+                  if (context.mounted) {
+                    Navigator.of(context).pop(photo);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: const Text('ยกเลิก'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // Fixed: Safe loading state management

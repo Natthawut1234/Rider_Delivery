@@ -81,9 +81,13 @@ class _RiderChatPageState extends State<RiderChatPage> {
     partnerPhone = args!['partnerPhone'];
     userType = args!['userType'];
 
-    // ✅ สำหรับ rider: userId และ riderId จะเป็นค่าเดียวกัน (rider_id)
-    userId = args!['userId']; // rider_id สำหรับเปรียบเทียบข้อความ
-    riderId = args!['riderId']; // rider_id สำหรับ business logic
+    // ✅ เปลี่ยนตรงนี้
+    final chatController = Provider.of<RiderChatController>(
+      context,
+      listen: false,
+    );
+    userId = chatController.userId; // ✅ user_id จาก token (ใช้เทียบข้อความ)
+    riderId = chatController.riderId; // ✅ rider_id สำหรับ business logic
 
     print('🔍 Chat Page Arguments:');
     print('   roomId: $roomId');
@@ -169,6 +173,20 @@ class _RiderChatPageState extends State<RiderChatPage> {
             ..clear()
             ..addAll(messages);
           _isLoading = false;
+
+          // ✅ ถ้า partnerPhoto ยังไม่มี ให้ใช้จากข้อความฝั่งลูกค้า
+          if (partnerPhoto == null || partnerPhoto!.isEmpty) {
+            try {
+              // หา message แรกที่ไม่ใช่ของเรา (คือของลูกค้า)
+              final otherMsg = messages.firstWhere(
+                (m) => !_isMyMessage(m) && (m.senderPhoto?.isNotEmpty ?? false),
+              );
+              partnerPhoto = otherMsg.senderPhoto;
+              print('✅ ตั้ง partnerPhoto จากข้อความของลูกค้า: $partnerPhoto');
+            } catch (e) {
+              print('⚠️ ไม่มีข้อความของลูกค้าให้ใช้เป็นรูป');
+            }
+          }
         });
       }
 
@@ -393,20 +411,30 @@ class _RiderChatPageState extends State<RiderChatPage> {
   }
 
   // ✅ ปรับปรุงการตรวจสอบข้อความของตัวเอง
-  bool _isMyMessage(ChatMessage message) {
-    print('🔍 Message ownership check:');
+  bool _isMyMessage(ChatMessage msg) {
+    final senderType = (msg.senderType ?? '').toLowerCase();
+    final senderId = msg.senderId?.toString();
+    final myRiderId = riderId?.toString();
+    final myUserId = userId?.toString();
+
+    // Debug log
     print(
-      '   Message: senderType=${message.senderType}, senderId=${message.senderId}',
+      "🧩 _isMyMessage check: senderType=$senderType, senderId=$senderId, riderId=$myRiderId, userId=$myUserId",
     );
-    print('   Current: userType=$userType, userId=$userId');
 
-    // สำหรับ rider: ตรวจสอบว่า senderType เป็น 'rider' และ senderId ตรง userId (ซึ่งเป็น rider_id)
-    final result =
-        (message.senderType == userType &&
-        message.senderId?.toString() == userId?.toString());
+    // ✅ ถ้าเราเป็นไรเดอร์
+    if (userType == 'rider') {
+      return senderType == 'rider' &&
+          (senderId == myRiderId || senderId == myUserId);
+    }
 
-    print('   Result: $result');
-    return result;
+    // ✅ ถ้าเราเป็นลูกค้า (member หรือ customer)
+    if (userType == 'customer' || userType == 'member') {
+      return (senderType == 'customer' || senderType == 'member') &&
+          (senderId == myUserId);
+    }
+
+    return false;
   }
 
   Widget _buildMessage(ChatMessage message) {

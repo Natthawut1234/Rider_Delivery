@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:rider_delivery/APIs/ChatSocket/ChatControllerSK.dart';
 import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
+import 'package:rider_delivery/pages/Chats/models/ChatMessage.dart';
 import 'package:rider_delivery/pages/DeliveryCompleted.dart';
 import 'package:rider_delivery/pages/DeliveryConfirm.dart';
 import 'package:rider_delivery/pages/maps/map_button_widget.dart';
@@ -91,16 +95,17 @@ class _GoCustomerState extends State<GoCustomer> {
     );
   }
 
-  Future<void> _updateOrderStatus(String status) async {
+  Future<void> _updateOrderStatus(String status, {File? photo}) async {
     if (orderId == null || _orderController == null) return;
 
     try {
       final result = await _orderController!.updateOrderStatus(
         orderId!,
         status,
+        photo: photo,
       );
 
-      if (!mounted) return; // ✅ ป้องกัน context ใช้หลัง dispose
+      if (!mounted) return;
 
       if (result['success'] == true) {
         ScaffoldMessenger.of(
@@ -109,17 +114,12 @@ class _GoCustomerState extends State<GoCustomer> {
       } else {
         final errorMessage = result['error'] ?? 'เกิดข้อผิดพลาด';
         final hint = result['hint'] ?? '';
-
-        String displayMessage = errorMessage;
-        if (hint.isNotEmpty) {
-          displayMessage = hint;
-        }
+        String displayMessage = hint.isNotEmpty ? hint : errorMessage;
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(displayMessage),
             backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -807,15 +807,17 @@ class _GoCustomerState extends State<GoCustomer> {
   }
 
   void _confirmDeliveryFinal(Map<String, dynamic> data) async {
-    await _updateOrderStatus('completed');
+    if (_deliveryPhoto == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('กรุณาถ่ายรูปหลักฐานการส่งก่อนยืนยันจัดส่ง'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
-    final prefs = await SharedPreferences.getInstance();
-    prefs.remove('active_order_id');
-    prefs.remove('active_rider_id');
-    print('🧹 ล้างงานค้างหลังจัดส่งเสร็จ');
-
-    final parentContext = context;
-
+    // ✅ แสดง dialog ยืนยันก่อนอัปโหลดจริง
     showDialog(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
@@ -842,13 +844,22 @@ class _GoCustomerState extends State<GoCustomer> {
           ),
           CupertinoDialogAction(
             onPressed: () async {
-              Navigator.pop(dialogContext); // ปิด dialog ยืนยัน
-              await _updateOrderStatus('completed');
+              Navigator.pop(dialogContext); // ปิด dialog
+
+              // ✅ อัปเดตสถานะจริง แค่ครั้งเดียว พร้อมรูป
+              await _updateOrderStatus('completed', photo: _deliveryPhoto);
+
+              // ✅ ล้างงานค้าง
+              final prefs = await SharedPreferences.getInstance();
+              prefs.remove('active_order_id');
+              prefs.remove('active_rider_id');
+              print('🧹 ล้างงานค้างหลังจัดส่งเสร็จ');
+
               if (!mounted) return;
 
-              // ✅ แสดงหน้าเต็มจอ “จัดส่งสำเร็จ”
+              // ✅ แสดงหน้าสำเร็จเต็มจอ 3 วิ
               showGeneralDialog(
-                context: parentContext,
+                context: context,
                 barrierDismissible: false,
                 barrierColor: Colors.black.withOpacity(0.6),
                 transitionDuration: const Duration(milliseconds: 300),
@@ -858,14 +869,14 @@ class _GoCustomerState extends State<GoCustomer> {
                     body: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
+                        children: const [
+                          Icon(
                             Icons.check_circle,
                             color: Color(0xFF4CAF50),
                             size: 150,
                           ),
-                          const SizedBox(height: 30),
-                          const Text(
+                          SizedBox(height: 30),
+                          Text(
                             'จัดส่งสำเร็จ!',
                             style: TextStyle(
                               fontSize: 36,
@@ -873,8 +884,8 @@ class _GoCustomerState extends State<GoCustomer> {
                               color: Color(0xFF388E3C),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          const Text(
+                          SizedBox(height: 16),
+                          Text(
                             'ขอบคุณที่ให้บริการกับลูกค้า 💚',
                             textAlign: TextAlign.center,
                             style: TextStyle(
@@ -890,17 +901,18 @@ class _GoCustomerState extends State<GoCustomer> {
                 },
               );
 
-              // ✅ รอ 3 วิ แล้วเปลี่ยนหน้า
+              // ✅ หน่วง 3 วิ แล้วไปหน้า DeliveryCompletedPage
               await Future.delayed(const Duration(seconds: 3));
               if (!mounted) return;
 
-              Navigator.of(parentContext, rootNavigator: true).pushReplacement(
+              Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(
                   builder: (_) => const DeliveryCompletedPage(),
                   settings: RouteSettings(
                     arguments: {'orderId': orderId, ...data},
                   ),
                 ),
+                ModalRoute.withName('/home'), // ✅ กลับไปหน้า home
               );
             },
             isDefaultAction: true,
@@ -1142,36 +1154,39 @@ class _GoCustomerState extends State<GoCustomer> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-  child: Consumer<RiderControllerSocket>(
-    builder: (context, controller, _) {
-      final currentOrder = IterableExtension(controller.orders
-          .where((o) => o.orderId == orderId))
-          .firstOrNull;
+                      child: Consumer<RiderControllerSocket>(
+                        builder: (context, controller, _) {
+                          final currentOrder = IterableExtension(
+                            controller.orders.where(
+                              (o) => o.orderId == orderId,
+                            ),
+                          ).firstOrNull;
 
-      final argStatus = data['status'] ?? '';
-      final argShopStatus = data['shopStatus'] ?? '';
+                          final argStatus = data['status'] ?? '';
+                          final argShopStatus = data['shopStatus'] ?? '';
 
-      String statusText =
-          _getStatusText(currentOrder?.status ?? argStatus);
-      String shopStatusText =
-          _getShopStatusText(currentOrder?.shopStatus ?? argShopStatus);
+                          String statusText = _getStatusText(
+                            currentOrder?.status ?? argStatus,
+                          );
+                          String shopStatusText = _getShopStatusText(
+                            currentOrder?.shopStatus ?? argShopStatus,
+                          );
 
-      if (shopStatusText.isNotEmpty) {
-        statusText = '$statusText • $shopStatusText';
-      }
+                          if (shopStatusText.isNotEmpty) {
+                            statusText = '$statusText • $shopStatusText';
+                          }
 
-      return Text(
-        statusText,
-        style: const TextStyle(
-          color: Colors.green,
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-    },
-  ),
-),
-
+                          return Text(
+                            statusText,
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1288,20 +1303,110 @@ class _GoCustomerState extends State<GoCustomer> {
                         ),
                         const SizedBox(width: 8),
                         GestureDetector(
-                          onTap: () => Navigator.pushNamed(context, '/chat'),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.green[300],
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.message,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
+  onTap: () async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      int? tokenRiderId;
+      int? userId;
+
+      if (token != null && token.isNotEmpty) {
+        final parts = token.split('.');
+        if (parts.length == 3) {
+          final payload = parts[1];
+          final normalized = base64.normalize(payload);
+          final decoded = utf8.decode(base64Url.decode(normalized));
+          final Map<String, dynamic> data = jsonDecode(decoded);
+
+          tokenRiderId = data['rider_id'];
+          userId = data['user_id'];
+
+          print('🔑 JWT decode: rider_id=$tokenRiderId, user_id=$userId');
+        } else {
+          print("⚠️ Invalid JWT format");
+        }
+      }
+
+      final chat = context.read<RiderChatController>();
+
+      if (chat.riderId == null && tokenRiderId != null) {
+        chat.riderId = tokenRiderId;
+      }
+
+      await chat.initializeRiderInfoIfNeeded();
+      await chat.connectToChat();
+      await chat.loadChatRooms();
+
+      // ✅ หา room ของ order ปัจจุบัน
+      final room = chat.chatRooms
+    .where((r) => (r.orderId?.toString() ?? '') == (orderId?.toString() ?? ''))
+    .cast<ChatRoom?>()
+    .firstWhere((r) => true, orElse: () => null);
+
+
+      final customerPhone = data['customerPhone'] ?? '-';
+      final customerName = data['customerName'] ?? '-';
+
+      if (room != null && room.roomId != null) {
+        chat.openChatWithCustomer(
+          context: context,
+          roomId: room.roomId!,
+          orderId: orderId!,
+          customerName: room.customerName ?? customerName,
+          customerPhoto: room.customerPhoto,
+          customerPhone: room.customerPhone ?? customerPhone,
+        );
+      } else {
+        final newRoomId = await chat.createChatRoomForOrder(
+          orderId: orderId!,
+          customerId: userId!,
+          customerName: customerName,
+          customerPhoto: null,
+        );
+
+        if (newRoomId != null) {
+          chat.openChatWithCustomer(
+            context: context,
+            roomId: newRoomId,
+            orderId: orderId!,
+            customerName: customerName,
+            customerPhoto: null,
+            customerPhone: customerPhone,
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ไม่สามารถเปิดห้องแชทได้ในขณะนี้'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Error opening chat: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('เปิดแชทไม่สำเร็จ: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  },
+  child: Container(
+    padding: const EdgeInsets.all(8),
+    decoration: BoxDecoration(
+      color: Colors.green[300],
+      shape: BoxShape.circle,
+    ),
+    child: const Icon(
+      Icons.message,
+      color: Colors.white,
+      size: 20,
+    ),
+  ),
+),
+
                       ],
                     ),
                   ],
@@ -1585,36 +1690,39 @@ class _GoCustomerState extends State<GoCustomer> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-  child: Consumer<RiderControllerSocket>(
-    builder: (context, controller, _) {
-      final currentOrder = IterableExtension(controller.orders
-          .where((o) => o.orderId == orderId))
-          .firstOrNull;
+                        child: Consumer<RiderControllerSocket>(
+                          builder: (context, controller, _) {
+                            final currentOrder = IterableExtension(
+                              controller.orders.where(
+                                (o) => o.orderId == orderId,
+                              ),
+                            ).firstOrNull;
 
-      final argStatus = data['status'] ?? '';
-      final argShopStatus = data['shopStatus'] ?? '';
+                            final argStatus = data['status'] ?? '';
+                            final argShopStatus = data['shopStatus'] ?? '';
 
-      String statusText =
-          _getStatusText(currentOrder?.status ?? argStatus);
-      String shopStatusText =
-          _getShopStatusText(currentOrder?.shopStatus ?? argShopStatus);
+                            String statusText = _getStatusText(
+                              currentOrder?.status ?? argStatus,
+                            );
+                            String shopStatusText = _getShopStatusText(
+                              currentOrder?.shopStatus ?? argShopStatus,
+                            );
 
-      if (shopStatusText.isNotEmpty) {
-        statusText = '$statusText • $shopStatusText';
-      }
+                            if (shopStatusText.isNotEmpty) {
+                              statusText = '$statusText • $shopStatusText';
+                            }
 
-      return Text(
-        statusText,
-        style: const TextStyle(
-          color: Colors.green,
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-    },
-  ),
-),
-
+                            return Text(
+                              statusText,
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ],
                   ),
                 ),
