@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:rider_delivery/APIs/baseAPI_URL/baseURL.dart';
 
 import 'map_utils.dart';
 
@@ -89,7 +90,7 @@ class _MapNavigationPageState extends State<MapNavigationPage>
   final double _offRouteThresholdM = 35;
 
   // Google Maps API Key
-  final String _googleApiKey = '';
+  final String _googleApiKey = BaseAPI_URL.GoogleMapAPI;
 
   // ✅ GPS Filter variables
   LatLng? _filteredPosition;

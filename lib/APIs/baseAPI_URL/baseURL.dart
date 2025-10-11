@@ -24,13 +24,16 @@ class BaseAPI_URL {
   }
 
   // URL ตัวเลือกต่างๆ
-  static const String localhostURL = 'http://10.28.145.73:4000/rider';
-  static const String androidEmulatorURL = 'http://10.28.145.73:4000/rider';
-  // แทนที่ด้วย IP จริงของเครื่อง
-  static const String localNetworkURL = 'http://10.28.145.73:4000/rider';
-  //Socket URL
-  static const String SocketURL = 'http://10.28.145.73:4000/riders/socket';
 
-  static const String HostSocketURL = 'http://10.28.145.73:4000';
+  static const String localhostURL = 'http://192.168.1.129:4000/rider';
+  static const String androidEmulatorURL = 'http://192.168.1.129:4000/rider';
+  // แทนที่ด้วย IP จริงของเครื่อง
+  static const String localNetworkURL = 'http://192.168.1.129:4000/rider';
+  //Socket URL
+  static const String SocketURL = 'http://192.168.1.129:4000/riders/socket';
+  static const String SocketChatURL = 'http://192.168.1.129:4000/chat/rider';
+
+
+  static const String HostSocketURL = 'http://192.168.1.129:4000';
   static const String GoogleMapAPI = '';
 }

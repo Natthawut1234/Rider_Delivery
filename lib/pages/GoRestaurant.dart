@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:rider_delivery/APIs/ChatSocket/ChatControllerSK.dart';
 import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
 import 'package:rider_delivery/APIs/Orders/models/Order_items.dart';
 import 'package:rider_delivery/pages/maps/map_button_widget.dart';
 import 'package:rider_delivery/pages/utils/navigation_guard.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class GoRestaurant extends StatefulWidget {
   const GoRestaurant({super.key});
@@ -1220,22 +1224,108 @@ class _GoRestaurantState extends State<GoRestaurant> {
                             ),
                             SizedBox(width: 8),
                             GestureDetector(
-                              onTap: () {
-                                Navigator.pushNamed(context, '/chat');
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.green[300],
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.message,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
+  onTap: () async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      int? tokenRiderId;
+
+      if (token != null && token.isNotEmpty) {
+        // 🧩 JWT มี 3 ส่วน: header.payload.signature
+        final parts = token.split('.');
+        if (parts.length == 3) {
+          final payload = parts[1];
+          // ✅ แปลง Base64 → JSON
+          final normalized = base64.normalize(payload);
+          final decoded = utf8.decode(base64Url.decode(normalized));
+          final Map<String, dynamic> data = jsonDecode(decoded);
+
+          tokenRiderId = data['rider_id'];
+          print('🔑 Rider ID from token: $tokenRiderId');
+        } else {
+          print("⚠️ Invalid JWT format");
+        }
+      }
+
+      final chat = context.read<RiderChatController>();
+
+      // ✅ ถ้ายังไม่มี riderId ใน controller → ใช้อันจาก token
+      if (chat.riderId == null && tokenRiderId != null) {
+        chat.riderId = tokenRiderId;
+      }
+
+      // ✅ เริ่มการเชื่อมต่อ socket และโหลดห้องแชท
+      await chat.initializeRiderInfoIfNeeded();
+      await chat.connectToChat();
+      await chat.loadChatRooms();
+
+      // ✅ หา room ที่ตรงกับ orderId
+      final room = chat.chatRooms
+          .where((r) =>
+              (r.orderId?.toString() ?? '') ==
+              (orderId?.toString() ?? ''))
+          .toList()
+          .firstOrNull;
+
+      if (room != null && room.roomId != null) {
+        chat.openChatWithCustomer(
+          context: context,
+          roomId: room.roomId!,
+          orderId: orderId!,
+          customerName: room.customerName ?? customerName,
+          customerPhoto: room.customerPhoto,
+          customerPhone: room.customerPhone ?? customerPhone,
+        );
+      } else {
+        final newRoomId = await chat.createChatRoomForOrder(
+          orderId: orderId!,
+          customerId: userId!,
+          customerName: customerName,
+          customerPhoto: null,
+        );
+
+        if (newRoomId != null) {
+          chat.openChatWithCustomer(
+            context: context,
+            roomId: newRoomId,
+            orderId: orderId!,
+            customerName: customerName,
+            customerPhoto: null,
+            customerPhone: customerPhone,
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ไม่สามารถเปิดห้องแชทได้ในขณะนี้'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Error opening chat: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('เปิดแชทไม่สำเร็จ: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  },
+  child: Container(
+    padding: const EdgeInsets.all(8),
+    decoration: BoxDecoration(
+      color: Colors.green[300],
+      shape: BoxShape.circle,
+    ),
+    child: const Icon(
+      Icons.message,
+      color: Colors.white,
+      size: 20,
+    ),
+  ),
+),
                           ],
                         ),
                       ],
