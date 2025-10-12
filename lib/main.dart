@@ -29,6 +29,8 @@ import 'package:rider_delivery/pages/auth/Wellcome.dart';
 import 'package:rider_delivery/APIs/middleware/AuthGuard.dart';
 import 'package:rider_delivery/pages/maps/MapNavigationPage.dart';
 import 'package:rider_delivery/services/RiderStatusService.dart';
+import 'package:rider_delivery/pages/ProfilePage/ComplaintFormPage.dart'; // ✅ import หน้าใหม่
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -91,6 +93,10 @@ class MyApp extends StatelessWidget {
         '/login': (_) => const LoginPage(),
         '/register': (_) => const Register(),
         '/riderIdentity': (_) => AuthGuard(child: const RiderIdentityPage()),
+        
+        '/complaint_form': (context) => const ComplaintFormPage(), // ✅ เพิ่มตรงนี้
+        
+
       },
       debugShowCheckedModeBanner: false,
     );

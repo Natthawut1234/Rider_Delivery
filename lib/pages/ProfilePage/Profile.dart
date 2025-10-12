@@ -634,10 +634,37 @@ class _ProfileViewState extends State<_ProfileView>
             onEdit: () => _showChangePasswordDialog(profile),
           ),
           const SizedBox(height: 16),
-          _buildInfoItem(
-            icon: Icons.support_agent_outlined,
-            title: 'ติดต่อแอดมิน: 089-123-4567\nEmail: admin@example.com',
+           // 🟢 ปุ่มคำร้องเรียนแทน “ติดต่อแอดมิน”
+        InkWell(
+          onTap: () {
+            Navigator.pushNamed(context, '/complaint_form');
+          },
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF34C759).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF34C759), width: 1.2),
+            ),
+            child: Row(
+              children: const [
+                Icon(Icons.report_problem_outlined,
+                    color: Color(0xFF34C759), size: 22),
+                SizedBox(width: 12),
+                Text(
+                  'คำร้องเรียน / แจ้งปัญหา',
+                  style: TextStyle(
+                    color: Color(0xFF34C759),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
           ),
+        ),
         ],
       ),
     );
