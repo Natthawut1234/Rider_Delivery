@@ -9,14 +9,13 @@ class wellcomePage extends StatelessWidget {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email'],
     serverClientId:
-        '564286121421-d7t8lmnj4ojnvr0etfrr2kge3pj1ijic.apps.googleusercontent.com', // ✅ ใช้ Web client ID
+        '564286121421-d7t8lmnj4ojnvr0etfrr2kge3pj1ijic.apps.googleusercontent.com',
   );
 
   Future<void> _handleLogin(BuildContext context) async {
     try {
       print("Start Google SignIn");
 
-      // ✅ บังคับให้แสดงตัวเลือกบัญชีทุกครั้ง
       await _googleSignIn.signOut();
 
       final account = await _googleSignIn.signIn();
@@ -35,7 +34,6 @@ class wellcomePage extends StatelessWidget {
         return;
       }
 
-      // เรียก AuthService แทน
       final authService = AuthService();
       final result = await authService.loginWithGoogle(auth.idToken!);
       print("Google login result: ${result['success']}");
@@ -54,13 +52,10 @@ class wellcomePage extends StatelessWidget {
           btnOkColor: Colors.green,
         ).show();
 
-        // ตรวจสอบสถานะการยืนยันตัวตนเหมือน login manual
         if (context.mounted) {
           if (riderStatus != null && riderStatus['has_submitted'] == true) {
-            // ถ้าส่งเอกสารแล้ว ไปหน้า Home
             Navigator.pushReplacementNamed(context, '/home');
           } else {
-            // ถ้ายังไม่ส่งเอกสาร ไปหน้ายืนยันตัวตน
             Navigator.pushReplacementNamed(context, '/riderIdentity');
           }
         }
@@ -93,178 +88,315 @@ class wellcomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isSmallScreen = size.height < 700;
+
     return Scaffold(
       body: Stack(
         children: [
           // พื้นหลัง
           SizedBox.expand(
             child: Image.asset(
-              'assets/png/login-background.png',
+              'assets/png/login-background-3.png',
               fit: BoxFit.cover,
             ),
           ),
-          // ชั้นสีทับเพื่อให้อ่านง่าย
-          Container(color: Colors.black.withOpacity(0.3)),
-          // เนื้อหา
+          // Gradient overlay
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.6),
+                  Colors.black.withOpacity(0.3),
+                  Colors.black.withOpacity(0.7),
+                ],
+              ),
+            ),
+          ),
+          // เนื้อหา - ใช้ SingleChildScrollView
           SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 32),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: RichText(
-                      text: const TextSpan(
-                        text: 'การสั่งอาหารจะเป็นเรื่องง่ายดาย\nเพราะ',
-                        style: TextStyle(
-                          fontSize: 22,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: 'เราใส่ใจ',
-                            style: TextStyle(
-                              color: Color(0xFF34C759),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          TextSpan(
-                            text: ' เพื่อคุณทุกคน กับ\nCSC FOOD',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+            child: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
                 ),
-
-                const Spacer(),
-
-                Column(
-                  children: [
-                    Text(
-                      'CSC FOOD',
-                      style: GoogleFonts.prompt(
-                        fontSize: 40,
-                        color: const Color(0xFF34C759),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'WELCOME',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const Spacer(),
-
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: IntrinsicHeight(
                   child: Column(
                     children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(
-                            context,
-                            '/login',
-                          ); // เปลี่ยนเป็น pushNamed เพื่อให้ pop กลับได้
-                          // TODO: เพิ่มหน้าจอ login ถ้ามี
-                          // Navigator.push(
-                          //   context,
-                          //   MaterialPageRoute(
-                          //     builder: (context) => const LoginPage(),
-                          //   ),
-                          // );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 50),
-                          backgroundColor: const Color(0xFF34C759),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'เข้าสู่ระบบ',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(
-                            context,
-                            '/register',
-                          ); // เปลี่ยนเป็น pushNamed เพื่อให้ pop กลับได้
-                        },
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 50),
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'ลงทะเบียน',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black,
-                          ),
+                      SizedBox(height: isSmallScreen ? 20 : 32),
+                      
+                      // Header Text
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 28),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'เริ่มต้นการส่งออเดอร์',
+                              style: GoogleFonts.prompt(
+                                fontSize: isSmallScreen ? 24 : 28,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                height: 1.2,
+                              ),
+                            ),
+                            SizedBox(height: isSmallScreen ? 6 : 10),
+                            Text(
+                              'สร้างรายได้ ยืดหยุ่น ตามสไตล์คุณ',
+                              style: GoogleFonts.prompt(
+                                fontSize: isSmallScreen ? 14 : 16,
+                                color: Colors.white.withOpacity(0.9),
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      const Divider(color: Colors.white),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          _handleLogin(context);
-                        },
-                        icon: SvgPicture.asset(
-                          'assets/svg/google.svg',
-                          width: 24,
-                          height: 24,
+
+                      SizedBox(height: isSmallScreen ? 24 : 40),
+
+                      // Logo Section
+                      Container(
+                        padding: EdgeInsets.all(isSmallScreen ? 14 : 18),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          shape: BoxShape.circle,
                         ),
-                        label: const Text('Google'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 50),
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black87,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                        child: Icon(
+                          Icons.two_wheeler,
+                          size: isSmallScreen ? 45 : 55,
+                          color: const Color(0xFF34C759),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      SizedBox(height: isSmallScreen ? 10 : 14),
+                      Text(
+                        'CSC RIDER',
+                        style: GoogleFonts.prompt(
+                          fontSize: isSmallScreen ? 28 : 32,
+                          color: const Color(0xFF34C759),
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      SizedBox(height: isSmallScreen ? 4 : 6),
+                      Text(
+                        'พาร์ทเนอร์ไรเดอร์',
+                        style: GoogleFonts.prompt(
+                          fontSize: isSmallScreen ? 13 : 15,
+                          color: Colors.white.withOpacity(0.8),
+                          fontWeight: FontWeight.w300,
+                        ),
+                      ),
+
+                      SizedBox(height: isSmallScreen ? 24 : 40),
+
+                      // Benefits Section
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 28),
+                        child: Column(
+                          children: [
+                            _buildBenefitItem(
+                              Icons.schedule,
+                              'ทำงานเมื่อไหร่ก็ได้',
+                              isSmallScreen,
+                            ),
+                            SizedBox(height: isSmallScreen ? 8 : 10),
+                            _buildBenefitItem(
+                              Icons.attach_money,
+                              'รายได้ดี มีโบนัส',
+                              isSmallScreen,
+                            ),
+                            SizedBox(height: isSmallScreen ? 8 : 10),
+                            _buildBenefitItem(
+                              Icons.support_agent,
+                              'ซัพพอร์ท 24/7',
+                              isSmallScreen,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: isSmallScreen ? 24 : 32),
+
+                      // Buttons Section
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 28.0),
+                        child: Column(
+                          children: [
+                            // Login Button
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF34C759),
+                                    Color(0xFF28A745),
+                                  ],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF34C759).withOpacity(0.4),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pushNamed(context, '/login');
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: Size(double.infinity, isSmallScreen ? 50 : 54),
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                child: Text(
+                                  'เข้าสู่ระบบ',
+                                  style: GoogleFonts.prompt(
+                                    fontSize: isSmallScreen ? 16 : 17,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            SizedBox(height: isSmallScreen ? 10 : 12),
+
+                            // Register Button
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.pushNamed(context, '/register');
+                              },
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: Size(double.infinity, isSmallScreen ? 50 : 54),
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black87,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: const BorderSide(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                'สมัครเป็นไรเดอร์',
+                                style: GoogleFonts.prompt(
+                                  fontSize: isSmallScreen ? 16 : 17,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+
+                            SizedBox(height: isSmallScreen ? 14 : 16),
+
+                            // Divider
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Divider(
+                                    color: Colors.white.withOpacity(0.3),
+                                    thickness: 1,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  child: Text(
+                                    'หรือ',
+                                    style: GoogleFonts.prompt(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Divider(
+                                    color: Colors.white.withOpacity(0.3),
+                                    thickness: 1,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            SizedBox(height: isSmallScreen ? 14 : 16),
+
+                            // Google Sign In Button
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                _handleLogin(context);
+                              },
+                              icon: SvgPicture.asset(
+                                'assets/svg/google.svg',
+                                width: 22,
+                                height: 22,
+                              ),
+                              label: Text(
+                                'เข้าสู่ระบบด้วย Google',
+                                style: GoogleFonts.prompt(
+                                  fontSize: isSmallScreen ? 15 : 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: Size(double.infinity, isSmallScreen ? 50 : 54),
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black87,
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                            ),
+
+                            SizedBox(height: isSmallScreen ? 20 : 28),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ],
       ),
     );
+  }
 
-    // return Scaffold(
-    //   body: Center(
-    //     child: ElevatedButton(
-    //       onPressed: () => _handleLogin(context),
-    //       child: Text("Login with Google"),
-    //     ),
-    //   ),
-    // );
+  Widget _buildBenefitItem(IconData icon, String text, bool isSmallScreen) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF34C759).withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            color: const Color(0xFF34C759),
+            size: isSmallScreen ? 18 : 20,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          text,
+          style: GoogleFonts.prompt(
+            fontSize: isSmallScreen ? 13 : 14,
+            color: Colors.white,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
+    );
   }
 }

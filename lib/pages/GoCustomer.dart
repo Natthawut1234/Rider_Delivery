@@ -5,6 +5,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:rider_delivery/APIs/ChatSocket/ChatControllerSK.dart';
 import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
+import 'package:rider_delivery/APIs/Orders/models/Order_items.dart';
+import 'package:rider_delivery/APIs/middleware/topupGP.dart';
 import 'package:rider_delivery/pages/Chats/models/ChatMessage.dart';
 import 'package:rider_delivery/pages/DeliveryCompleted.dart';
 import 'package:rider_delivery/pages/DeliveryConfirm.dart';
@@ -12,6 +14,9 @@ import 'package:rider_delivery/pages/maps/map_button_widget.dart';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rider_delivery/pages/utils/navigation_guard.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:typed_data';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class GoCustomer extends StatefulWidget {
   const GoCustomer({super.key});
@@ -26,6 +31,9 @@ class _GoCustomerState extends State<GoCustomer> {
   int? orderId;
   int? riderId;
   File? _deliveryPhoto; // เก็บรูปการจัดส่ง
+  String? _promptPayId;
+  String? _qrData;
+  double _totalPrice = 0.0;
 
   @override
   void initState() {
@@ -58,11 +66,102 @@ class _GoCustomerState extends State<GoCustomer> {
     });
   }
 
+  String generatePromptPayQR(String promptPayId, double amount) {
+    // ตรวจสอบ PromptPay ID
+    String idType;
+    String targetId;
+
+    if (RegExp(r'^\d{13}$').hasMatch(promptPayId)) {
+      idType = "02"; // บัตรประชาชน
+      targetId = promptPayId;
+    } else if (RegExp(r'^0\d{9}$').hasMatch(promptPayId)) {
+      idType = "01"; // เบอร์โทร
+      // ✅ ตัด 0 หน้า แล้วเติม 66
+      targetId = "66${promptPayId.substring(1)}";
+    } else {
+      throw ArgumentError("❌ PromptPay ID ไม่ถูกต้อง");
+    }
+
+    // AID ของ PromptPay
+    const appId = "A000000677010111";
+
+    // ✅ Tag 00 = Application ID
+    final tag00 = "00${appId.length.toString().padLeft(2, '0')}$appId";
+
+    // ✅ Tag 01 = Account Info (idType + targetId)
+    final accountInfo = "$idType$targetId";
+    final tag01 =
+        "01${accountInfo.length.toString().padLeft(2, '0')}$accountInfo";
+
+    // ✅ Tag 29 = Merchant Account Information
+    final merchantAccountInfo = tag00 + tag01;
+    final merchantLength = merchantAccountInfo.length.toString().padLeft(
+      2,
+      '0',
+    );
+
+    // ✅ Payload หลัก
+    String payload =
+        "000201" // Payload Format Indicator
+        "010212" // Point of Initiation Method (Dynamic QR with amount)
+        "29$merchantLength$merchantAccountInfo" // Merchant Account Info
+        "5303764" // Currency Code (764 = THB)
+        "5802TH"; // Country Code
+
+    // ✅ เพิ่มยอดเงิน (ต้องมี 2 ทศนิยม)
+    if (amount > 0) {
+      final amt = amount.toStringAsFixed(2);
+      payload += "54${amt.length.toString().padLeft(2, '0')}$amt";
+    }
+
+    // ✅ คำนวณ CRC16 (CCITT-FFFF)
+    final crc = _calculateCRC16(payload + "6304");
+    payload += "6304$crc";
+
+    print('✅ PromptPay QR Payload: $payload');
+    return payload;
+  }
+
+  String _calculateCRC16(String data) {
+    int crc = 0xFFFF;
+    for (int i = 0; i < data.length; i++) {
+      crc ^= (data.codeUnitAt(i) << 8);
+      for (int j = 0; j < 8; j++) {
+        if ((crc & 0x8000) != 0) {
+          crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
+        } else {
+          crc = (crc << 1) & 0xFFFF;
+        }
+      }
+    }
+    return crc.toRadixString(16).toUpperCase().padLeft(4, '0');
+  }
+
+  Future<void> _loadPromptPayID() async {
+    final promptPayInfo = await TopupGP().fetchPromptPayInfo();
+
+    if (promptPayInfo != null && promptPayInfo.isNotEmpty) {
+      print('✅ หมายเลขพร้อมเพย์ของไรเดอร์: $promptPayInfo');
+
+      // ตรวจสอบว่ายอดไม่เป็นศูนย์
+      final double amount = _totalPrice > 0 ? _totalPrice : 0.01;
+
+      final qrData = generatePromptPayQR(promptPayInfo, amount);
+      print("✅ PromptPay QR payload: $qrData");
+
+      setState(() {
+        _promptPayId = promptPayInfo;
+        _qrData = qrData;
+      });
+    } else {
+      print('⚠️ ไม่พบหมายเลขพร้อมเพย์ของไรเดอร์');
+    }
+  }
+
   Future<void> _restoreActiveOrder() async {
     final prefs = await SharedPreferences.getInstance();
     final storedOrderId = prefs.getInt('active_order_id');
     final storedRiderId = prefs.getInt('active_rider_id');
-
     if (storedOrderId != null && storedRiderId != null) {
       print('🔁 โหลดงานค้าง orderId=$storedOrderId riderId=$storedRiderId');
       setState(() {
@@ -972,6 +1071,24 @@ class _GoCustomerState extends State<GoCustomer> {
     return currentOrder?.status;
   }
 
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final Uri url = Uri(scheme: 'tel', path: phoneNumber);
+
+    try {
+      if (!await launchUrl(
+        url,
+        mode: LaunchMode.externalApplication, // ✅ เปิด dialer ภายนอกโดยตรง
+      )) {
+        throw 'Could not launch $url';
+      }
+    } catch (e) {
+      print('❌ Error launching dialer: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ไม่สามารถโทรออกได้ในอุปกรณ์นี้')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final args =
@@ -980,6 +1097,10 @@ class _GoCustomerState extends State<GoCustomer> {
 
     orderId = data['orderId'];
     riderId = data['riderId'];
+    _totalPrice = data['totalPrice']?.toDouble() ?? 0.0;
+    if (_promptPayId == null && _totalPrice > 0) {
+      _loadPromptPayID();
+    }
 
     final restaurantName = data['restaurantName'] ?? '-';
     final customerName = data['customerName'] ?? '-';
@@ -990,6 +1111,20 @@ class _GoCustomerState extends State<GoCustomer> {
     final double customerLng = (data['customerLng'] ?? 0.0).toDouble();
     final note = data['note'] ?? 'เพิ่มเติม: -';
     final totalPrice = data['totalPrice']?.toDouble() ?? 0.0;
+    final currentOrder = _orderController?.orders
+        .where((o) => o.orderId == orderId)
+        .cast<Order?>()
+        .firstWhere((o) => true, orElse: () => null);
+
+    final String ResPhone =
+        data['restaurantPhone'] ??
+        currentOrder?.customerLocation!['phone'] ??
+        '';
+    final String CusPhone =
+        data['customerPhone'] ?? currentOrder?.marketLocation!['phone'] ?? '';
+
+    print('ResPhone : ${ResPhone}');
+    print('CusPhone : ${CusPhone}');
 
     print('latitude: ${customerLat}');
     print('longitude: ${customerLng}');
@@ -1022,48 +1157,48 @@ class _GoCustomerState extends State<GoCustomer> {
           elevation: 0,
           leadingWidth: 140,
           toolbarHeight: 40,
-          leading: Padding(
-            padding: const EdgeInsets.only(left: 20, right: 8),
-            child: TextButton(
-              onPressed: () async {
-                final currentStatus = _getCurrentStatus();
-                final canPop = await NavigationGuard.showBackWarningDialog(
-                  context,
-                  currentStatus,
-                );
+          // leading: Padding(
+          //   padding: const EdgeInsets.only(left: 20, right: 8),
+          //   child: TextButton(
+          //     onPressed: () async {
+          //       final currentStatus = _getCurrentStatus();
+          //       final canPop = await NavigationGuard.showBackWarningDialog(
+          //         context,
+          //         currentStatus,
+          //       );
 
-                if (canPop && mounted) {
-                  if (_orderController != null && orderId != null) {
-                    await _orderController!.fetchOrdersByRider(
-                      riderId: riderId!,
-                    );
-                  }
-                  Navigator.pop(context, {
-                    'switchToTab': 1,
-                    'refreshData': true,
-                  });
-                }
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFFE0E0E0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-              ),
-              child: const Text(
-                'ยกเลิกออเดอร์',
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
+          //       if (canPop && mounted) {
+          //         if (_orderController != null && orderId != null) {
+          //           await _orderController!.fetchOrdersByRider(
+          //             riderId: riderId!,
+          //           );
+          //         }
+          //         Navigator.pop(context, {
+          //           'switchToTab': 1,
+          //           'refreshData': true,
+          //         });
+          //       }
+          //     },
+          //     style: TextButton.styleFrom(
+          //       backgroundColor: const Color(0xFFE0E0E0),
+          //       shape: RoundedRectangleBorder(
+          //         borderRadius: BorderRadius.circular(8),
+          //       ),
+          //       padding: const EdgeInsets.symmetric(
+          //         horizontal: 12,
+          //         vertical: 8,
+          //       ),
+          //     ),
+          //     child: const Text(
+          //       'ยกเลิกออเดอร์',
+          //       style: TextStyle(
+          //         color: Colors.black87,
+          //         fontSize: 13,
+          //         fontWeight: FontWeight.w600,
+          //       ),
+          //     ),
+          //   ),
+          // ),
           bottom: const PreferredSize(
             preferredSize: Size.fromHeight(12),
             child: SizedBox(height: 12),
@@ -1239,27 +1374,30 @@ class _GoCustomerState extends State<GoCustomer> {
                         const Spacer(),
                         Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.facebook,
-                            color: Colors.white,
-                            size: 20,
-                          ),
+                          // decoration: const BoxDecoration(
+                          //   color: Colors.blue,
+                          //   shape: BoxShape.circle,
+                          // ),
+                          // child: const Icon(
+                          //   Icons.facebook,
+                          //   color: Colors.white,
+                          //   size: 20,
+                          // ),
                         ),
                         const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.phone,
-                            color: Colors.white,
-                            size: 20,
+                        GestureDetector(
+                          onTap: () => _makePhoneCall(ResPhone),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.phone,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
                         ),
                       ],
@@ -1289,124 +1427,150 @@ class _GoCustomerState extends State<GoCustomer> {
                           ],
                         ),
                         const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.phone,
-                            color: Colors.white,
-                            size: 20,
+
+                        // 🟢 ปุ่มข้อความ (ย้ายมาด้านซ้ายแทนโทร)
+                        GestureDetector(
+                          onTap: () async {
+                            try {
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              final token = prefs.getString('auth_token');
+
+                              int? tokenRiderId;
+                              int? userId;
+
+                              if (token != null && token.isNotEmpty) {
+                                final parts = token.split('.');
+                                if (parts.length == 3) {
+                                  final payload = parts[1];
+                                  final normalized = base64.normalize(payload);
+                                  final decoded = utf8.decode(
+                                    base64Url.decode(normalized),
+                                  );
+                                  final Map<String, dynamic> data = jsonDecode(
+                                    decoded,
+                                  );
+
+                                  tokenRiderId = data['rider_id'];
+                                  userId = data['user_id'];
+
+                                  print(
+                                    '🔑 JWT decode: rider_id=$tokenRiderId, user_id=$userId',
+                                  );
+                                } else {
+                                  print("⚠️ Invalid JWT format");
+                                }
+                              }
+
+                              final chat = context.read<RiderChatController>();
+
+                              if (chat.riderId == null &&
+                                  tokenRiderId != null) {
+                                chat.riderId = tokenRiderId;
+                              }
+
+                              await chat.initializeRiderInfoIfNeeded();
+                              await chat.connectToChat();
+                              await chat.loadChatRooms();
+
+                              // ✅ หา room ของ order ปัจจุบัน
+                              final room = chat.chatRooms
+                                  .where(
+                                    (r) =>
+                                        (r.orderId?.toString() ?? '') ==
+                                        (orderId?.toString() ?? ''),
+                                  )
+                                  .cast<ChatRoom?>()
+                                  .firstWhere((r) => true, orElse: () => null);
+
+                              final customerPhone =
+                                  data['customerPhone'] ?? '-';
+                              final customerName = data['customerName'] ?? '-';
+
+                              if (room != null && room.roomId != null) {
+                                chat.openChatWithCustomer(
+                                  context: context,
+                                  roomId: room.roomId!,
+                                  orderId: orderId!,
+                                  customerName:
+                                      room.customerName ?? customerName,
+                                  customerPhoto: currentOrder
+                                      ?.customerLocation!['photo_url'],
+                                  customerPhone:
+                                      room.customerPhone ?? customerPhone,
+                                );
+                              } else {
+                                final newRoomId = await chat
+                                    .createChatRoomForOrder(
+                                      orderId: orderId!,
+                                      customerId: userId!,
+                                      customerName: customerName,
+                                      customerPhoto: null,
+                                    );
+
+                                if (newRoomId != null) {
+                                  chat.openChatWithCustomer(
+                                    context: context,
+                                    roomId: newRoomId,
+                                    orderId: orderId!,
+                                    customerName: customerName,
+
+                                    customerPhoto: null,
+                                    customerPhone: customerPhone,
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'ไม่สามารถเปิดห้องแชทได้ในขณะนี้',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              print('❌ Error opening chat: $e');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('เปิดแชทไม่สำเร็จ: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.green[300],
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.message,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
                         ),
+
                         const SizedBox(width: 8),
+
+                        // 📞 ปุ่มโทร (เพิ่ม onTap)
                         GestureDetector(
-  onTap: () async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-
-      int? tokenRiderId;
-      int? userId;
-
-      if (token != null && token.isNotEmpty) {
-        final parts = token.split('.');
-        if (parts.length == 3) {
-          final payload = parts[1];
-          final normalized = base64.normalize(payload);
-          final decoded = utf8.decode(base64Url.decode(normalized));
-          final Map<String, dynamic> data = jsonDecode(decoded);
-
-          tokenRiderId = data['rider_id'];
-          userId = data['user_id'];
-
-          print('🔑 JWT decode: rider_id=$tokenRiderId, user_id=$userId');
-        } else {
-          print("⚠️ Invalid JWT format");
-        }
-      }
-
-      final chat = context.read<RiderChatController>();
-
-      if (chat.riderId == null && tokenRiderId != null) {
-        chat.riderId = tokenRiderId;
-      }
-
-      await chat.initializeRiderInfoIfNeeded();
-      await chat.connectToChat();
-      await chat.loadChatRooms();
-
-      // ✅ หา room ของ order ปัจจุบัน
-      final room = chat.chatRooms
-    .where((r) => (r.orderId?.toString() ?? '') == (orderId?.toString() ?? ''))
-    .cast<ChatRoom?>()
-    .firstWhere((r) => true, orElse: () => null);
-
-
-      final customerPhone = data['customerPhone'] ?? '-';
-      final customerName = data['customerName'] ?? '-';
-
-      if (room != null && room.roomId != null) {
-        chat.openChatWithCustomer(
-          context: context,
-          roomId: room.roomId!,
-          orderId: orderId!,
-          customerName: room.customerName ?? customerName,
-          customerPhoto: room.customerPhoto,
-          customerPhone: room.customerPhone ?? customerPhone,
-        );
-      } else {
-        final newRoomId = await chat.createChatRoomForOrder(
-          orderId: orderId!,
-          customerId: userId!,
-          customerName: customerName,
-          customerPhoto: null,
-        );
-
-        if (newRoomId != null) {
-          chat.openChatWithCustomer(
-            context: context,
-            roomId: newRoomId,
-            orderId: orderId!,
-            customerName: customerName,
-            customerPhoto: null,
-            customerPhone: customerPhone,
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('ไม่สามารถเปิดห้องแชทได้ในขณะนี้'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('❌ Error opening chat: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('เปิดแชทไม่สำเร็จ: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  },
-  child: Container(
-    padding: const EdgeInsets.all(8),
-    decoration: BoxDecoration(
-      color: Colors.green[300],
-      shape: BoxShape.circle,
-    ),
-    child: const Icon(
-      Icons.message,
-      color: Colors.white,
-      size: 20,
-    ),
-  ),
-),
-
+                          onTap: () => _makePhoneCall(CusPhone),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.phone,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -1665,67 +1829,7 @@ class _GoCustomerState extends State<GoCustomer> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  margin: EdgeInsets.symmetric(horizontal: 16),
-                  padding: EdgeInsets.all(6),
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.info_outline,
-                          color: Colors.green[700],
-                          size: 14,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Consumer<RiderControllerSocket>(
-                          builder: (context, controller, _) {
-                            final currentOrder = IterableExtension(
-                              controller.orders.where(
-                                (o) => o.orderId == orderId,
-                              ),
-                            ).firstOrNull;
-
-                            final argStatus = data['status'] ?? '';
-                            final argShopStatus = data['shopStatus'] ?? '';
-
-                            String statusText = _getStatusText(
-                              currentOrder?.status ?? argStatus,
-                            );
-                            String shopStatusText = _getShopStatusText(
-                              currentOrder?.shopStatus ?? argShopStatus,
-                            );
-
-                            if (shopStatusText.isNotEmpty) {
-                              statusText = '$statusText • $shopStatusText';
-                            }
-
-                            return Text(
-                              statusText,
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                // 🔻 ส่วนสถานะและปุ่มยืนยัน (เหมือนเดิม)
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1748,6 +1852,338 @@ class _GoCustomerState extends State<GoCustomer> {
                     ),
                   ],
                 ),
+                // ✅ เงื่อนไขแสดง QR พร้อมเพย์ เฉพาะตอนสถานะ = arrived_at_customer
+                if (_getCurrentStatus() == 'arrived_at_customer') ...[
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: () {
+                      // แสดง QR เต็มหน้าจอ
+                      showDialog(
+                        context: context,
+                        barrierColor: Colors.black87,
+                        builder: (context) => Dialog(
+                          backgroundColor: Colors.transparent,
+                          insetPadding: const EdgeInsets.all(20),
+                          child: Stack(
+                            children: [
+                              // ปุ่มปิด
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 30,
+                                  ),
+                                  onPressed: () => Navigator.pop(context),
+                                ),
+                              ),
+                              // เนื้อหา QR
+                              Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // QR Code Container
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(24),
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.blue[600]!,
+                                            Colors.blue[400]!,
+                                          ],
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.blue.withOpacity(0.5),
+                                            blurRadius: 20,
+                                            spreadRadius: 5,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          children: [
+                                            // Logo PromptPay
+                                            Image.network(
+                                              'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/PromptPay-logo.png/800px-PromptPay-logo.png',
+                                              height: 40,
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => const Icon(
+                                                    Icons.payment,
+                                                    color: Color(0xFF1E4899),
+                                                    size: 40,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            const Text(
+                                              'สแกนเพื่อชำระเงิน',
+                                              style: TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF1E4899),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 20),
+                                            // QR Code
+                                            if (_qrData != null)
+                                              Container(
+                                                padding: const EdgeInsets.all(
+                                                  16,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                  border: Border.all(
+                                                    color: const Color(
+                                                      0xFF1E4899,
+                                                    ),
+                                                    width: 3,
+                                                  ),
+                                                ),
+                                                child: QrImageView(
+                                                  data: _qrData!,
+                                                  version: QrVersions.auto,
+                                                  size: 280,
+                                                  backgroundColor: Colors.white,
+                                                ),
+                                              )
+                                            else
+                                              Container(
+                                                padding: const EdgeInsets.all(
+                                                  40,
+                                                ),
+                                                child: Column(
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.error_outline,
+                                                      size: 60,
+                                                      color: Colors.red,
+                                                    ),
+                                                    const SizedBox(height: 16),
+                                                    const Text(
+                                                      '⚠️ ไม่พบหมายเลขพร้อมเพย์',
+                                                      style: TextStyle(
+                                                        color: Colors.red,
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            const SizedBox(height: 20),
+                                            // ข้อมูลเงิน
+                                            Container(
+                                              width: double.infinity,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 24,
+                                                    vertical: 16,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  colors: [
+                                                    Colors.blue[600]!,
+                                                    Colors.blue[400]!,
+                                                  ],
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                              child: Column(
+                                                children: [
+                                                  const Text(
+                                                    'ยอดชำระทั้งหมด',
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      color: Colors.white70,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    '฿${_totalPrice.toStringAsFixed(2)}',
+                                                    style: const TextStyle(
+                                                      fontSize: 32,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.white,
+                                                      letterSpacing: 1.2,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    // คำแนะนำ
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.9),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            size: 18,
+                                            color: Colors.blue[700],
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'เปิดแอพธนาคารเพื่อสแกน QR Code',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.blue[700],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF1E4899), Color(0xFF2D5AB8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF1E4899).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          // QR Preview
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: _qrData != null
+                                ? QrImageView(
+                                    data: _qrData!,
+                                    version: QrVersions.auto,
+                                    size: 60,
+                                  )
+                                : const Icon(
+                                    Icons.qr_code_2,
+                                    size: 60,
+                                    color: Color(0xFF1E4899),
+                                  ),
+                          ),
+                          const SizedBox(width: 16),
+                          // ข้อความ
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    // Logo PromptPay
+                                    Image.network(
+                                      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/PromptPay-logo.png/800px-PromptPay-logo.png',
+                                      height: 24,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const Icon(
+                                                Icons.payment,
+                                                color: Colors.white,
+                                                size: 24,
+                                              ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'พร้อมเพย์',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'แตะเพื่อสแกน QR Code',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '฿${_totalPrice.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // ลูกศร
+                          const Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,

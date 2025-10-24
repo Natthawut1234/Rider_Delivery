@@ -159,7 +159,7 @@ class ChatRoom {
       customerId: int.tryParse(json['customer_id']?.toString() ?? '0'),
       riderId: int.tryParse(json['rider_id']?.toString() ?? '0'),
       customerName: json['customer_name'],
-      customerPhoto: json['customer_photo'],
+      customerPhoto: json['member_photo'],
       customerPhone: json['customer_phone'],
       riderName: json['rider_name'],
       riderPhoto: json['rider_photo'],

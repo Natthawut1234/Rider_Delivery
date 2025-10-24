@@ -514,6 +514,7 @@ class RiderChatController extends ChangeNotifier {
 
     Navigator.pushNamed(
       context,
+      
       '/rider-chat',
       arguments: {
         'roomId': roomId,

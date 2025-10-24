@@ -627,12 +627,12 @@ class _ProfileViewState extends State<_ProfileView>
             onEdit: () =>
                 ProfileEditDialogs.showEditPromptPayDialog(context, profile),
           ),
-          const SizedBox(height: 16),
-          _buildInfoItem(
-            icon: Icons.lock_outlined,
-            title: 'เปลี่ยนรหัสผ่าน',
-            onEdit: () => _showChangePasswordDialog(profile),
-          ),
+          // const SizedBox(height: 16),
+          // _buildInfoItem(
+          //   icon: Icons.lock_outlined,
+          //   title: 'เปลี่ยนรหัสผ่าน',
+          //   onEdit: () => _showChangePasswordDialog(profile),
+          // ),
           const SizedBox(height: 16),
            // 🟢 ปุ่มคำร้องเรียนแทน “ติดต่อแอดมิน”
         InkWell(
@@ -644,19 +644,19 @@ class _ProfileViewState extends State<_ProfileView>
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFF34C759).withOpacity(0.1),
+              color: const Color.fromARGB(255, 245, 84, 9).withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFF34C759), width: 1.2),
+              border: Border.all(color: const Color.fromARGB(255, 245, 84, 9), width: 1.2),
             ),
             child: Row(
               children: const [
                 Icon(Icons.report_problem_outlined,
-                    color: Color(0xFF34C759), size: 22),
+                    color: Color.fromARGB(255, 245, 84, 9), size: 22),
                 SizedBox(width: 12),
                 Text(
                   'คำร้องเรียน / แจ้งปัญหา',
                   style: TextStyle(
-                    color: Color(0xFF34C759),
+                    color: Color.fromARGB(255, 245, 84, 9),
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
                   ),
@@ -1291,76 +1291,4 @@ class _ProfileViewState extends State<_ProfileView>
       ),
     );
   }
-
-  // ---------------- Delete Account Dialog ----------------
-  //   void _showDeleteAccountConfirm(ProfileModel profile) {
-  //     _deleteConfirmController.clear();
-  //     showDialog(
-  //       context: context,
-  //       builder: (ctx) => AlertDialog(
-  //         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-  //         elevation: 10,
-  //         title: _popupHeader(Icons.delete, "ลบบัญชี", AppColors.darkRedGradient),
-  //         content: Column(
-  //           mainAxisSize: MainAxisSize.min,
-  //           children: [
-  //             const Text(
-  //               "การลบบัญชีไม่สามารถย้อนกลับได้ กรุณาพิมพ์ DELETE เพื่อยืนยัน",
-  //               style: TextStyle(
-  //                 color: Colors.red,
-  //                 fontSize: 14,
-  //                 fontWeight: FontWeight.w500,
-  //               ),
-  //             ),
-  //             const SizedBox(height: 16),
-  //             TextField(
-  //               controller: _deleteConfirmController,
-  //               decoration: const InputDecoration(
-  //                 labelText: "พิมพ์ DELETE เพื่อยืนยัน",
-  //                 border: OutlineInputBorder(),
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //         actions: [
-  //           TextButton(
-  //             onPressed: () => Navigator.pop(ctx),
-  //             child: const Text("ยกเลิก", style: AppTextStyles.subtitle),
-  //           ),
-  //           Container(
-  //             decoration: BoxDecoration(
-  //               gradient: AppColors.darkRedGradient,
-  //               borderRadius: BorderRadius.circular(12),
-  //             ),
-  //             child: ElevatedButton(
-  //               style: _popupButtonStyle(AppColors.darkRedGradient),
-  //               onPressed: () async {
-  //                 final success = await profile.deleteAccount(
-  //                   _deleteConfirmController.text,
-  //                 );
-  //                 if (success) {
-  //                   Navigator.pop(ctx);
-  //                   ScaffoldMessenger.of(context).showSnackBar(
-  //                     const SnackBar(content: Text("🗑️ ลบบัญชีเรียบร้อย")),
-  //                   );
-  //                   // นำทางกลับไปหน้า welcome
-  //                   Navigator.of(
-  //                     context,
-  //                   ).pushNamedAndRemoveUntil('/wellcome', (route) => false);
-  //                 } else {
-  //                   ScaffoldMessenger.of(context).showSnackBar(
-  //                     const SnackBar(
-  //                       content: Text("❌ กรุณาพิมพ์ DELETE ให้ถูกต้อง"),
-  //                       backgroundColor: Colors.red,
-  //                     ),
-  //                   );
-  //                 }
-  //               },
-  //               child: const Text("ลบ"),
-  //             ),
-  //           ),
-  //         ],
-  //       ),
-  //     );
-  //   }
 }

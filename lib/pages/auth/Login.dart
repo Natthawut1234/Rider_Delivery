@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:rider_delivery/services/RiderStatusService.dart';
 import 'package:rider_delivery/APIs/middleware/authService.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,6 +15,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
@@ -34,7 +36,6 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // เรียก API จริง
       final result = await AuthService().loginRider(email, password);
 
       if (!result['success']) {
@@ -49,16 +50,13 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // ดึงข้อมูลจาก API response
       final userData = result['user'];
       final riderStatusData = result['rider_status'];
 
-      // บันทึกสถานะไรเดอร์จาก API
       if (riderStatusData != null) {
         await RiderStatusService.setStatusFromAPI(riderStatusData);
       }
 
-      // ตรวจสอบสถานะเอกสารหลัง login สำเร็จ
       final riderStatus = await RiderStatusService.getCurrentStatus();
 
       AwesomeDialog(
@@ -68,14 +66,11 @@ class _LoginPageState extends State<LoginPage> {
         title: 'เข้าสู่ระบบสำเร็จ',
         desc: 'ยินดีต้อนรับ ${userData['display_name'] ?? 'ไรเดอร์'}',
         btnOkOnPress: () {
-          // กรณีที่ 1: ส่งเอกสารแล้ว -> ไปหน้า Home
           if (riderStatus == RiderStatus.pending ||
               riderStatus == RiderStatus.approved ||
               riderStatus == RiderStatus.rejected) {
             Navigator.pushReplacementNamed(context, '/home');
-          }
-          // กรณีที่ 2: ยังไม่ส่งเอกสาร -> ไปหน้ายืนยันตัวตน
-          else {
+          } else {
             Navigator.pushReplacementNamed(context, '/riderIdentity');
           }
         },
@@ -104,31 +99,48 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildTextField(
     TextEditingController controller,
-    String label, {
+    String label,
+    IconData icon, {
     bool obscureText = false,
     TextInputType keyboardType = TextInputType.text,
+    Widget? suffixIcon,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
       child: TextField(
         controller: controller,
         obscureText: obscureText,
         keyboardType: keyboardType,
+        style: GoogleFonts.prompt(fontSize: 15),
         decoration: InputDecoration(
           labelText: label,
+          labelStyle: GoogleFonts.prompt(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+          ),
+          prefixIcon: Icon(icon, color: const Color(0xFF34C759), size: 22),
+          suffixIcon: suffixIcon,
           filled: true,
           fillColor: Colors.white,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 14,
+            horizontal: 16,
+            vertical: 16,
           ),
           enabledBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFE5E5EA)),
-            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
+            borderRadius: BorderRadius.circular(12),
           ),
           focusedBorder: OutlineInputBorder(
             borderSide: const BorderSide(color: Color(0xFF34C759), width: 2),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderSide: const BorderSide(color: Colors.red, width: 1.5),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderSide: const BorderSide(color: Colors.red, width: 2),
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
@@ -137,141 +149,228 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isSmallScreen = size.height < 700;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         backgroundColor: const Color(0xFF34C759),
         elevation: 0,
         centerTitle: true,
-        title: const Text(
-          'ลงชื่อเข้าใช้',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          'เข้าสู่ระบบ',
+          style: GoogleFonts.prompt(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            const SizedBox(height: 8),
-            // logo / header
-            Container(
-              width: 92,
-              height: 92,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 6,
-                    offset: Offset(0, 2),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: isSmallScreen ? 16 : 24,
+          ),
+          child: Column(
+            children: [
+              SizedBox(height: isSmallScreen ? 8 : 16),
+
+              // Logo
+              Container(
+                width: isSmallScreen ? 80 : 90,
+                height: isSmallScreen ? 80 : 90,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset(
+                    'assets/logo/image-rider.png',
+                    width: isSmallScreen ? 75 : 85,
+                    height: isSmallScreen ? 75 : 85,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+
+              SizedBox(height: isSmallScreen ? 16 : 20),
+
+              // Title
+              Text(
+                'ยินดีต้อนรับกลับมา',
+                style: GoogleFonts.prompt(
+                  fontSize: isSmallScreen ? 22 : 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              SizedBox(height: isSmallScreen ? 4 : 6),
+              Text(
+                'เข้าสู่ระบบเพื่อเริ่มการส่งออเดอร์',
+                style: GoogleFonts.prompt(
+                  fontSize: isSmallScreen ? 13 : 14,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+
+              SizedBox(height: isSmallScreen ? 24 : 32),
+
+              // Email Field
+              _buildTextField(
+                _emailController,
+                'อีเมล',
+                Icons.email_outlined,
+                keyboardType: TextInputType.emailAddress,
+              ),
+
+              // Password Field
+              _buildTextField(
+                _passwordController,
+                'รหัสผ่าน',
+                Icons.lock_outline,
+                obscureText: _obscurePassword,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey.shade600,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    setState(() => _obscurePassword = !_obscurePassword);
+                  },
+                ),
+              ),
+
+              SizedBox(height: isSmallScreen ? 4 : 8),
+
+              // Login Button
+              Container(
+                width: double.infinity,
+                height: isSmallScreen ? 50 : 54,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF34C759),
+                      Color(0xFF28A745),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF34C759).withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: _isLoading ? null : _handleLogin,
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'เข้าสู่ระบบ',
+                          style: GoogleFonts.prompt(
+                            fontSize: isSmallScreen ? 16 : 17,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+
+              SizedBox(height: isSmallScreen ? 16 : 20),
+
+              // Register Link
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'ยังไม่มีบัญชี? ',
+                    style: GoogleFonts.prompt(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pushNamed(context, '/register'),
+                    child: Text(
+                      'สมัครเลย',
+                      style: GoogleFonts.prompt(
+                        fontSize: 14,
+                        color: const Color(0xFF34C759),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
-              child: const Center(
-                child: Image(
-                  image: AssetImage('assets/logo/image-rider.png'),
-                  width: 90,
-                  height: 90,
-                ),
-              ),
-              // child: const Center(
-              //   child: Icon(
-              //     Icons.delivery_dining,
-              //     size: 46,
-              //     color: Color(0xFF34C759),
-              //   ),
-              // ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'เข้าสู่ระบบสำหรับไรเดอร์',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
-            _buildTextField(
-              _emailController,
-              'อีเมล',
-              keyboardType: TextInputType.emailAddress,
-            ),
-            _buildTextField(_passwordController, 'รหัสผ่าน', obscureText: true),
-            // Row(
-            //   children: [
-            //     Checkbox(
-            //       value: _remember,
-            //       onChanged: (v) => setState(() => _remember = v ?? true),
-            //     ),
-            //     const SizedBox(width: 4),
-            //     const Text('จดจำฉัน'),
-            //     const Spacer(),
-            //     TextButton(
-            //       onPressed: () {
-            //         Navigator.pushNamed(context, '/forgotPassword');
-            //       },
-            //       child: const Text(
-            //         'ลืมรหัสผ่าน?',
-            //         style: TextStyle(color: Color(0xFF34C759)),
-            //       ),
-            //     ),
-            //   ],
-            // ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF34C759),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
+
+              SizedBox(height: isSmallScreen ? 16 : 20),
+
+              // Info Card
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.blue.shade100,
+                    width: 1,
                   ),
                 ),
-                onPressed: _isLoading ? null : _handleLogin,
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        'เข้าสู่ระบบ',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.blue.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'ใช้อีเมลที่ลงทะเบียนกับระบบไรเดอร์',
+                        style: GoogleFonts.prompt(
+                          color: Colors.blue.shade900,
+                          fontSize: 12,
+                          height: 1.4,
                         ),
                       ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('ยังไม่มีบัญชี?'),
-                TextButton(
-                  onPressed: () => Navigator.pushNamed(context, '/register'),
-                  child: const Text(
-                    'สมัครสมาชิก',
-                    style: TextStyle(color: Color(0xFF34C759)),
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'หมายเหตุ: ใช้อีเมลหรือเบอร์ที่ลงทะเบียนกับระบบไรเดอร์',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-          ],
+              ),
+
+              SizedBox(height: isSmallScreen ? 16 : 24),
+            ],
+          ),
         ),
       ),
     );

@@ -41,7 +41,7 @@ class _MyCreditPageState extends State<MyCreditPage> {
       final result = await topupAPI.getGPBalance();
 
       if (result['success']) {
-        final now = DateTime.now();
+        final now = DateTime.now().toLocal();
         final timeStr =
             '${now.day}/${now.month}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
@@ -82,6 +82,9 @@ class _MyCreditPageState extends State<MyCreditPage> {
         final topupHistory = result['data']['topup_history'] as List<dynamic>;
         final jobDeductions = result['data']['job_deductions'] as List<dynamic>;
 
+        // ✅ เพิ่มรับข้อมูล refunds (ถ้า API มี)
+        final refunds = result['data']['refunds'] as List<dynamic>? ?? [];
+
         // รวมข้อมูลทั้งหมดและเรียงตามวันที่ล่าสุด
         List<Map<String, dynamic>> allTransactions = [];
 
@@ -96,7 +99,7 @@ class _MyCreditPageState extends State<MyCreditPage> {
               'date': _formatDate(item['created_at']),
               'isDebit': false,
               'status': item['status'],
-              'created_at': item['created_at'], // เพื่อใช้ในการเรียงลำดับ
+              'created_at': item['created_at'],
             };
           }).toList(),
         );
@@ -113,7 +116,23 @@ class _MyCreditPageState extends State<MyCreditPage> {
               'date': _formatDate(item['created_at']),
               'isDebit': true,
               'status': item['status'],
-              'created_at': item['created_at'], // เพื่อใช้ในการเรียงลำดับ
+              'created_at': item['created_at'],
+            };
+          }).toList(),
+        );
+
+        // ✅ เพิ่มข้อมูลการคืนเงิน (refund)
+        allTransactions.addAll(
+          refunds.map((item) {
+            return {
+              'icon': Icons.replay_circle_filled, // ไอคอนคืนเงิน
+              'title': 'คืนเงินยกเลิกออเดอร์ #${item['order_id']}',
+              'amount':
+                  '+ ฿ ${double.parse(item['refund_amount'].toString()).toStringAsFixed(2)}',
+              'date': _formatDate(item['created_at']),
+              'isDebit': false,
+              'status': 'refund',
+              'created_at': item['created_at'],
             };
           }).toList(),
         );
@@ -138,7 +157,9 @@ class _MyCreditPageState extends State<MyCreditPage> {
   // ฟังก์ชันแปลงวันที่
   String _formatDate(String dateString) {
     try {
-      final dateTime = DateTime.parse(dateString);
+      final dateTime = DateTime.parse(
+        dateString,
+      ).toLocal(); // ✅ เพิ่ม .toLocal()
       final now = DateTime.now();
       final difference = now.difference(dateTime);
 
@@ -625,6 +646,11 @@ class _MyCreditPageState extends State<MyCreditPage> {
       itemColor = Colors.red[600]!;
     }
 
+    // ✅ เพิ่มสถานะ refund (คืนเงิน)
+    if (status == 'refund' || status == 'refunded') {
+      itemColor = Colors.blue[600]!;
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
@@ -687,6 +713,10 @@ class _MyCreditPageState extends State<MyCreditPage> {
                               ? 'ยกเลิก'
                               : status == 'completed'
                               ? 'สำเร็จ'
+                              : (status == 'refund' ||
+                                    status ==
+                                        'refunded') // ✅ เพิ่มเงื่อนไข refund
+                              ? 'คืนเงิน'
                               : status,
                           style: TextStyle(
                             fontSize: 10,

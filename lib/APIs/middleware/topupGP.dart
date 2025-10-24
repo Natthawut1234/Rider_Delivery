@@ -132,6 +132,33 @@ class TopupGP {
     }
   }
 
+  Future<String?> fetchPromptPayInfo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) return null;
+
+      final url = Uri.parse('${BaseAPI_URL.localhostURL}/promptpay');
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // ✅ เข้าถึงจาก data['data']['promptpay']
+        return data['data']['promptpay']?.toString();
+      }
+    } catch (e) {
+      print('❌ Error fetching PromptPay info: $e');
+    }
+    return null;
+  }
+
   // POST/rider/topup - เติมเงิน GP
   Future<Map<String, dynamic>> topupGP({
     required double amount,

@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:rider_delivery/services/RiderStatusService.dart';
 import 'package:rider_delivery/APIs/middleware/authService.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RiderIdentityPage extends StatefulWidget {
   final Map<String, dynamic>? userData;
@@ -1139,7 +1140,10 @@ class _RiderIdentityPageState extends State<RiderIdentityPage>
                   child: Row(
                     children: [
                       GestureDetector(
-                        onTap: () => Navigator.pop(context),
+                        onTap: () {
+                          // ออกจากแอปทันที
+                          exit(0);
+                        },
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -1157,6 +1161,7 @@ class _RiderIdentityPageState extends State<RiderIdentityPage>
                           ),
                         ),
                       ),
+
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -1573,6 +1578,111 @@ class _RiderIdentityPageState extends State<RiderIdentityPage>
                         ),
 
                         const SizedBox(height: 40),
+
+                        const SizedBox(height: 25),
+
+                        // 🚪 ปุ่มออกจากระบบ (ล่างสุด)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: OutlinedButton.icon(
+                            icon: const Icon(
+                              Icons.logout_rounded,
+                              color: Colors.redAccent,
+                            ),
+                            label: const Text(
+                              'ลบบัญชีนี้',
+                              style: TextStyle(
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                color: Colors.redAccent,
+                                width: 2,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              backgroundColor: Colors.red[50],
+                            ),
+                            onPressed: () async {
+                              final confirmDelete = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('ลบบัญชีนี้'),
+                                  content: const Text(
+                                    'คุณแน่ใจหรือไม่ว่าต้องการลบบัญชีนี้?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(ctx).pop(false),
+                                      child: const Text('ยกเลิก'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(ctx).pop(true),
+                                      child: const Text('ลบบัญชี'),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirmDelete == true) {
+                                try {
+                                  final authService = AuthService();
+                                  final result = await authService
+                                      .deleteRiderAccount();
+
+                                  if (result['success'] == true) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('ลบบัญชีสำเร็จ'),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+
+                                      // ✅ ล้าง token แล้วไปหน้า /wellcome
+                                      Navigator.pushNamedAndRemoveUntil(
+                                        context,
+                                        '/wellcome',
+                                        (route) => false,
+                                      );
+                                    }
+                                  } else {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(result['message']),
+                                          backgroundColor: Colors.redAccent,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'เกิดข้อผิดพลาดในการลบบัญชี',
+                                        ),
+                                        backgroundColor: Colors.redAccent,
+                                      ),
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                          ),
+                        ),
                       ],
                     ),
                   ),

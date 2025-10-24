@@ -143,6 +143,41 @@ class AuthService {
     }
   }
 
+   Future<Map<String, dynamic>> deleteRiderAccount() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        return {'success': false, 'message': 'ไม่พบ token โปรดเข้าสู่ระบบใหม่'};
+      }
+
+      final response = await http.delete(
+        Uri.parse('${BaseAPI_URL.localhostURL}/DeleteRider'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // เคลียร์ token ใน local ด้วย
+        await prefs.clear();
+        return {'success': true, 'message': data['message'] ?? 'ลบบัญชีสำเร็จ'};
+      } else {
+        final data = json.decode(response.body);
+        return {
+          'success': false,
+          'message': data['message'] ?? 'ลบบัญชีไม่สำเร็จ (${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      print('❌ deleteRiderAccount error: $e');
+      return {'success': false, 'message': 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์'};
+    }
+  }
+
   // ตรวจสอบและ refresh token หากจำเป็น
   Future<bool> refreshToken() async {
     try {

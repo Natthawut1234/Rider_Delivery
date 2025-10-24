@@ -90,8 +90,9 @@ class _RiderChatPageState extends State<RiderChatPage> {
     riderId = chatController.riderId; // ✅ rider_id สำหรับ business logic
 
     print('🔍 Chat Page Arguments:');
-    print('   roomId: $roomId');
+    print('   roomId: $partnerPhoto');
     print('   orderId: $orderId');
+    print('   roomId: $roomId');
     print('   userType: $userType');
     print('   userId: $userId (for message comparison)');
     print('   riderId: $riderId (for business logic)');
@@ -509,42 +510,99 @@ class _RiderChatPageState extends State<RiderChatPage> {
                 children: [
                   if (message.messageType == 'image' &&
                       message.imageUrl != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: message.imageUrl!.startsWith('http')
-                          ? Image.network(
-                              message.imageUrl!,
-                              width: 180,
-                              height: 180,
-                              fit: BoxFit.cover,
-                              loadingBuilder:
-                                  (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Container(
-                                      width: 180,
-                                      height: 180,
-                                      color: Colors.grey[200],
-                                      child: const Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
-                                    );
-                                  },
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  width: 180,
-                                  height: 180,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.broken_image),
-                                );
-                              },
-                            )
-                          : Image.file(
-                              File(message.imageUrl!),
-                              width: 180,
-                              height: 180,
-                              fit: BoxFit.cover,
+                    GestureDetector(
+                      onTap: () {
+                        // เปิดดูรูปแบบเต็มจอ
+                        showDialog(
+                          context: context,
+                          barrierColor: Colors.black.withOpacity(0.9),
+                          builder: (context) => GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                InteractiveViewer(
+                                  panEnabled: true,
+                                  minScale: 0.8,
+                                  maxScale: 3.0,
+                                  child: Image.network(
+                                    message.imageUrl!,
+                                    fit: BoxFit.contain,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    loadingBuilder: (context, child, progress) {
+                                      if (progress == null) return child;
+                                      return const Center(
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return const Center(
+                                        child: Icon(
+                                          Icons.error,
+                                          color: Colors.white,
+                                          size: 48,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 40,
+                                  right: 20,
+                                  child: IconButton(
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 28,
+                                    ),
+                                    onPressed: () => Navigator.pop(context),
+                                  ),
+                                ),
+                              ],
                             ),
+                          ),
+                        );
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: message.imageUrl!.startsWith('http')
+                            ? Image.network(
+                                message.imageUrl!,
+                                width: 180,
+                                height: 180,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (context, child, progress) {
+                                  if (progress == null) return child;
+                                  return Container(
+                                    width: 180,
+                                    height: 180,
+                                    color: Colors.grey[200],
+                                    child: const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 180,
+                                    height: 180,
+                                    color: Colors.grey[200],
+                                    child: const Icon(Icons.broken_image),
+                                  );
+                                },
+                              )
+                            : Image.file(
+                                File(message.imageUrl!),
+                                width: 180,
+                                height: 180,
+                                fit: BoxFit.cover,
+                              ),
+                      ),
                     ),
+
                   if (message.messageText?.isNotEmpty == true)
                     Padding(
                       padding: EdgeInsets.only(
@@ -572,15 +630,23 @@ class _RiderChatPageState extends State<RiderChatPage> {
     );
   }
 
-  String _formatMessageTime(DateTime dateTime) {
+  String _formatMessageTime(DateTime? dateTime) {
+    if (dateTime == null) return '';
+
+    // ✅ แปลงเป็นเวลาท้องถิ่น (Local Time)
+    final localTime = dateTime.toLocal();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final messageDate = DateTime(dateTime.year, dateTime.month, dateTime.day);
+    final messageDate = DateTime(
+      localTime.year,
+      localTime.month,
+      localTime.day,
+    );
 
     if (messageDate == today) {
-      return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      return '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}';
     } else {
-      return '${dateTime.day}/${dateTime.month} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      return '${localTime.day}/${localTime.month} ${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}';
     }
   }
 
@@ -699,10 +765,10 @@ class _RiderChatPageState extends State<RiderChatPage> {
                 ),
               ),
             ),
-          IconButton(
-            icon: const Icon(Icons.phone),
-            onPressed: () => _chatController?.makePhoneCall(partnerPhone),
-          ),
+          // IconButton(
+          //   icon: const Icon(Icons.phone),
+          //   onPressed: () => _chatController?.makePhoneCall(partnerPhone),
+          // ),
         ],
       ),
       body: Column(

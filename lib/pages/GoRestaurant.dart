@@ -7,8 +7,10 @@ import 'package:rider_delivery/APIs/ChatSocket/ChatControllerSK.dart';
 import 'package:rider_delivery/APIs/Orders/OrdersSocket.dart';
 import 'package:rider_delivery/APIs/Orders/models/Order_items.dart';
 import 'package:rider_delivery/pages/maps/map_button_widget.dart';
+import 'package:rider_delivery/pages/utils/ShopClosedPage.dart';
 import 'package:rider_delivery/pages/utils/navigation_guard.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class GoRestaurant extends StatefulWidget {
   const GoRestaurant({super.key});
@@ -672,6 +674,10 @@ class _GoRestaurantState extends State<GoRestaurant> {
                         },
                       )
                       .toList(),
+                  'restaurantPhone':
+                      currentOrder?.marketLocation?['phone'],
+                  'customerPhone':
+                      currentOrder?.customerLocation?['phone'],
                 },
               );
             },
@@ -825,6 +831,8 @@ class _GoRestaurantState extends State<GoRestaurant> {
         ?.toDouble();
     final double? customerLng = currentOrder?.customerLocation?['longitude']
         ?.toDouble();
+    final String? CustomerPhone = currentOrder?.customerLocation?['phone']
+        ?.toString();
 
     if (_isLoading) {
       return const Scaffold(
@@ -874,6 +882,24 @@ class _GoRestaurantState extends State<GoRestaurant> {
       );
     }
 
+    Future<void> _makePhoneCall(String phoneNumber) async {
+      final Uri url = Uri(scheme: 'tel', path: phoneNumber);
+
+      try {
+        if (!await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication, // ✅ เปิด dialer ภายนอกโดยตรง
+        )) {
+          throw 'Could not launch $url';
+        }
+      } catch (e) {
+        print('❌ Error launching dialer: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ไม่สามารถโทรออกได้ในอุปกรณ์นี้')),
+        );
+      }
+    }
+
     // ดึงข้อมูล lat/lng สำหรับแมพ
     final marketLocation = currentOrder?.marketLocation;
     final double? latitude = marketLocation?['latitude']?.toDouble();
@@ -919,66 +945,47 @@ class _GoRestaurantState extends State<GoRestaurant> {
               elevation: 0,
               leadingWidth: 140,
               toolbarHeight: 40,
-              leading: Padding(
-                padding: const EdgeInsets.only(left: 20, right: 8),
-                child: TextButton(
-                  onPressed: () async {
-                    final currentStatus = currentOrder?.status;
-                    final canPop = await NavigationGuard.showBackWarningDialog(
-                      context,
-                      currentStatus,
-                    );
 
-                    if (canPop && mounted) {
-                      _loadOrderData();
-                      Navigator.pop(context, {'refreshData': true});
-                    }
-                  },
-                  style: TextButton.styleFrom(
-                    backgroundColor: const Color(0xFFE0E0E0),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                  child: const Text(
-                    'ยกเลิกออเดอร์',
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
               actions: [
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: TextButton(
-                    onPressed: () async {
-                      final result = await _orderController!.updateOrderStatus(
-                        currentOrder!.orderId,
-                        'shop_closed',
+                    onPressed: () {
+                      final marketId =
+                          currentOrder?.marketLocation?['market_id'];
+
+                      print("📢 แจ้งร้านปิด:");
+                      print("   order_id = $orderId");
+                      print("   market_id = $marketId");
+                      print("   shopName = $restaurantName");
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ShopClosedPage(
+                            orderData: {
+                              'shopName': restaurantName,
+                              'order_id':
+                                  orderId, // ✅ ใช้ชื่อ key ให้ตรงกับ ShopClosedPage
+                              'market_id':
+                                  marketId, // ✅ เพิ่มค่าร้านจาก currentOrder
+                            },
+                          ),
+                        ),
                       );
-                      if (result['success'] == true) {
-                        Navigator.pop(context);
-                      }
                     },
+
                     style: TextButton.styleFrom(
-                      side: BorderSide(color: Colors.red, width: 1.5),
+                      side: const BorderSide(color: Colors.red, width: 1.5),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      padding: EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 6,
                       ),
-                      minimumSize: Size(0, 36),
                     ),
-                    child: Text(
+                    child: const Text(
                       'แจ้งร้านปิด',
                       style: TextStyle(
                         color: Colors.red,
@@ -1154,29 +1161,30 @@ class _GoRestaurantState extends State<GoRestaurant> {
                               ],
                             ),
                             Spacer(),
-                            Container(
-                              padding: EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.blue,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.facebook,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
                             SizedBox(width: 8),
-                            Container(
-                              padding: EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.green,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.phone,
-                                color: Colors.white,
-                                size: 20,
+                            GestureDetector(
+                              onTap: () {
+                                if (phone != null && phone.isNotEmpty) {
+                                  _makePhoneCall(phone);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('ไม่พบเบอร์โทรร้านอาหาร'),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.phone,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
                             ),
                           ],
@@ -1210,122 +1218,155 @@ class _GoRestaurantState extends State<GoRestaurant> {
                               ],
                             ),
                             Spacer(),
-                            Container(
-                              padding: EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.green,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.phone,
-                                color: Colors.white,
-                                size: 20,
+                            GestureDetector(
+                              onTap: () async {
+                                try {
+                                  final prefs =
+                                      await SharedPreferences.getInstance();
+                                  final token = prefs.getString('auth_token');
+
+                                  int? tokenRiderId;
+
+                                  if (token != null && token.isNotEmpty) {
+                                    // 🧩 JWT มี 3 ส่วน: header.payload.signature
+                                    final parts = token.split('.');
+                                    if (parts.length == 3) {
+                                      final payload = parts[1];
+                                      // ✅ แปลง Base64 → JSON
+                                      final normalized = base64.normalize(
+                                        payload,
+                                      );
+                                      final decoded = utf8.decode(
+                                        base64Url.decode(normalized),
+                                      );
+                                      final Map<String, dynamic> data =
+                                          jsonDecode(decoded);
+
+                                      tokenRiderId = data['rider_id'];
+                                      print(
+                                        '🔑 Rider ID from token: $tokenRiderId',
+                                      );
+                                    } else {
+                                      print("⚠️ Invalid JWT format");
+                                    }
+                                  }
+
+                                  final chat = context
+                                      .read<RiderChatController>();
+
+                                  // ✅ ถ้ายังไม่มี riderId ใน controller → ใช้อันจาก token
+                                  if (chat.riderId == null &&
+                                      tokenRiderId != null) {
+                                    chat.riderId = tokenRiderId;
+                                  }
+
+                                  // ✅ เริ่มการเชื่อมต่อ socket และโหลดห้องแชท
+                                  await chat.initializeRiderInfoIfNeeded();
+                                  await chat.connectToChat();
+                                  await chat.loadChatRooms();
+
+                                  // ✅ หา room ที่ตรงกับ orderId
+                                  final room = chat.chatRooms
+                                      .where(
+                                        (r) =>
+                                            (r.orderId?.toString() ?? '') ==
+                                            (orderId?.toString() ?? ''),
+                                      )
+                                      .toList()
+                                      .firstOrNull;
+
+                                  if (room != null && room.roomId != null) {
+                                    chat.openChatWithCustomer(
+                                      context: context,
+                                      roomId: room.roomId!,
+                                      orderId: orderId!,
+                                      customerName:
+                                          room.customerName ?? customerName,
+                                      customerPhoto: currentOrder?.customerLocation!['photo_url'],
+                                      customerPhone:
+                                          room.customerPhone ?? customerPhone,
+                                    );
+                                  } else {
+                                    final newRoomId = await chat
+                                        .createChatRoomForOrder(
+                                          orderId: orderId!,
+                                          customerId: userId!,
+                                          customerName: customerName,
+                                          customerPhoto: null,
+                                        );
+
+                                    if (newRoomId != null) {
+                                      chat.openChatWithCustomer(
+                                        context: context,
+                                        roomId: newRoomId,
+                                        orderId: orderId!,
+                                        customerName: customerName,
+                                        customerPhoto: null,
+                                        customerPhone: customerPhone,
+                                      );
+                                    } else {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'ไม่สามารถเปิดห้องแชทได้ในขณะนี้',
+                                          ),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                } catch (e) {
+                                  print('❌ Error opening chat: $e');
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('เปิดแชทไม่สำเร็จ: $e'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  color: Colors.green, // หรือ Colors.green[700]
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.message,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
                             ),
                             SizedBox(width: 8),
                             GestureDetector(
-  onTap: () async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-
-      int? tokenRiderId;
-
-      if (token != null && token.isNotEmpty) {
-        // 🧩 JWT มี 3 ส่วน: header.payload.signature
-        final parts = token.split('.');
-        if (parts.length == 3) {
-          final payload = parts[1];
-          // ✅ แปลง Base64 → JSON
-          final normalized = base64.normalize(payload);
-          final decoded = utf8.decode(base64Url.decode(normalized));
-          final Map<String, dynamic> data = jsonDecode(decoded);
-
-          tokenRiderId = data['rider_id'];
-          print('🔑 Rider ID from token: $tokenRiderId');
-        } else {
-          print("⚠️ Invalid JWT format");
-        }
-      }
-
-      final chat = context.read<RiderChatController>();
-
-      // ✅ ถ้ายังไม่มี riderId ใน controller → ใช้อันจาก token
-      if (chat.riderId == null && tokenRiderId != null) {
-        chat.riderId = tokenRiderId;
-      }
-
-      // ✅ เริ่มการเชื่อมต่อ socket และโหลดห้องแชท
-      await chat.initializeRiderInfoIfNeeded();
-      await chat.connectToChat();
-      await chat.loadChatRooms();
-
-      // ✅ หา room ที่ตรงกับ orderId
-      final room = chat.chatRooms
-          .where((r) =>
-              (r.orderId?.toString() ?? '') ==
-              (orderId?.toString() ?? ''))
-          .toList()
-          .firstOrNull;
-
-      if (room != null && room.roomId != null) {
-        chat.openChatWithCustomer(
-          context: context,
-          roomId: room.roomId!,
-          orderId: orderId!,
-          customerName: room.customerName ?? customerName,
-          customerPhoto: room.customerPhoto,
-          customerPhone: room.customerPhone ?? customerPhone,
-        );
-      } else {
-        final newRoomId = await chat.createChatRoomForOrder(
-          orderId: orderId!,
-          customerId: userId!,
-          customerName: customerName,
-          customerPhoto: null,
-        );
-
-        if (newRoomId != null) {
-          chat.openChatWithCustomer(
-            context: context,
-            roomId: newRoomId,
-            orderId: orderId!,
-            customerName: customerName,
-            customerPhoto: null,
-            customerPhone: customerPhone,
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('ไม่สามารถเปิดห้องแชทได้ในขณะนี้'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('❌ Error opening chat: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('เปิดแชทไม่สำเร็จ: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  },
-  child: Container(
-    padding: const EdgeInsets.all(8),
-    decoration: BoxDecoration(
-      color: Colors.green[300],
-      shape: BoxShape.circle,
-    ),
-    child: const Icon(
-      Icons.message,
-      color: Colors.white,
-      size: 20,
-    ),
-  ),
-),
+                              onTap: () {
+                                if (CustomerPhone != null &&
+                                    CustomerPhone.isNotEmpty) {
+                                  _makePhoneCall(CustomerPhone);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('ไม่พบเบอร์โทรร้านอาหาร'),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.phone,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ],

@@ -31,6 +31,7 @@ dependencies:
   flutter_tts: ^4.2.3
   awesome_dialog: ^3.3.0
   image_picker: ^1.2.0
+  flutter_launcher_icons: ^0.14.4
 
 dev_dependencies:
   flutter_test:
@@ -54,3 +55,10 @@ flutter:
     - assets/avatars/
     - assets/logo/
     - assets/data/
+    - assets/icons/logo.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/logo.png"
+

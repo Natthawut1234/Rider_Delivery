@@ -21,35 +21,31 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   RiderStatus _riderStatus = RiderStatus.incomplete;
   String _statusMessage = '';
-  bool _isLoading = true;
+  bool _isInitialLoading = true; // Loading หลักสำหรับครั้งแรก
   int? _riderId;
+  
   // ข้อมูลผู้ใช้
   String _userName = 'ผู้ใช้';
   String _userProfileImage = 'assets/avatars/avatar-4.png';
-  bool _isUserDataLoading = true;
 
   // ข้อมูลเครดิต
   double _currentCredit = 0.0;
-  bool _isCreditLoading = true;
 
   // ข้อมูลรายได้และงานวันนี้
   double _todayIncome = 0.0;
   int _todayJobCount = 0;
-  bool _isIncomeLoading = true;
-  bool _isJobCountLoading = true;
 
   // ข้อมูลรีวิวและคะแนน
   double _averageRating = 0.0;
   int _reviewsCount = 0;
-  bool _isRatingLoading = true;
 
   // ฟิลด์ที่ต้องตรวจสอบความสมบูรณ์
   String? _phone;
-  int? _gender; // 0/1
+  int? _gender;
   String? _promptpay;
-  DateTime? _birthdate; // เพิ่มฟิลด์ birthdate
+  DateTime? _birthdate;
 
-  // Helper: ตรวจสอบว่า response จาก API เป็น auth error (401/403 หรือข้อความ token ไม่ถูกต้อง)
+  // Helper: ตรวจสอบว่า response จาก API เป็น auth error
   bool _isAuthError(Map<String, dynamic>? result) {
     if (result == null) return false;
     final code = result['statusCode'];
@@ -58,8 +54,7 @@ class _HomePageState extends State<HomePage> {
     if (code == 401 || code == 403) return true;
     if (msg.contains('Token') ||
         msg.contains('หมดอายุ') ||
-        msg.contains('ไม่ถูกต้อง'))
-      return true;
+        msg.contains('ไม่ถูกต้อง')) return true;
     return false;
   }
 
@@ -68,13 +63,11 @@ class _HomePageState extends State<HomePage> {
     try {
       final uri = Uri.parse(url);
       final ts = DateTime.now().millisecondsSinceEpoch.toString();
-      // รวมพารามิเตอร์เดิมกับ timestamp
       final newQueryParams = Map<String, String>.from(uri.queryParameters);
-      newQueryParams['v'] = ts; // คีย์ v สำหรับ versioning
+      newQueryParams['v'] = ts;
       final newUri = uri.replace(queryParameters: newQueryParams);
       return newUri.toString();
     } catch (_) {
-      // ถ้า parse ไม่ได้ ใช้วิธี manual
       final separator = url.contains('?') ? '&' : '?';
       return '$url${separator}v=${DateTime.now().millisecondsSinceEpoch}';
     }
@@ -83,156 +76,159 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
-    _loadGPBalance(); // โหลดยอดเครดิต
-    _loadTodayIncome(); // โหลดรายได้วันนี้
-    _loadTodayJobCount(); // โหลดจำนวนงานวันนี้
-    _loadRatingData(); // โหลดคะแนนรีวิว
-    _checkRiderStatus();
+    _initializeAllData();
   }
 
-  Future<void> _loadUserData() async {
-    try {
-      print('🚀 _loadUserData() called');
+  // รวมการโหลดข้อมูลทั้งหมดไว้ที่เดียว
+  Future<void> _initializeAllData() async {
+    print('🚀 Starting initialization...');
+    setState(() {
+      _isInitialLoading = true;
+    });
 
+    try {
+      // โหลดข้อมูลจาก SharedPreferences ก่อน (แสดงผลเร็ว)
+      await _loadCachedUserData();
+
+      // โหลดข้อมูลทั้งหมดแบบ parallel พร้อม timeout
+      final results = await Future.wait([
+        _checkRiderStatus().timeout(
+          Duration(seconds: 10),
+          onTimeout: () {
+            print('⏰ Timeout: _checkRiderStatus');
+          },
+        ),
+        _loadGPBalance().timeout(
+          Duration(seconds: 10),
+          onTimeout: () {
+            print('⏰ Timeout: _loadGPBalance');
+          },
+        ),
+        _loadTodayIncome().timeout(
+          Duration(seconds: 10),
+          onTimeout: () {
+            print('⏰ Timeout: _loadTodayIncome');
+          },
+        ),
+        _loadTodayJobCount().timeout(
+          Duration(seconds: 10),
+          onTimeout: () {
+            print('⏰ Timeout: _loadTodayJobCount');
+          },
+        ),
+        _loadRatingData().timeout(
+          Duration(seconds: 10),
+          onTimeout: () {
+            print('⏰ Timeout: _loadRatingData');
+          },
+        ),
+        _refreshProfileData().timeout(
+          Duration(seconds: 10),
+          onTimeout: () {
+            print('⏰ Timeout: _refreshProfileData');
+          },
+        ),
+      ]).timeout(
+        Duration(seconds: 15), // Timeout สำหรับทั้งหมด
+        onTimeout: () {
+          print('⏰ Overall timeout - proceeding anyway');
+          return [];
+        },
+      );
+
+      print('✅ All data loaded successfully');
+    } catch (e) {
+      print('❌ Error during initialization: $e');
+      // แม้จะ error ก็ให้แสดงหน้าได้ตามปกติ
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInitialLoading = false;
+        });
+      }
+      print('✅ Initialization completed');
+    }
+  }
+
+  // โหลดข้อมูลจาก cache เพื่อแสดงผลเร็ว
+  Future<void> _loadCachedUserData() async {
+    try {
+      print('📦 Loading cached user data...');
       final prefs = await SharedPreferences.getInstance();
       final userRiderString = prefs.getString('user_rider');
 
-      // log raw string
-      print('📦 SharedPreferences[Rider] = $userRiderString');
-
-      // Debug: แสดงข้อมูล cached_rider_id
-      final cachedRiderId = prefs.getInt('cached_rider_id');
-      print('🔍 Debug: cached_rider_id = $cachedRiderId');
-
-      // โหลดข้อมูลจาก SharedPreferences ก่อน (เพื่อแสดง UI เร็วขึ้น)
       if (userRiderString != null) {
         final userData = jsonDecode(userRiderString);
-        print('✅ Decoded userData = $userData');
-
-        setState(() {
-          _userName = userData['display_name'] ?? userData['name'] ?? 'ผู้ใช้';
-          _phone = userData['phone'];
-          _gender = userData['gender'];
-          _promptpay = userData['promptpay'];
-          // เก็บ rider_id
-          final riderId = userData['rider_id'];
-          if (riderId != null && riderId != 0) {
-            _riderId = riderId;
-            // เก็บ rider_id ลง SharedPreferences แยกต่างหาก
-            prefs.setInt('cached_rider_id', riderId);
-            print('🏍️ Rider ID loaded and cached: $_riderId');
-          } else {
-            // ถ้าไม่มี rider_id ใน user data ให้ลองโหลดจาก cache
-            final cachedRiderId = prefs.getInt('cached_rider_id');
-            if (cachedRiderId != null && cachedRiderId != 0) {
-              _riderId = cachedRiderId;
-              print('🏍️ Rider ID loaded from cache: $_riderId');
-            } else {
-              print('⚠️ No valid Rider ID found!');
-              _riderId = 0;
-            }
-          }
-
-          print(
-            '👤 User loaded: name=$_userName, phone=$_phone, gender=$_gender, promptpay=$_promptpay',
-          );
-
-          // แก้ไขการแปลง birthdate
-          if (userData['birthdate'] != null &&
-              userData['birthdate'] is String) {
-            _birthdate = DateTime.tryParse(userData['birthdate']);
-            print('📅 Birthdate (parsed from String): $_birthdate');
-          } else if (userData['birthdate'] is DateTime) {
-            _birthdate = userData['birthdate'];
-            print('📅 Birthdate (from DateTime object): $_birthdate');
-          }
-
-          // ถ้ามี photo_url ให้ใช้ ไม่งั้นใช้รูป default
-          if (userData['photo_url'] != null &&
-              userData['photo_url'].toString().isNotEmpty &&
-              userData['photo_url'] != 'null') {
-            _userProfileImage = _appendCacheBuster(userData['photo_url']);
-            print('🖼️ Profile image set: $_userProfileImage');
-          } else {
-            print('⚠️ No profile image found, using default');
-          }
-
-          _isUserDataLoading = false;
-        });
-      } else {
-        print('⚠️ No user_rider found in SharedPreferences');
-        // ลองโหลด rider_id จาก cache ถ้าไม่มีข้อมูล user
-        final cachedRiderId = prefs.getInt('cached_rider_id');
-        if (cachedRiderId != null && cachedRiderId != 0) {
+        
+        if (mounted) {
           setState(() {
-            _riderId = cachedRiderId;
-          });
-          print('🏍️ Rider ID loaded from cache (no user data): $_riderId');
-        }
-      }
+            _userName = userData['display_name'] ?? userData['name'] ?? 'ผู้ใช้';
+            _phone = userData['phone'];
+            _gender = userData['gender'];
+            _promptpay = userData['promptpay'];
+            
+            // เก็บ rider_id
+            final riderId = userData['rider_id'];
+            if (riderId != null && riderId != 0) {
+              _riderId = riderId;
+              prefs.setInt('cached_rider_id', riderId);
+            } else {
+              final cachedRiderId = prefs.getInt('cached_rider_id');
+              if (cachedRiderId != null && cachedRiderId != 0) {
+                _riderId = cachedRiderId;
+              }
+            }
 
-      // เรียก API เพื่อดึงข้อมูลล่าสุด (รวมถึงรูปโปรไฟล์) เสมอ
-      print('🔄 Home: Refreshing profile data from API...');
-    } catch (e, stack) {
-      print('❌ Error in _loadUserData: $e');
-      print(stack);
+            // แปลง birthdate
+            if (userData['birthdate'] != null && userData['birthdate'] is String) {
+              _birthdate = DateTime.tryParse(userData['birthdate']);
+            } else if (userData['birthdate'] is DateTime) {
+              _birthdate = userData['birthdate'];
+            }
+
+            // โหลดรูปโปรไฟล์
+            if (userData['photo_url'] != null &&
+                userData['photo_url'].toString().isNotEmpty &&
+                userData['photo_url'] != 'null') {
+              _userProfileImage = _appendCacheBuster(userData['photo_url']);
+            }
+          });
+        }
+        print('✅ Cached user data loaded');
+      }
+    } catch (e) {
+      print('❌ Error loading cached user data: $e');
     }
   }
 
   // ฟังก์ชันดึงยอดเครดิต GP จาก API
   Future<void> _loadGPBalance() async {
-    setState(() {
-      _isCreditLoading = true;
-    });
-
     try {
       final topupAPI = TopupGP();
       final result = await topupAPI.getGPBalance();
 
       if (result['success']) {
-        setState(() {
-          // แปลง gp_balance จาก String เป็น double
-          final gpBalanceStr = result['data']['gp_balance'].toString();
-          _currentCredit = double.parse(gpBalanceStr);
-          _isCreditLoading = false;
-        });
-        print('✅ Home: Credit loaded successfully: ฿$_currentCredit');
+        if (mounted) {
+          setState(() {
+            final gpBalanceStr = result['data']['gp_balance'].toString();
+            _currentCredit = double.parse(gpBalanceStr);
+          });
+        }
+        print('✅ Credit loaded: ฿$_currentCredit');
       } else {
-        setState(() {
-          _isCreditLoading = false;
-        });
-        print('❌ Home: Failed to load credit: ${result['message']}');
+        print('❌ Failed to load credit: ${result['message']}');
         if (_isAuthError(result)) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-          await _performLogout();
-          return;
+          await _handleAuthError('เครดิต');
         }
       }
     } catch (e) {
-      setState(() {
-        _isCreditLoading = false;
-      });
-      print('❌ Home: Error loading credit: $e');
+      print('❌ Error loading credit: $e');
     }
   }
 
   // ฟังก์ชันดึงรายได้วันนี้จาก API
   Future<void> _loadTodayIncome() async {
-    setState(() {
-      _isIncomeLoading = true;
-    });
-
     try {
-      // ใช้ JobHistoryService เหมือนใน Income.dart
       final service = JobHistoryService();
       final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
       final result = await service.fetchJobHistoryByDate(dateStr);
@@ -240,41 +236,26 @@ class _HomePageState extends State<HomePage> {
       if (result['success']) {
         final jobHistoryResponse = JobHistoryResponse.fromJson(result['data']);
         final jobs = jobHistoryResponse.data.jobHistory;
-
-        // คำนวณรายได้จากงานที่สำเร็จ (เหมือน Income.dart)
         final completedJobs = jobs.where((job) => job.isCompleted).toList();
-        final todayIncome = completedJobs.fold(
-          0.0,
-          (sum, job) => sum + job.totalEarnings,
-        );
+        final todayIncome = completedJobs.fold(0.0, (sum, job) => sum + job.totalEarnings);
 
-        setState(() {
-          _todayIncome = todayIncome;
-          _isIncomeLoading = false;
-        });
-        print('✅ Home: Today income loaded: ฿$_todayIncome');
+        if (mounted) {
+          setState(() {
+            _todayIncome = todayIncome;
+          });
+        }
+        print('✅ Today income loaded: ฿$_todayIncome');
       } else {
-        setState(() {
-          _isIncomeLoading = false;
-        });
-        print('❌ Home: Failed to load today income: ${result['message']}');
+        print('❌ Failed to load today income: ${result['message']}');
       }
     } catch (e) {
-      setState(() {
-        _isIncomeLoading = false;
-      });
-      print('❌ Home: Error loading today income: $e');
+      print('❌ Error loading today income: $e');
     }
   }
 
   // ฟังก์ชันดึงจำนวนงานวันนี้จาก API
   Future<void> _loadTodayJobCount() async {
-    setState(() {
-      _isJobCountLoading = true;
-    });
-
     try {
-      // ใช้ JobHistoryService เหมือนใน Jobs.dart
       final service = JobHistoryService();
       final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
       final result = await service.fetchJobHistoryByDate(dateStr);
@@ -283,189 +264,145 @@ class _HomePageState extends State<HomePage> {
         final jobHistoryResponse = JobHistoryResponse.fromJson(result['data']);
         final jobs = jobHistoryResponse.data.jobHistory;
 
-        setState(() {
-          _todayJobCount = jobs.length; // นับงานทั้งหมด (เหมือน Jobs.dart)
-          _isJobCountLoading = false;
-        });
-        print('✅ Home: Today job count loaded: $_todayJobCount jobs');
+        if (mounted) {
+          setState(() {
+            _todayJobCount = jobs.length;
+          });
+        }
+        print('✅ Today job count loaded: $_todayJobCount jobs');
       } else {
-        setState(() {
-          _isJobCountLoading = false;
-        });
-        print('❌ Home: Failed to load today job count: ${result['message']}');
+        print('❌ Failed to load today job count: ${result['message']}');
       }
     } catch (e) {
-      setState(() {
-        _isJobCountLoading = false;
-      });
-      print('❌ Home: Error loading today job count: $e');
+      print('❌ Error loading today job count: $e');
     }
   }
 
   // โหลดข้อมูลคะแนนรีวิว
   Future<void> _loadRatingData() async {
-    setState(() {
-      _isRatingLoading = true;
-    });
-
     try {
-      print('📊 Home: Loading rating data...');
+      print('📊 Loading rating data...');
       final result = await ReviewsService().fetchRiderReviews(limit: 100);
 
       if (result['success']) {
         final data = result['data'];
         final riderSummary = data['rider_summary'];
 
-        if (riderSummary != null) {
+        if (riderSummary != null && mounted) {
           setState(() {
-            _averageRating =
-                double.tryParse(
-                  riderSummary['rating_avg']?.toString() ?? '0',
-                ) ??
-                0.0;
+            _averageRating = double.tryParse(riderSummary['rating_avg']?.toString() ?? '0') ?? 0.0;
             _reviewsCount = riderSummary['reviews_count'] ?? 0;
-            _isRatingLoading = false;
           });
-          print(
-            '✅ Home: Rating data loaded: $_averageRating ($_reviewsCount reviews)',
-          );
+          print('✅ Rating data loaded: $_averageRating ($_reviewsCount reviews)');
         } else {
-          setState(() {
-            _averageRating = 0.0;
-            _reviewsCount = 0;
-            _isRatingLoading = false;
-          });
-          print('ℹ️ Home: No rating data available');
+          print('ℹ️ No rating summary available');
         }
       } else {
+        print('❌ Failed to load rating data: ${result['message']}');
+      }
+    } catch (e) {
+      print('❌ Error loading rating data: $e');
+      // Set default values on error
+      if (mounted) {
         setState(() {
           _averageRating = 0.0;
           _reviewsCount = 0;
-          _isRatingLoading = false;
         });
-        print('❌ Home: Failed to load rating data: ${result['message']}');
       }
-    } catch (e) {
-      setState(() {
-        _averageRating = 0.0;
-        _reviewsCount = 0;
-        _isRatingLoading = false;
-      });
-      print('❌ Home: Error loading rating data: $e');
     }
   }
 
   // Method สำหรับ refresh ข้อมูล user
   Future<void> _refreshUserData() async {
-    print('🔄 Home: Starting user data refresh...');
-    setState(() {
-      _isUserDataLoading = true;
-    });
+    print('🔄 Starting user data refresh...');
 
-    // รีเฟรชทั้งข้อมูลโปรไฟล์, เครดิต, รายได้วันนี้, จำนวนงานวันนี้, คะแนนรีวิว และสถานะไรเดอร์
     await Future.wait([
       _refreshProfileData(),
       _loadGPBalance(),
       _loadTodayIncome(),
       _loadTodayJobCount(),
       _loadRatingData(),
-      _checkRiderStatus(), // เพิ่มการรีเฟรชสถานะไรเดอร์
+      _checkRiderStatus(),
     ]);
   }
 
   // แยก method สำหรับรีเฟรชข้อมูลโปรไฟล์
   Future<void> _refreshProfileData() async {
     try {
+      print('🔄 Refreshing profile data from API...');
       final authService = AuthService();
       final result = await authService.getRiderProfile();
 
       if (result['success'] && result['data'] != null) {
         final profileData = result['data'];
-        final ui = profileData['user_info'] ?? profileData; // fallback
+        final ui = profileData['user_info'] ?? profileData;
 
-        print('🔍 Home: Raw user data received: $ui');
-        print(
-          '🔍 Home: birthdate type: ${ui['birthdate']?.runtimeType}, value: ${ui['birthdate']}',
-        );
+        print('✅ Profile data received from API');
 
-        setState(() {
-          _userName = ui['display_name'] ?? ui['name'] ?? 'ผู้ใช้';
-          _phone = ui['phone'];
-          _gender = ui['gender'];
-          _promptpay = ui['promptpay'];
+        if (mounted) {
+          setState(() {
+            _userName = ui['display_name'] ?? ui['name'] ?? 'ผู้ใช้';
+            _phone = ui['phone'];
+            _gender = ui['gender'];
+            _promptpay = ui['promptpay'];
 
-          // แก้ไขการแปลง birthdate
-          if (ui['birthdate'] != null && ui['birthdate'] is String) {
-            _birthdate = DateTime.tryParse(ui['birthdate']);
-            print('🗓️ Home: Parsed birthdate from string: $_birthdate');
-          } else if (ui['birthdate'] is DateTime) {
-            _birthdate = ui['birthdate'];
-            print('🗓️ Home: Using DateTime birthdate: $_birthdate');
-          } else {
-            print('⚠️ Home: birthdate is null or unknown type');
-          }
+            if (ui['birthdate'] != null && ui['birthdate'] is String) {
+              _birthdate = DateTime.tryParse(ui['birthdate']);
+            } else if (ui['birthdate'] is DateTime) {
+              _birthdate = ui['birthdate'];
+            }
 
-          String? photoUrl = ui['photo_url'];
-          print('📸 Home: Received photo URL: $photoUrl');
-          if (photoUrl != null &&
-              photoUrl.toString().isNotEmpty &&
-              photoUrl != 'null' &&
-              photoUrl.startsWith('http')) {
-            _userProfileImage = _appendCacheBuster(photoUrl);
-            print('✅ Home: Updated profile image to: $_userProfileImage');
-          } else {
-            _userProfileImage = 'assets/avatars/avatar-4.png';
-            print('⚠️ Home: Using default avatar image');
-          }
-
-          _isUserDataLoading = false;
-        });
+            String? photoUrl = ui['photo_url'];
+            if (photoUrl != null &&
+                photoUrl.toString().isNotEmpty &&
+                photoUrl != 'null' &&
+                photoUrl.startsWith('http')) {
+              _userProfileImage = _appendCacheBuster(photoUrl);
+            } else {
+              _userProfileImage = 'assets/avatars/avatar-4.png';
+            }
+          });
+        }
 
         // อัพเดต SharedPreferences
         final prefs = await SharedPreferences.getInstance();
         if (profileData['user_info'] != null) {
-          await prefs.setString(
-            'user_rider',
-            jsonEncode(profileData['user_info']),
-          );
-          print('💾 Home: Updated SharedPreferences with new data');
+          await prefs.setString('user_rider', jsonEncode(profileData['user_info']));
+          print('💾 SharedPreferences updated');
         }
       } else {
-        print('❌ Home: Failed to get profile data: ${result['message']}');
-        setState(() {
-          _isUserDataLoading = false;
-        });
+        print('❌ Failed to get profile data: ${result['message']}');
         if (_isAuthError(result)) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('เซสชันหมดอายุ (โปรไฟล์) กรุณาเข้าสู่ระบบใหม่'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          await _performLogout();
-          return;
+          await _handleAuthError('โปรไฟล์');
         }
       }
-    } catch (e) {
-      print('❌ Home: Error refreshing user data: $e');
-      setState(() {
-        _isUserDataLoading = false;
-      });
+    } catch (e, stackTrace) {
+      print('❌ Error refreshing user data: $e');
+      print('Stack trace: $stackTrace');
     }
+  }
+
+  // จัดการ Auth Error
+  Future<void> _handleAuthError(String source) async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('เซสชันหมดอายุ ($source) กรุณาเข้าสู่ระบบใหม่'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+    await _performLogout();
   }
 
   // Method สำหรับ logout เมื่อ token หมดอายุ
   Future<void> _performLogout() async {
     try {
-      print('🚪 Home: Starting logout process...');
-
-      // ใช้ AuthService ในการ logout
+      print('🚪 Starting logout process...');
       final authService = AuthService();
       await authService.logout();
 
-      // แสดงข้อความแจ้งเตือน
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -475,66 +412,49 @@ class _HomePageState extends State<HomePage> {
           ),
         );
 
-        // รอให้แสดง snackbar ก่อนแล้วค่อย navigate
         await Future.delayed(const Duration(milliseconds: 500));
-
-        // Navigate ไปหน้า welcome และลบ navigation stack ทั้งหมด
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil('/wellcome', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil('/wellcome', (route) => false);
       }
     } catch (e) {
-      print('❌ Home: Error during logout: $e');
+      print('❌ Error during logout: $e');
     }
   }
 
   bool _isProfileInfoMissing() {
-    if (_riderStatus != RiderStatus.approved)
-      return false; // สนใจเฉพาะตอน approved
+    if (_riderStatus != RiderStatus.approved) return false;
     final missingPhone = _phone == null || _phone!.trim().isEmpty;
-    final missingGender = _gender == null; // ต้องมีค่า 0 หรือ 1
+    final missingGender = _gender == null;
     final missingPromptpay = _promptpay == null || _promptpay!.trim().isEmpty;
-    final missingBirthdate = _birthdate == null; // ต้องมีวันเกิด
+    final missingBirthdate = _birthdate == null;
 
-    return missingPhone ||
-        missingGender ||
-        missingPromptpay ||
-        missingBirthdate;
+    return missingPhone || missingGender || missingPromptpay || missingBirthdate;
   }
 
   void _showIncompleteProfileDialog() {
     final List<String> missing = [];
     if (_phone == null || _phone!.trim().isEmpty) missing.add('เบอร์โทรศัพท์');
     if (_gender == null) missing.add('เพศ');
-    if (_promptpay == null || _promptpay!.trim().isEmpty)
-      missing.add('หมายเลขพร้อมเพย์');
+    if (_promptpay == null || _promptpay!.trim().isEmpty) missing.add('หมายเลขพร้อมเพย์');
     if (_birthdate == null) missing.add('วันเกิด');
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'ข้อมูลยังไม่ครบ',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
+        title: const Text('ข้อมูลยังไม่ครบ', style: TextStyle(fontWeight: FontWeight.w700)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('กรุณากรอกข้อมูลต่อไปนี้ให้ครบก่อนเริ่มรับงาน:'),
             const SizedBox(height: 12),
-            ...missing.map(
-              (m) => Row(
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 18),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(m, style: const TextStyle(fontSize: 14)),
-                  ),
-                ],
-              ),
-            ),
+            ...missing.map((m) => Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                const SizedBox(width: 6),
+                Expanded(child: Text(m, style: const TextStyle(fontSize: 14))),
+              ],
+            )),
             const SizedBox(height: 16),
             const Text(
               'ไปที่หน้าโปรไฟล์เพื่อเพิ่มหรือแก้ไขข้อมูล',
@@ -550,9 +470,7 @@ class _HomePageState extends State<HomePage> {
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () {
               Navigator.of(ctx).pop();
@@ -567,10 +485,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _checkRiderStatus() async {
-    print('🔄 _checkRiderStatus called');
-    setState(() => _isLoading = true);
+    print('🔄 Checking rider status...');
 
-    // ทำความสะอาดข้อมูลเก่าถ้าเป็น JSON format
     final prefs = await SharedPreferences.getInstance();
     final currentStatus = prefs.getString('rider_status');
     if (currentStatus != null && currentStatus.startsWith('{')) {
@@ -578,28 +494,20 @@ class _HomePageState extends State<HomePage> {
       await RiderStatusService.clearStatus();
     }
 
-    // ตรวจสอบสถานะจากเซิร์ฟเวอร์
-    print('📡 Checking status from server...');
     await RiderStatusService.checkStatusFromServer();
-
-    // ทดสอบการเรียก API โปรไฟล์ (จะ refresh token อัตโนมัติถ้าจำเป็น)
     await _testAPICall();
 
-    // ดึงสถานะปัจจุบัน
-    print('📋 Getting current status...');
     final status = await RiderStatusService.getCurrentStatus();
     final message = await RiderStatusService.getStatusMessage();
 
-    print('📊 Final status: $status');
-    print('💬 Final message: $message');
+    if (mounted) {
+      setState(() {
+        _riderStatus = status;
+        _statusMessage = message;
+      });
+    }
 
-    setState(() {
-      _riderStatus = status;
-      _statusMessage = message;
-      _isLoading = false;
-    });
-
-    print('✅ UI updated with status: $status');
+    print('✅ Status updated: $status');
   }
 
   Future<void> _testAPICall() async {
@@ -608,17 +516,14 @@ class _HomePageState extends State<HomePage> {
       final result = await authService.getRiderProfile();
 
       if (result['success']) {
-        print('✅ API call successful with auto token refresh');
-        // อัปเดตข้อมูล user หากจำเป็น (ดึง field สำคัญมา)
+        print('✅ API call successful');
         final profileData = result['data'];
-        if (profileData != null) {
+        if (profileData != null && mounted) {
           final ui = profileData['user_info'] ?? profileData;
           setState(() {
             _phone = ui['phone'] ?? _phone;
             _gender = ui['gender'] ?? _gender;
             _promptpay = ui['promptpay'] ?? _promptpay;
-
-            // แก้ไขการแปลง birthdate
             if (ui['birthdate'] != null && ui['birthdate'] is String) {
               _birthdate = DateTime.tryParse(ui['birthdate']) ?? _birthdate;
             } else if (ui['birthdate'] is DateTime) {
@@ -629,16 +534,7 @@ class _HomePageState extends State<HomePage> {
       } else {
         print('❌ API call failed: ${result['message']}');
         if (_isAuthError(result)) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('เซสชันหมดอายุ (ตรวจสอบ) กรุณาเข้าสู่ระบบใหม่'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          await _performLogout();
-          return;
+          await _handleAuthError('ตรวจสอบ');
         }
       }
     } catch (e) {
@@ -710,20 +606,13 @@ class _HomePageState extends State<HomePage> {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor),
                 ),
                 if (_riderStatus != RiderStatus.approved) ...[
                   const SizedBox(height: 4),
                   Text(
                     _statusMessage,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: textColor.withOpacity(0.8),
-                    ),
+                    style: TextStyle(fontSize: 14, color: textColor.withOpacity(0.8)),
                   ),
                 ],
               ],
@@ -743,49 +632,31 @@ class _HomePageState extends State<HomePage> {
             ),
           if (_riderStatus == RiderStatus.incomplete)
             GestureDetector(
-              onTap: () {
-                Navigator.pushNamed(context, '/riderIdentity');
-              },
+              onTap: () => Navigator.pushNamed(context, '/riderIdentity'),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: textColor,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   'ยืนยันตัวตน',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
           if (_riderStatus == RiderStatus.rejected)
             GestureDetector(
-              onTap: () {
-                Navigator.pushNamed(context, '/riderIdentity');
-              },
+              onTap: () => Navigator.pushNamed(context, '/riderIdentity'),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: textColor,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   'ส่งเอกสารใหม่',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -794,8 +665,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  //
-  // สร้างแถวข้อมูลสถานะ
   Widget _buildStatusInfoRow(String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -804,18 +673,11 @@ class _HomePageState extends State<HomePage> {
           width: 100,
           child: Text(
             '$label:',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey[600]),
           ),
         ),
         Expanded(
-          child: Text(
-            value,
-            style: TextStyle(fontSize: 14, color: Colors.grey[800]),
-          ),
+          child: Text(value, style: TextStyle(fontSize: 14, color: Colors.grey[800])),
         ),
       ],
     );
@@ -847,7 +709,55 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // เลื่อนลงเพื่อรีเฟรชข้อมูล
+    // แสดง Loading Screen ครั้งแรกจนกว่าข้อมูลจะโหลดเสร็จ (สูงสุด 15 วินาที)
+    if (_isInitialLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 60,
+                    height: 60,
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                      strokeWidth: 4,
+                    ),
+                  ),
+                  Icon(
+                    Icons.delivery_dining,
+                    size: 30,
+                    color: Colors.green,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'กำลังโหลดข้อมูล...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'กรุณารอสักครู่',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[400],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return WillPopScope(
       onWillPop: () async {
         final shouldExit = await showDialog<bool>(
@@ -871,7 +781,6 @@ class _HomePageState extends State<HomePage> {
         if (shouldExit == true) {
           SystemNavigator.pop();
         }
-
         return false;
       },
       child: Scaffold(
@@ -879,7 +788,6 @@ class _HomePageState extends State<HomePage> {
         body: SafeArea(
           child: Column(
             children: [
-              // Make main content scrollable to avoid bottom overflow
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: _refreshUserData,
@@ -890,148 +798,72 @@ class _HomePageState extends State<HomePage> {
                       children: [
                         // Profile & Greeting
                         Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 16,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
                             onTap: () async {
-                              // Refresh ข้อมูล user ก่อนไปหน้า profile
                               await _refreshUserData();
-
-                              // Navigate และรอผลลัพธ์
-                              final shouldRefresh = await Navigator.pushNamed(
-                                context,
-                                '/profile',
-                              );
-
-                              // หากกลับมาพร้อมสัญญาณให้รีเฟรช
+                              final shouldRefresh = await Navigator.pushNamed(context, '/profile');
                               if (shouldRefresh == true) {
                                 await _refreshUserData();
                               }
                             },
-                            onLongPress: () {
-                              // Long press เพื่อ refresh ข้อมูลโดยไม่ไปหน้า profile
-                              _refreshUserData();
-                            },
                             child: Row(
                               children: [
-                                _isUserDataLoading
-                                    ? Container(
-                                        width: 56,
-                                        height: 56,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: Colors.grey[300],
-                                        ),
-                                        child: CircularProgressIndicator(
-                                          color: Colors.grey[400],
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : CircleAvatar(
-                                        radius: 28,
-                                        backgroundColor: Colors.grey[300],
-                                        child: ClipOval(
-                                          child:
-                                              _userProfileImage.startsWith(
-                                                'http',
-                                              )
-                                              ? Image.network(
-                                                  _userProfileImage,
-                                                  width: 56,
-                                                  height: 56,
-                                                  fit: BoxFit.cover,
-                                                  loadingBuilder:
-                                                      (
-                                                        context,
-                                                        child,
-                                                        loadingProgress,
-                                                      ) {
-                                                        if (loadingProgress ==
-                                                            null)
-                                                          return child;
-                                                        return Container(
-                                                          width: 56,
-                                                          height: 56,
-                                                          decoration:
-                                                              BoxDecoration(
-                                                                shape: BoxShape
-                                                                    .circle,
-                                                                color: Colors
-                                                                    .grey[300],
-                                                              ),
-                                                          child:
-                                                              const CircularProgressIndicator(
-                                                                strokeWidth: 2,
-                                                              ),
-                                                        );
-                                                      },
-                                                  errorBuilder:
-                                                      (
-                                                        context,
-                                                        error,
-                                                        stackTrace,
-                                                      ) {
-                                                        print(
-                                                          '❌ Error loading profile image: $error',
-                                                        );
-                                                        return Image.asset(
-                                                          'assets/avatars/avatar-4.png',
-                                                          width: 56,
-                                                          height: 56,
-                                                          fit: BoxFit.cover,
-                                                        );
-                                                      },
-                                                )
-                                              : Image.asset(
-                                                  _userProfileImage,
-                                                  width: 56,
-                                                  height: 56,
-                                                  fit: BoxFit.cover,
+                                CircleAvatar(
+                                  radius: 28,
+                                  backgroundColor: Colors.grey[300],
+                                  child: ClipOval(
+                                    child: _userProfileImage.startsWith('http')
+                                        ? Image.network(
+                                            _userProfileImage,
+                                            width: 56,
+                                            height: 56,
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null) return child;
+                                              return Container(
+                                                width: 56,
+                                                height: 56,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color: Colors.grey[300],
                                                 ),
-                                        ),
-                                      ),
+                                                child: const CircularProgressIndicator(strokeWidth: 2),
+                                              );
+                                            },
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return Image.asset(
+                                                'assets/avatars/avatar-4.png',
+                                                width: 56,
+                                                height: 56,
+                                                fit: BoxFit.cover,
+                                              );
+                                            },
+                                          )
+                                        : Image.asset(
+                                            _userProfileImage,
+                                            width: 56,
+                                            height: 56,
+                                            fit: BoxFit.cover,
+                                          ),
+                                  ),
+                                ),
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        'สวัสดี',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
+                                      Text('สวัสดี', style: TextStyle(fontSize: 16, color: Colors.grey)),
                                       const SizedBox(height: 2),
-                                      _isUserDataLoading
-                                          ? Container(
-                                              height: 20,
-                                              width: 100,
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey[300],
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                            )
-                                          : Text(
-                                              _userName,
-                                              style: TextStyle(
-                                                fontSize: 20,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
+                                      Text(
+                                        _userName,
+                                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                      ),
                                     ],
                                   ),
                                 ),
-                                Icon(
-                                  Icons.chevron_right,
-                                  color: Colors.grey,
-                                  size: 28,
-                                ),
+                                Icon(Icons.chevron_right, color: Colors.grey, size: 28),
                               ],
                             ),
                           ),
@@ -1042,126 +874,72 @@ class _HomePageState extends State<HomePage> {
 
                         // Earnings Card
                         Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 8,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                           child: Container(
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.grey.withOpacity(0.3), // สีเงา
-                                  blurRadius: 12, // ความฟุ้งของเงา
-                                  spreadRadius: 4, // การกระจายของเงา
-                                  offset: Offset(
-                                    0,
-                                    4,
-                                  ), // ย้ายเงา (0,0) = รอบด้าน
+                                  color: Colors.grey.withOpacity(0.3),
+                                  blurRadius: 12,
+                                  spreadRadius: 4,
+                                  offset: Offset(0, 4),
                                 ),
                               ],
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 20,
-                                horizontal: 16,
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                               child: Column(
                                 children: [
-                                  // สรุปรายได้แบบการ์ดย่อ
+                                  // รายได้วันนี้
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8.0,
-                                    ),
+                                    padding: const EdgeInsets.symmetric(vertical: 8.0),
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(12),
-                                      onTap: () {
-                                        Navigator.pushNamed(context, '/income');
-                                      },
+                                      onTap: () => Navigator.pushNamed(context, '/income'),
                                       child: Container(
                                         padding: const EdgeInsets.all(12),
                                         decoration: BoxDecoration(
                                           color: Colors.grey.withOpacity(0.03),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Row(
                                           children: [
                                             CircleAvatar(
                                               radius: 26,
-                                              backgroundColor:
-                                                  Colors.green[100],
-                                              child: Icon(
-                                                Icons.attach_money,
-                                                color: Colors.green[700],
-                                                size: 26,
-                                              ),
+                                              backgroundColor: Colors.green[100],
+                                              child: Icon(Icons.attach_money, color: Colors.green[700], size: 26),
                                             ),
                                             const SizedBox(width: 12),
                                             Expanded(
                                               child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
+                                                crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
-                                                  _isIncomeLoading
-                                                      ? Container(
-                                                          height: 20,
-                                                          width: 80,
-                                                          decoration: BoxDecoration(
-                                                            color: Colors
-                                                                .grey[300],
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  4,
-                                                                ),
-                                                          ),
-                                                        )
-                                                      : Row(
-                                                          children: [
-                                                            Text(
-                                                              '฿${_todayIncome.toStringAsFixed(2)}',
-                                                              style: TextStyle(
-                                                                color: Colors
-                                                                    .green[800],
-                                                                fontSize: 20,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                              width: 8,
-                                                            ),
-                                                            GestureDetector(
-                                                              onTap:
-                                                                  _loadTodayIncome,
-                                                              child: Icon(
-                                                                Icons.refresh,
-                                                                color: Colors
-                                                                    .green[600],
-                                                                size: 18,
-                                                              ),
-                                                            ),
-                                                          ],
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        '฿${_todayIncome.toStringAsFixed(2)}',
+                                                        style: TextStyle(
+                                                          color: Colors.green[800],
+                                                          fontSize: 20,
+                                                          fontWeight: FontWeight.bold,
                                                         ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    'รายได้วันนี้',
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: Colors.grey[700],
-                                                    ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      GestureDetector(
+                                                        onTap: _loadTodayIncome,
+                                                        child: Icon(Icons.refresh, color: Colors.green[600], size: 18),
+                                                      ),
+                                                    ],
                                                   ),
+                                                  const SizedBox(height: 4),
+                                                  Text('รายได้วันนี้', style: TextStyle(fontSize: 13, color: Colors.grey[700])),
                                                 ],
                                               ),
                                             ),
                                             const SizedBox(width: 8),
-                                            Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.grey,
-                                            ),
+                                            Icon(Icons.chevron_right, color: Colors.grey),
                                           ],
                                         ),
                                       ),
@@ -1172,27 +950,18 @@ class _HomePageState extends State<HomePage> {
 
                                   // เครดิตรับงาน
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8.0,
-                                    ),
+                                    padding: const EdgeInsets.symmetric(vertical: 8.0),
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(12),
                                       onTap: () async {
-                                        // ไปหน้าเครดิตและรีเฟรชเมื่อกลับมา
-                                        await Navigator.pushNamed(
-                                          context,
-                                          '/myCredit',
-                                        );
-                                        // รีเฟรชยอดเครดิตเมื่อกลับมา
+                                        await Navigator.pushNamed(context, '/myCredit');
                                         _loadGPBalance();
                                       },
                                       child: Container(
                                         padding: const EdgeInsets.all(12),
                                         decoration: BoxDecoration(
                                           color: Colors.grey.withOpacity(0.03),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Row(
                                           children: [
@@ -1200,8 +969,7 @@ class _HomePageState extends State<HomePage> {
                                               radius: 26,
                                               backgroundColor: Colors.blue[100],
                                               child: Icon(
-                                                Icons
-                                                    .account_balance_wallet_outlined,
+                                                Icons.account_balance_wallet_outlined,
                                                 color: Colors.blue[700],
                                                 size: 26,
                                               ),
@@ -1209,68 +977,32 @@ class _HomePageState extends State<HomePage> {
                                             const SizedBox(width: 12),
                                             Expanded(
                                               child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
+                                                crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
-                                                  _isCreditLoading
-                                                      ? SizedBox(
-                                                          width: 20,
-                                                          height: 20,
-                                                          child: CircularProgressIndicator(
-                                                            strokeWidth: 2,
-                                                            valueColor:
-                                                                AlwaysStoppedAnimation<
-                                                                  Color
-                                                                >(
-                                                                  Colors
-                                                                      .blue[700]!,
-                                                                ),
-                                                          ),
-                                                        )
-                                                      : Row(
-                                                          children: [
-                                                            Text(
-                                                              '฿${_currentCredit.toStringAsFixed(2)}',
-                                                              style: TextStyle(
-                                                                color: Colors
-                                                                    .blue[800],
-                                                                fontSize: 20,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                              width: 8,
-                                                            ),
-                                                            GestureDetector(
-                                                              onTap:
-                                                                  _loadGPBalance,
-                                                              child: Icon(
-                                                                Icons.refresh,
-                                                                color: Colors
-                                                                    .blue[600],
-                                                                size: 18,
-                                                              ),
-                                                            ),
-                                                          ],
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        '฿${_currentCredit.toStringAsFixed(2)}',
+                                                        style: TextStyle(
+                                                          color: Colors.blue[800],
+                                                          fontSize: 20,
+                                                          fontWeight: FontWeight.bold,
                                                         ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    'เครดิตรับงาน',
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: Colors.grey[700],
-                                                    ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      GestureDetector(
+                                                        onTap: _loadGPBalance,
+                                                        child: Icon(Icons.refresh, color: Colors.blue[600], size: 18),
+                                                      ),
+                                                    ],
                                                   ),
+                                                  const SizedBox(height: 4),
+                                                  Text('เครดิตรับงาน', style: TextStyle(fontSize: 13, color: Colors.grey[700])),
                                                 ],
                                               ),
                                             ),
                                             const SizedBox(width: 8),
-                                            Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.grey,
-                                            ),
+                                            Icon(Icons.chevron_right, color: Colors.grey),
                                           ],
                                         ),
                                       ),
@@ -1280,194 +1012,70 @@ class _HomePageState extends State<HomePage> {
                                   Divider(),
                                   const SizedBox(height: 8),
                                   Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceAround,
+                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                                     children: [
-                                      // Today's tips
-                                      // Column(
-                                      //   children: [
-                                      //     InkWell(
-                                      //       borderRadius: BorderRadius.circular(
-                                      //         12,
-                                      //       ),
-                                      //       onTap: () {
-                                      //         Navigator.pushNamed(
-                                      //           context,
-                                      //           '/trip',
-                                      //         );
-                                      //       },
-                                      //       child: Column(
-                                      //         children: [
-                                      //           Icon(
-                                      //             Icons.monetization_on,
-                                      //             color: Colors.amber,
-                                      //             size: 24,
-                                      //           ),
-                                      //           const SizedBox(height: 4),
-                                      //           Text(
-                                      //             '\$50',
-                                      //             style: TextStyle(
-                                      //               fontWeight: FontWeight.bold,
-                                      //             ),
-                                      //           ),
-                                      //           Text(
-                                      //             'ทิปวันนี้',
-                                      //             style: TextStyle(
-                                      //               fontSize: 12,
-                                      //               color: Colors.grey,
-                                      //             ),
-                                      //           ),
-                                      //         ],
-                                      //       ),
-                                      //     ),
-                                      //   ],
-                                      // ),
-                                      // Today's jobs
+                                      // งานวันนี้
                                       Column(
                                         children: [
                                           InkWell(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            onTap: () {
-                                              Navigator.pushNamed(
-                                                context,
-                                                '/jobs',
-                                              );
-                                            },
+                                            borderRadius: BorderRadius.circular(12),
+                                            onTap: () => Navigator.pushNamed(context, '/jobs'),
                                             child: Column(
                                               children: [
-                                                Icon(
-                                                  Icons.pedal_bike,
-                                                  color: Colors.red,
-                                                  size: 24,
-                                                ),
+                                                Icon(Icons.pedal_bike, color: Colors.red, size: 24),
                                                 const SizedBox(height: 4),
-                                                _isJobCountLoading
-                                                    ? SizedBox(
-                                                        width: 16,
-                                                        height: 16,
-                                                        child: CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                          valueColor:
-                                                              AlwaysStoppedAnimation<
-                                                                Color
-                                                              >(Colors.red),
-                                                        ),
-                                                      )
-                                                    : Row(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        children: [
-                                                          Text(
-                                                            '$_todayJobCount งาน',
-                                                            style: TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 4,
-                                                          ),
-                                                          GestureDetector(
-                                                            onTap:
-                                                                _loadTodayJobCount,
-                                                            child: Icon(
-                                                              Icons.refresh,
-                                                              color: Colors
-                                                                  .red[600],
-                                                              size: 14,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                Text(
-                                                  'งานวันนี้',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey,
-                                                  ),
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      '$_todayJobCount งาน',
+                                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    GestureDetector(
+                                                      onTap: _loadTodayJobCount,
+                                                      child: Icon(Icons.refresh, color: Colors.red[600], size: 14),
+                                                    ),
+                                                  ],
                                                 ),
+                                                Text('งานวันนี้', style: TextStyle(fontSize: 12, color: Colors.grey)),
                                               ],
                                             ),
                                           ),
                                         ],
                                       ),
 
-                                      // Rating
+                                      // คะแนนรีวิว
                                       Column(
                                         children: [
                                           InkWell(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            onTap: () {
-                                              Navigator.pushNamed(
-                                                context,
-                                                '/riderReview',
-                                              );
-                                            },
+                                            borderRadius: BorderRadius.circular(12),
+                                            onTap: () => Navigator.pushNamed(context, '/riderReview'),
                                             child: Column(
                                               children: [
-                                                Icon(
-                                                  Icons.star,
-                                                  color: Colors.orange,
-                                                  size: 24,
-                                                ),
+                                                Icon(Icons.star, color: Colors.orange, size: 24),
                                                 const SizedBox(height: 4),
-                                                _isRatingLoading
-                                                    ? SizedBox(
-                                                        width: 16,
-                                                        height: 16,
-                                                        child: CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                          valueColor:
-                                                              AlwaysStoppedAnimation<
-                                                                Color
-                                                              >(Colors.orange),
-                                                        ),
-                                                      )
-                                                    : Row(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        children: [
-                                                          Text(
-                                                            _averageRating > 0
-                                                                ? _averageRating
-                                                                      .toStringAsFixed(
-                                                                        1,
-                                                                      )
-                                                                : 'ไม่มี',
-                                                            style: TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 4,
-                                                          ),
-                                                          GestureDetector(
-                                                            onTap:
-                                                                _loadRatingData,
-                                                            child: Icon(
-                                                              Icons.refresh,
-                                                              color: Colors
-                                                                  .orange[600],
-                                                              size: 14,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      _averageRating > 0
+                                                          ? _averageRating.toStringAsFixed(1)
+                                                          : 'ไม่มี',
+                                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    GestureDetector(
+                                                      onTap: _loadRatingData,
+                                                      child: Icon(Icons.refresh, color: Colors.orange[600], size: 14),
+                                                    ),
+                                                  ],
+                                                ),
                                                 Text(
                                                   _reviewsCount > 0
                                                       ? 'ดูรีวิว $_reviewsCount รายการ'
                                                       : 'ยังไม่มีรีวิว',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey,
-                                                  ),
+                                                  style: TextStyle(fontSize: 12, color: Colors.grey),
                                                 ),
                                               ],
                                             ),
@@ -1482,12 +1090,9 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
 
-                        // ข้อมูลสถานะระบบ (แทนที่ Debug Panel)
+                        // ข้อมูลสถานะระบบ
                         Container(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 8,
-                          ),
+                          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: Colors.grey[50],
@@ -1499,11 +1104,7 @@ class _HomePageState extends State<HomePage> {
                             children: [
                               Row(
                                 children: [
-                                  Icon(
-                                    Icons.info_outline,
-                                    color: Colors.blue[600],
-                                    size: 20,
-                                  ),
+                                  Icon(Icons.info_outline, color: Colors.blue[600], size: 20),
                                   const SizedBox(width: 8),
                                   Text(
                                     'ข้อมูลสถานะ',
@@ -1516,38 +1117,27 @@ class _HomePageState extends State<HomePage> {
                                 ],
                               ),
                               const SizedBox(height: 12),
-                              _buildStatusInfoRow(
-                                'สถานะปัจจุบัน',
-                                _riderStatus.toString().split('.').last,
-                              ),
+                              _buildStatusInfoRow('สถานะปัจจุบัน', _riderStatus.toString().split('.').last),
                               const SizedBox(height: 8),
                               _buildStatusInfoRow('ข้อความ', _statusMessage),
                               if (_userName != 'ผู้ใช้')
                                 Column(
                                   children: [
                                     const SizedBox(height: 8),
-                                    _buildStatusInfoRow(
-                                      'ชื่อผู้ใช้',
-                                      _userName,
-                                    ),
+                                    _buildStatusInfoRow('ชื่อผู้ใช้', _userName),
                                   ],
                                 ),
-                              // แสดงวันที่ส่งเอกสาร (ถ้ามี)
                               FutureBuilder<String?>(
                                 future: RiderStatusService.getSubmissionDate(),
                                 builder: (context, snapshot) {
-                                  if (snapshot.hasData &&
-                                      snapshot.data != null) {
+                                  if (snapshot.hasData && snapshot.data != null) {
                                     final date = DateTime.parse(snapshot.data!);
                                     final formattedDate =
                                         '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
                                     return Column(
                                       children: [
                                         const SizedBox(height: 8),
-                                        _buildStatusInfoRow(
-                                          'วันที่ส่งเอกสาร',
-                                          formattedDate,
-                                        ),
+                                        _buildStatusInfoRow('วันที่ส่งเอกสาร', formattedDate),
                                       ],
                                     );
                                   }
@@ -1555,67 +1145,52 @@ class _HomePageState extends State<HomePage> {
                                 },
                               ),
                               const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue[600],
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  icon: Icon(Icons.refresh, size: 18),
-                                  label: Text('รีเฟรชสถานะ'),
-                                  onPressed: _isLoading
-                                      ? null
-                                      : () async {
-                                          await _checkRiderStatus();
-                                          await _refreshUserData();
-                                        },
-                                ),
-                              ),
-
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red[600],
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  icon: Icon(Icons.chat_bubble, size: 18),
-                                  label: Text('แชท'),
-                                  onPressed: () {
-                                    Navigator.pushNamed(context, '/chat-lists');
-                                  },
-                                ),
-                              ),
+                              // SizedBox(
+                              //   width: double.infinity,
+                              //   child: ElevatedButton.icon(
+                              //     style: ElevatedButton.styleFrom(
+                              //       backgroundColor: Colors.blue[600],
+                              //       foregroundColor: Colors.white,
+                              //       padding: const EdgeInsets.symmetric(vertical: 12),
+                              //       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              //     ),
+                              //     icon: Icon(Icons.refresh, size: 18),
+                              //     label: Text('รีเฟรชสถานะ'),
+                              //     onPressed: () async {
+                              //       await _checkRiderStatus();
+                              //       await _refreshUserData();
+                              //     },
+                              //   ),
+                              // ),
+                              // SizedBox(
+                              //   width: double.infinity,
+                              //   child: ElevatedButton.icon(
+                              //     style: ElevatedButton.styleFrom(
+                              //       backgroundColor: Colors.red[600],
+                              //       foregroundColor: Colors.white,
+                              //       padding: const EdgeInsets.symmetric(vertical: 12),
+                              //       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              //     ),
+                              //     icon: Icon(Icons.chat_bubble, size: 18),
+                              //     label: Text('แชท'),
+                              //     onPressed: () => Navigator.pushNamed(context, '/chat-lists'),
+                              //   ),
+                              // ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 8),
-                      ], // children
-                    ), // Column
-                  ), // SingleChildScrollView
-                ), // RefreshIndicator
-              ), // Expanded
-              // Bottom button area pinned and safe (prevents overflow)
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              
+              // Bottom button
               SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   child: SizedBox(
                     width: double.infinity,
                     height: 48,
@@ -1628,34 +1203,25 @@ class _HomePageState extends State<HomePage> {
                             : _riderStatus == RiderStatus.rejected
                             ? Colors.red
                             : Colors.grey,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: _riderStatus == RiderStatus.approved
                           ? () {
-                              // ตรวจสอบข้อมูลโปรไฟล์ก่อนเริ่มงาน
                               if (_isProfileInfoMissing()) {
                                 _showIncompleteProfileDialog();
                               } else {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => RiderJobsPage(
-                                      riderId: _riderId ?? 0,
-                                    ), //รับงาน
+                                    builder: (context) => RiderJobsPage(riderId: _riderId ?? 0,),
                                   ),
                                 );
                               }
                             }
                           : _riderStatus == RiderStatus.incomplete
-                          ? () {
-                              Navigator.pushNamed(context, '/riderIdentity');
-                            }
+                          ? () => Navigator.pushNamed(context, '/riderIdentity')
                           : _riderStatus == RiderStatus.rejected
-                          ? () {
-                              Navigator.pushNamed(context, '/riderIdentity');
-                            }
+                          ? () => Navigator.pushNamed(context, '/riderIdentity')
                           : () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -1665,31 +1231,22 @@ class _HomePageState extends State<HomePage> {
                                 ),
                               );
                             },
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Text(
-                              _getButtonText(),
-                              style: const TextStyle(
-                                fontSize: 18,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                      child: Text(
+                        _getButtonText(),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ], // children
-          ), // Column
-        ), // SafeArea
-      ), // Scaffold
-    ); // WillPopScope
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
